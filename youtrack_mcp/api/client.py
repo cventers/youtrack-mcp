@@ -109,6 +109,9 @@ class YouTrackClient:
             requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
         
         logger.debug(f"YouTrack client initialized for {'YouTrack Cloud' if config.is_cloud_instance() else self.base_url}")
+        
+        # Cache for field definitions to avoid repeated API calls
+        self._field_cache = {}
     
     def _get_api_url(self, endpoint: str) -> str:
         """
@@ -324,4 +327,189 @@ class YouTrackClient:
     
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Exit context manager, closing session."""
-        self.close() 
+        self.close()
+    
+    def get_enum_bundle_elements(self, bundle_id: str) -> Dict[str, Any]:
+        """
+        Get enum bundle elements by bundle ID with caching.
+        
+        Args:
+            bundle_id: The bundle ID for the enum field
+            
+        Returns:
+            Dictionary containing enum bundle elements
+        """
+        cache_key = f"enum_bundle_{bundle_id}"
+        if cache_key in self._field_cache:
+            return self._field_cache[cache_key]
+        
+        try:
+            # Get enum bundle elements with values
+            fields = "values(id,name,description,ordinal)"
+            response = self.get(f"admin/customFieldSettings/bundles/enum/{bundle_id}?fields={fields}")
+            self._field_cache[cache_key] = response
+            return response
+        except Exception as e:
+            logger.warning(f"Failed to get enum bundle {bundle_id}: {str(e)}")
+            return {}
+    
+    def get_state_bundle_elements(self, bundle_id: str) -> Dict[str, Any]:
+        """
+        Get state bundle elements by bundle ID with caching.
+        
+        Args:
+            bundle_id: The bundle ID for the state field
+            
+        Returns:
+            Dictionary containing state bundle elements
+        """
+        cache_key = f"state_bundle_{bundle_id}"
+        if cache_key in self._field_cache:
+            return self._field_cache[cache_key]
+        
+        try:
+            # Get state bundle elements with values
+            fields = "values(id,name,description,isResolved)"
+            response = self.get(f"admin/customFieldSettings/bundles/state/{bundle_id}?fields={fields}")
+            self._field_cache[cache_key] = response
+            return response
+        except Exception as e:
+            logger.warning(f"Failed to get state bundle {bundle_id}: {str(e)}")
+            return {}
+    
+    def get_project_custom_fields(self, project_id: str) -> Dict[str, Any]:
+        """
+        Get custom field definitions for a project with caching.
+        
+        Args:
+            project_id: The project ID
+            
+        Returns:
+            Dictionary containing project custom field definitions
+        """
+        cache_key = f"project_fields_{project_id}"
+        if cache_key in self._field_cache:
+            return self._field_cache[cache_key]
+        
+        try:
+            # Get project custom fields with bundle information
+            fields = "id,name,fieldType,bundle(id,isUpdateable)"
+            response = self.get(f"admin/projects/{project_id}/customFields?fields={fields}")
+            self._field_cache[cache_key] = response
+            return response
+        except Exception as e:
+            logger.warning(f"Failed to get custom fields for project {project_id}: {str(e)}")
+            return {}
+    
+    def resolve_field_value(self, field_data: Dict[str, Any], project_id: Optional[str] = None) -> Optional[str]:
+        """
+        Resolve a custom field value to its human-readable text.
+        
+        Args:
+            field_data: The custom field data from an issue
+            project_id: The project ID for context (optional)
+            
+        Returns:
+            Human-readable field value or None if resolution fails
+        """
+        try:
+            field_type = field_data.get("$type", "")
+            field_value = field_data.get("value", {})
+            field_id = field_data.get("id", "")
+            
+            # Handle simple values that already have names
+            if isinstance(field_value, dict) and "name" in field_value:
+                return field_value["name"]
+            
+            # Handle date fields
+            if field_type == "DateIssueCustomField" and isinstance(field_value, (int, float)):
+                from datetime import datetime
+                try:
+                    dt = datetime.fromtimestamp(field_value / 1000)
+                    return dt.strftime("%Y-%m-%d")
+                except:
+                    return str(field_value)
+            
+            # Handle list values (like multi-user fields)
+            if isinstance(field_value, list):
+                names = []
+                for item in field_value:
+                    if isinstance(item, dict) and "name" in item:
+                        names.append(item["name"])
+                    elif isinstance(item, dict) and "login" in item:
+                        names.append(item["login"])
+                if names:
+                    return ", ".join(names)
+                return None
+            
+            if not isinstance(field_value, dict):
+                return None
+            
+            value_type = field_value.get("$type", "")
+            value_id = field_value.get("id", "")
+            
+            # Try different approaches for state and enum bundles
+            if value_type in ["StateBundleElement", "EnumBundleElement"] and project_id and field_id:
+                # First, try to get the field definition to find the bundle ID
+                try:
+                    project_fields = self.get_project_custom_fields(project_id)
+                    if isinstance(project_fields, list):
+                        for proj_field in project_fields:
+                            if proj_field.get("id") == field_id:
+                                bundle_id = proj_field.get("bundle", {}).get("id")
+                                if bundle_id:
+                                    if value_type == "StateBundleElement":
+                                        bundle_data = self.get_state_bundle_elements(bundle_id)
+                                    else:
+                                        bundle_data = self.get_enum_bundle_elements(bundle_id)
+                                    
+                                    if "values" in bundle_data and isinstance(bundle_data["values"], list):
+                                        for value in bundle_data["values"]:
+                                            if value.get("id") == value_id:
+                                                return value.get("name")
+                                break
+                except Exception as e:
+                    logger.debug(f"Bundle resolution failed for field {field_id}: {str(e)}")
+            
+            # For State and Priority fields, try common API endpoints
+            field_name = field_data.get("name", "").lower()
+            if value_type == "StateBundleElement" and "state" in field_name:
+                # Try generic state resolution - often states have predictable patterns
+                if value_id:
+                    # Extract common state names from IDs
+                    state_mappings = {
+                        "open": "Open",
+                        "closed": "Closed", 
+                        "resolved": "Resolved",
+                        "in-progress": "In Progress",
+                        "submitted": "Submitted",
+                        "rejected": "Rejected"
+                    }
+                    for key, name in state_mappings.items():
+                        if key in value_id.lower():
+                            return name
+            
+            elif value_type == "EnumBundleElement" and "priority" in field_name:
+                # Try generic priority resolution
+                if value_id:
+                    priority_mappings = {
+                        "critical": "Critical",
+                        "high": "High",
+                        "normal": "Normal", 
+                        "low": "Low",
+                        "major": "Major",
+                        "minor": "Minor"
+                    }
+                    for key, name in priority_mappings.items():
+                        if key in value_id.lower():
+                            return name
+            
+            # Last resort: return the value_id if it looks human-readable
+            if value_id and not value_id.startswith(("0-", "1-", "2-", "3-", "4-", "5-", "6-", "7-", "8-", "9-")):
+                return value_id
+            
+            return None
+            
+        except Exception as e:
+            logger.warning(f"Failed to resolve field value for field {field_data.get('name', 'unknown')}: {str(e)}")
+            return None 

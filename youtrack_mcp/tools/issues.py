@@ -36,8 +36,8 @@ class IssueTools:
             JSON string with issue information
         """
         try:
-            # First try to get the issue data with explicit fields
-            fields = "id,idReadable,summary,description,created,updated,project(id,name,shortName),reporter(id,login,name),assignee(id,login,name),customFields(id,name,value)"
+            # First try to get the issue data with explicit fields including detailed custom field values
+            fields = "id,idReadable,summary,description,created,updated,project(id,name,shortName),reporter(id,login,name),assignee(id,login,name),customFields(id,name,value(id,name,$type))"
             raw_issue = self.client.get(f"issues/{issue_id}?fields={fields}")
             
             # If we got a minimal response, enhance it with default values
@@ -66,8 +66,8 @@ class IssueTools:
             JSON string with matching issues
         """
         try:
-            # Request with explicit fields to get complete data
-            fields = "id,idReadable,summary,description,created,updated,project(id,name,shortName),reporter(id,login,name),assignee(id,login,name),customFields(id,name,value)"
+            # Request with explicit fields to get complete data including detailed custom field values
+            fields = "id,idReadable,summary,description,created,updated,project(id,name,shortName),reporter(id,login,name),assignee(id,login,name),customFields(id,name,value(id,name,$type))"
             params = {"query": query, "$top": limit, "fields": fields}
             raw_issues = self.client.get("issues", params=params)
             
@@ -299,11 +299,16 @@ class IssueTools:
             issue_id: The issue ID or readable ID
             
         Returns:
-            Raw JSON string with the issue data
+            Raw JSON string with the issue data including resolved field values
         """
         try:
-            raw_issue = self.client.get(f"issues/{issue_id}")
-            return format_json_response(raw_issue)
+            # Get raw issue data with comprehensive fields including detailed custom field values
+            fields = "id,idReadable,summary,description,created,updated,project(id,name,shortName),reporter(id,login,name),assignee(id,login,name),customFields(id,name,value(id,name,$type))"
+            raw_issue = self.client.get(f"issues/{issue_id}?fields={fields}")
+            
+            # Enhance with field value resolution
+            enhanced_issue = self.issues_api._enhance_issue_with_field_values(raw_issue)
+            return format_json_response(enhanced_issue)
         except Exception as e:
             logger.exception(f"Error getting raw issue {issue_id}")
             return json.dumps({"error": str(e)})

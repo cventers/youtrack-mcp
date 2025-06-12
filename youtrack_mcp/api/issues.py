@@ -51,18 +51,21 @@ class IssuesClient:
             issue_id: The issue ID or readable ID (e.g., PROJECT-123)
             
         Returns:
-            The issue data
+            The issue data with resolved field values
         """
         response = self.client.get(f"issues/{issue_id}")
         
         # If the response doesn't have all needed fields, fetch more details
         if isinstance(response, dict) and response.get('$type') == 'Issue' and 'summary' not in response:
-            # Get additional fields we need
-            fields = "id,idReadable,summary,description,created,updated,project,reporter,assignee,customFields"
+            # Get additional fields we need including detailed custom field values
+            fields = "id,idReadable,summary,description,created,updated,project(id,name,shortName),reporter(id,login,name),assignee(id,login,name),customFields(id,name,value(id,name,$type))"
             detailed_response = self.client.get(f"issues/{issue_id}?fields={fields}")
-            return Issue.model_validate(detailed_response)
+            response = detailed_response
         
-        return Issue.model_validate(response)
+        # Enhance the response with resolved field values
+        enhanced_response = self._enhance_issue_with_field_values(response)
+        
+        return Issue.model_validate(enhanced_response)
     
     def create_issue(self, 
                      project_id: str, 
@@ -187,17 +190,19 @@ class IssuesClient:
             limit: Maximum number of issues to return
             
         Returns:
-            List of matching issues
+            List of matching issues with resolved field values
         """
-        # Request additional fields to ensure we get summary
-        fields = "id,idReadable,summary,description,created,updated,project,reporter,assignee,customFields"
+        # Request additional fields to ensure we get summary including detailed custom field values
+        fields = "id,idReadable,summary,description,created,updated,project(id,name,shortName),reporter(id,login,name),assignee(id,login,name),customFields(id,name,value(id,name,$type))"
         params = {"query": query, "$top": limit, "fields": fields}
         response = self.client.get("issues", params=params)
         
         issues = []
         for item in response:
             try:
-                issues.append(Issue.model_validate(item))
+                # Enhance each issue with resolved field values
+                enhanced_item = self._enhance_issue_with_field_values(item)
+                issues.append(Issue.model_validate(enhanced_item))
             except Exception as e:
                 # Log the error but continue processing other issues
                 import logging
@@ -393,4 +398,56 @@ class IssuesClient:
             return result
         except Exception as e:
             logger.error(f"Failed to remove link {source_issue_id} -> {target_issue_id}: {str(e)}")
-            raise 
+            raise
+    
+    def _enhance_issue_with_field_values(self, issue_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Enhance issue data with resolved custom field values.
+        
+        Args:
+            issue_data: Raw issue data from YouTrack API
+            
+        Returns:
+            Enhanced issue data with resolved field values
+        """
+        if not isinstance(issue_data, dict):
+            return issue_data
+        
+        # Make a copy to avoid modifying the original
+        enhanced_issue = issue_data.copy()
+        
+        # Get project ID for field resolution context
+        project_id = None
+        if "project" in enhanced_issue and isinstance(enhanced_issue["project"], dict):
+            project_id = enhanced_issue["project"].get("id")
+        
+        logger.debug(f"Enhancing issue {enhanced_issue.get('id', 'unknown')} with project ID {project_id}")
+        
+        # Process custom fields
+        custom_fields = enhanced_issue.get("customFields", [])
+        if isinstance(custom_fields, list):
+            enhanced_fields = []
+            for field in custom_fields:
+                if isinstance(field, dict):
+                    enhanced_field = field.copy()
+                    
+                    # Add debug info for field resolution
+                    field_name = field.get("name", "unknown")
+                    field_type = field.get("$type", "unknown")
+                    logger.debug(f"Processing field {field_name} of type {field_type}")
+                    
+                    # Try to resolve the field value to human-readable text
+                    resolved_value = self.client.resolve_field_value(field, project_id)
+                    if resolved_value:
+                        enhanced_field["value_text"] = resolved_value
+                        logger.debug(f"Resolved {field_name} to: {resolved_value}")
+                    else:
+                        logger.debug(f"Could not resolve field {field_name}")
+                    
+                    enhanced_fields.append(enhanced_field)
+                else:
+                    enhanced_fields.append(field)
+            
+            enhanced_issue["customFields"] = enhanced_fields
+        
+        return enhanced_issue 

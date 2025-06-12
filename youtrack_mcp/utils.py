@@ -3,7 +3,7 @@ Utility functions for YouTrack MCP server.
 """
 import json
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Union, Optional
 
 
 def convert_timestamp_to_iso8601(timestamp_ms: int) -> str:
@@ -82,3 +82,83 @@ def format_json_response(data: Any) -> str:
     
     # Return formatted JSON
     return json.dumps(enhanced_data, indent=2)
+
+
+def get_field_value_text(custom_fields: List[Dict[str, Any]], field_name: str) -> Optional[str]:
+    """
+    Get the human-readable text value for a custom field by name.
+    
+    Args:
+        custom_fields: List of custom fields from an issue
+        field_name: Name of the field to get the value for (e.g., "State", "Priority")
+        
+    Returns:
+        Human-readable field value or None if not found
+    """
+    if not isinstance(custom_fields, list):
+        return None
+    
+    for field in custom_fields:
+        if isinstance(field, dict) and field.get("name") == field_name:
+            # First try the resolved text value
+            if "value_text" in field:
+                return field["value_text"]
+            
+            # Fallback to original value if it has a name
+            value = field.get("value", {})
+            if isinstance(value, dict) and "name" in value:
+                return value["name"]
+    
+    return None
+
+
+def get_field_by_name(custom_fields: List[Dict[str, Any]], field_name: str) -> Optional[Dict[str, Any]]:
+    """
+    Get a custom field by name from the list of custom fields.
+    
+    Args:
+        custom_fields: List of custom fields from an issue
+        field_name: Name of the field to find
+        
+    Returns:
+        The field dictionary or None if not found
+    """
+    if not isinstance(custom_fields, list):
+        return None
+    
+    for field in custom_fields:
+        if isinstance(field, dict) and field.get("name") == field_name:
+            return field
+    
+    return None
+
+
+def extract_field_summary(custom_fields: List[Dict[str, Any]]) -> Dict[str, str]:
+    """
+    Extract a summary of all resolved field values for easy reading.
+    
+    Args:
+        custom_fields: List of custom fields from an issue
+        
+    Returns:
+        Dictionary mapping field names to their human-readable values
+    """
+    summary = {}
+    
+    if not isinstance(custom_fields, list):
+        return summary
+    
+    for field in custom_fields:
+        if isinstance(field, dict):
+            field_name = field.get("name")
+            if field_name:
+                # Try the resolved text value first
+                if "value_text" in field:
+                    summary[field_name] = field["value_text"]
+                else:
+                    # Fallback to original value if it has a name
+                    value = field.get("value", {})
+                    if isinstance(value, dict) and "name" in value:
+                        summary[field_name] = value["name"]
+    
+    return summary
