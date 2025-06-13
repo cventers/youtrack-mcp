@@ -113,6 +113,31 @@ def get_issue(issue_id: str) -> Dict[str, Any]:
 
 
 @mcp.tool()
+def get_issue_raw(issue_id: str, fields: str = None) -> Dict[str, Any]:
+    """
+    Get raw issue data with custom field selection.
+    
+    Args:
+        issue_id: The issue ID or readable ID (e.g., PROJECT-123)
+        fields: Custom field selection string (optional)
+        
+    Returns:
+        Raw issue data without processing
+    """
+    try:
+        if not fields:
+            # Default comprehensive fields
+            fields = "id,idReadable,summary,description,created,updated,resolved,project(id,name,shortName),reporter(id,login,name,email),assignee(id,login,name,email),updater(id,login,name),customFields(id,name,value(id,name,$type,text,presentation)),attachments(id,name,size,url),comments(id,text,created,author(id,login,name)),links(id,direction,linkType(id,name),issues(id,idReadable,summary))"
+        
+        result = youtrack_client.get(f"issues/{issue_id}?fields={fields}")
+        return result
+        
+    except Exception as e:
+        logger.exception(f"Error getting raw issue {issue_id}")
+        return {"error": str(e)}
+
+
+@mcp.tool()
 def create_issue(project: str, summary: str, description: str = None) -> Dict[str, Any]:
     """
     Create a new issue in YouTrack.
@@ -171,6 +196,179 @@ def search_issues(query: str, limit: int = 10) -> List[Dict[str, Any]]:
         
     except Exception as e:
         logger.exception(f"Error searching issues with query: {query}")
+        return [{"error": str(e)}]
+
+
+@mcp.tool()
+def advanced_search(query: str, sort_by: str = None, sort_order: str = "asc", 
+                   limit: int = 50, skip: int = 0) -> Dict[str, Any]:
+    """
+    Advanced search for issues with sorting and pagination.
+    
+    Args:
+        query: YouTrack search query
+        sort_by: Field to sort by (e.g., 'created', 'updated', 'priority', 'summary')
+        sort_order: Sort order ('asc' or 'desc', default: 'asc')
+        limit: Maximum number of results (default: 50)
+        skip: Number of results to skip for pagination (default: 0)
+        
+    Returns:
+        Dictionary with results and metadata
+    """
+    try:
+        fields = "id,idReadable,summary,description,created,updated,resolved,project(id,name,shortName),reporter(id,login,name),assignee(id,login,name),customFields(id,name,value(id,name,$type))"
+        params = {
+            "query": query,
+            "fields": fields,
+            "$top": limit,
+            "$skip": skip
+        }
+        
+        # Add sorting if specified
+        if sort_by:
+            if sort_order.lower() == "desc":
+                params["$orderBy"] = f"{sort_by} desc"
+            else:
+                params["$orderBy"] = f"{sort_by} asc"
+        
+        results = youtrack_client.get("issues", params=params)
+        
+        # Enhance with ISO8601 timestamps
+        results = add_iso8601_timestamps(results)
+        
+        if not isinstance(results, list):
+            results = []
+        
+        return {
+            "results": results,
+            "count": len(results),
+            "query": query,
+            "sort_by": sort_by,
+            "sort_order": sort_order,
+            "limit": limit,
+            "skip": skip
+        }
+        
+    except Exception as e:
+        logger.exception(f"Error in advanced search with query: {query}")
+        return {"error": str(e), "results": []}
+
+
+@mcp.tool()
+def filter_issues(project: str = None, assignee: str = None, reporter: str = None,
+                 state: str = None, priority: str = None, created_after: str = None,
+                 created_before: str = None, updated_after: str = None, 
+                 updated_before: str = None, limit: int = 50) -> List[Dict[str, Any]]:
+    """
+    Filter issues using structured parameters.
+    
+    Args:
+        project: Project short name or ID
+        assignee: Assignee login name ('Unassigned' for unassigned issues)
+        reporter: Reporter login name
+        state: Issue state (e.g., 'Open', 'Fixed', 'Verified')
+        priority: Issue priority (e.g., 'Critical', 'High', 'Normal', 'Low')
+        created_after: Created after date (YYYY-MM-DD or ISO format)
+        created_before: Created before date (YYYY-MM-DD or ISO format)
+        updated_after: Updated after date (YYYY-MM-DD or ISO format)
+        updated_before: Updated before date (YYYY-MM-DD or ISO format)
+        limit: Maximum number of results (default: 50)
+        
+    Returns:
+        List of filtered issues
+    """
+    try:
+        # Build YouTrack query from filters
+        query_parts = []
+        
+        if project:
+            query_parts.append(f"project: {project}")
+        if assignee:
+            if assignee.lower() == "unassigned":
+                query_parts.append("has: -Assignee")
+            else:
+                query_parts.append(f"Assignee: {assignee}")
+        if reporter:
+            query_parts.append(f"created by: {reporter}")
+        if state:
+            query_parts.append(f"State: {state}")
+        if priority:
+            query_parts.append(f"Priority: {priority}")
+        
+        # Date filters
+        if created_after:
+            query_parts.append(f"created: {created_after} .. *")
+        if created_before:
+            query_parts.append(f"created: * .. {created_before}")
+        if updated_after:
+            query_parts.append(f"updated: {updated_after} .. *")
+        if updated_before:
+            query_parts.append(f"updated: * .. {updated_before}")
+        
+        # Combine query parts
+        if not query_parts:
+            # No filters - return recent issues
+            query = "created: -30d .. *"
+        else:
+            query = " ".join(query_parts)
+        
+        # Use advanced search for consistent results
+        result = advanced_search(query, sort_by="updated", sort_order="desc", limit=limit)
+        return result.get("results", [])
+        
+    except Exception as e:
+        logger.exception("Error in filter_issues")
+        return [{"error": str(e)}]
+
+
+@mcp.tool()
+def search_with_custom_fields(project: str = None, custom_field_filters: Dict[str, str] = None,
+                             base_query: str = "", limit: int = 50) -> List[Dict[str, Any]]:
+    """
+    Search issues with custom field filters.
+    
+    Args:
+        project: Project short name or ID to search within
+        custom_field_filters: Dictionary of custom field name -> value pairs
+        base_query: Additional YouTrack query to combine with custom field filters
+        limit: Maximum number of results (default: 50)
+        
+    Returns:
+        List of matching issues
+    """
+    try:
+        query_parts = []
+        
+        # Add project filter
+        if project:
+            query_parts.append(f"project: {project}")
+        
+        # Add base query
+        if base_query:
+            query_parts.append(f"({base_query})")
+        
+        # Add custom field filters
+        if custom_field_filters:
+            for field_name, field_value in custom_field_filters.items():
+                if field_value:
+                    # Handle special values
+                    if field_value.lower() in ["unset", "none", "empty"]:
+                        query_parts.append(f"has: -{{{field_name}}}")
+                    else:
+                        query_parts.append(f"{{{field_name}}}: {field_value}")
+        
+        # Build final query
+        if not query_parts:
+            query = "*"  # Match all issues
+        else:
+            query = " ".join(query_parts)
+        
+        # Use advanced search
+        result = advanced_search(query, sort_by="updated", sort_order="desc", limit=limit)
+        return result.get("results", [])
+        
+    except Exception as e:
+        logger.exception("Error in search_with_custom_fields")
         return [{"error": str(e)}]
 
 
@@ -368,6 +566,175 @@ def get_available_link_types() -> List[Dict[str, Any]]:
 
 # Project Tools
 @mcp.tool()
+def create_project(short_name: str, name: str, description: str = None) -> Dict[str, Any]:
+    """
+    Create a new project in YouTrack.
+    
+    Args:
+        short_name: Project short name/key (unique identifier)
+        name: Project display name
+        description: Project description (optional)
+        
+    Returns:
+        Created project information
+    """
+    try:
+        project_data = {
+            "shortName": short_name,
+            "name": name
+        }
+        
+        if description:
+            project_data["description"] = description
+        
+        result = youtrack_client.post("admin/projects", data=project_data)
+        return result
+        
+    except Exception as e:
+        logger.exception(f"Error creating project {short_name}")
+        return {"error": str(e)}
+
+
+@mcp.tool()
+def update_project(project: str, name: str = None, description: str = None, 
+                  archived: bool = None) -> Dict[str, Any]:
+    """
+    Update an existing project.
+    
+    Args:
+        project: Project short name or ID
+        name: New project name (optional)
+        description: New project description (optional)
+        archived: Archive/unarchive project (optional)
+        
+    Returns:
+        Update result
+    """
+    try:
+        update_data = {}
+        
+        if name:
+            update_data["name"] = name
+        if description is not None:
+            update_data["description"] = description
+        if archived is not None:
+            update_data["archived"] = archived
+        
+        if not update_data:
+            return {"error": "No valid field updates provided"}
+        
+        result = youtrack_client.post(f"admin/projects/{project}", data=update_data)
+        return {"status": "success", "message": f"Successfully updated project {project}", "result": result}
+        
+    except Exception as e:
+        logger.exception(f"Error updating project {project}")
+        return {"error": str(e)}
+
+
+@mcp.tool()
+def get_project_issues(project: str, query: str = "", limit: int = 50) -> List[Dict[str, Any]]:
+    """
+    Get all issues for a specific project.
+    
+    Args:
+        project: Project short name or ID
+        query: Additional YouTrack query filter (optional)
+        limit: Maximum number of results (default: 50)
+        
+    Returns:
+        List of project issues
+    """
+    try:
+        # Build query with project filter
+        project_query = f"project: {project}"
+        if query:
+            project_query = f"({project_query}) and ({query})"
+        
+        fields = "id,idReadable,summary,description,created,updated,project(id,name,shortName),reporter(id,login,name),assignee(id,login,name),customFields(id,name,value(id,name,$type))"
+        params = {
+            "query": project_query,
+            "fields": fields,
+            "$top": limit
+        }
+        
+        results = youtrack_client.get("issues", params=params)
+        
+        # Enhance with ISO8601 timestamps
+        results = add_iso8601_timestamps(results)
+        
+        return results if isinstance(results, list) else []
+        
+    except Exception as e:
+        logger.exception(f"Error getting issues for project {project}")
+        return [{"error": str(e)}]
+
+
+@mcp.tool()
+def get_custom_fields(project: str = None) -> List[Dict[str, Any]]:
+    """
+    Get custom fields, optionally filtered by project.
+    
+    Args:
+        project: Project short name or ID to filter by (optional)
+        
+    Returns:
+        List of custom fields
+    """
+    try:
+        if project:
+            # Get project-specific custom fields
+            fields = "id,name,fieldType,customField(id,name,fieldType)"
+            params = {"fields": fields}
+            result = youtrack_client.get(f"admin/projects/{project}/customFields", params=params)
+        else:
+            # Get all custom fields
+            fields = "id,name,fieldType,defaultValues(id,name)"
+            params = {"fields": fields}
+            result = youtrack_client.get("admin/customFieldSettings/customFields", params=params)
+        
+        return result if isinstance(result, list) else []
+        
+    except Exception as e:
+        logger.exception(f"Error getting custom fields for project {project}")
+        return [{"error": str(e)}]
+
+
+@mcp.tool()
+def get_project_by_name(name_or_key: str) -> Dict[str, Any]:
+    """
+    Find project by name or short name.
+    
+    Args:
+        name_or_key: Project name or short name to search for
+        
+    Returns:
+        Project information
+    """
+    try:
+        # Search by short name first (exact match)
+        try:
+            result = get_project(name_or_key)
+            if "error" not in result:
+                return result
+        except:
+            pass
+        
+        # Search by name in all projects
+        projects = get_projects(include_archived=True)
+        for project in projects:
+            if isinstance(project, dict):
+                if (project.get("name", "").lower() == name_or_key.lower() or
+                    project.get("shortName", "").lower() == name_or_key.lower()):
+                    return project
+        
+        return {"error": f"Project not found: {name_or_key}"}
+        
+    except Exception as e:
+        logger.exception(f"Error finding project by name {name_or_key}")
+        return {"error": str(e)}
+
+
+@mcp.tool()
 def get_projects(include_archived: bool = False) -> List[Dict[str, Any]]:
     """
     Get a list of all projects.
@@ -416,6 +783,51 @@ def get_project(project: str) -> Dict[str, Any]:
 
 
 # User Tools
+@mcp.tool()
+def get_user(user_id: str) -> Dict[str, Any]:
+    """
+    Get a user by their ID.
+    
+    Args:
+        user_id: User ID
+        
+    Returns:
+        User information
+    """
+    try:
+        fields = "id,login,name,email,guest,online,banned,ringId"
+        result = youtrack_client.get(f"users/{user_id}?fields={fields}")
+        return result
+        
+    except Exception as e:
+        logger.exception(f"Error getting user by ID {user_id}")
+        return {"error": str(e)}
+
+
+@mcp.tool()
+def get_user_groups(user_login: str) -> List[Dict[str, Any]]:
+    """
+    Get groups for a specific user.
+    
+    Args:
+        user_login: User login name
+        
+    Returns:
+        List of user groups
+    """
+    try:
+        fields = "id,name,description"
+        params = {"fields": fields}
+        
+        # Get user groups
+        groups = youtrack_client.get(f"users/{user_login}/groups", params=params)
+        return groups if isinstance(groups, list) else []
+        
+    except Exception as e:
+        logger.exception(f"Error getting groups for user {user_login}")
+        return [{"error": str(e)}]
+
+
 @mcp.tool()
 def get_current_user() -> Dict[str, Any]:
     """
