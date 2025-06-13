@@ -43,7 +43,7 @@ class IssuesClient:
         """
         self.client = client
     
-    def get_issue(self, issue_id: str) -> Issue:
+    def get_issue(self, *, issue_id: str) -> Issue:
         """
         Get an issue by ID.
         
@@ -181,7 +181,7 @@ class IssuesClient:
         response = self.client.post(f"issues/{issue_id}", data=data)
         return Issue.model_validate(response)
     
-    def search_issues(self, query: str, limit: int = 10) -> List[Issue]:
+    def search_issues(self, *, query: str, limit: int = 10) -> List[Issue]:
         """
         Search for issues using YouTrack query language.
         
@@ -210,7 +210,7 @@ class IssuesClient:
         
         return issues
     
-    def add_comment(self, issue_id: str, text: str) -> Dict[str, Any]:
+    def add_comment(self, *, issue_id: str, text: str) -> Dict[str, Any]:
         """
         Add a comment to an issue.
         
@@ -224,7 +224,7 @@ class IssuesClient:
         data = {"text": text}
         return self.client.post(f"issues/{issue_id}/comments", data=data)
     
-    def link_issues(self, source_issue_id: str, target_issue_id: str, link_type: str = "relates to") -> Dict[str, Any]:
+    def link_issues(self, *, source_issue_id: str, target_issue_id: str, link_type: str = "relates to") -> Dict[str, Any]:
         """
         Link two issues together using YouTrack commands.
         
@@ -257,7 +257,7 @@ class IssuesClient:
             logger.error(f"Failed to link issues {source_issue_id} -> {target_issue_id}: {str(e)}")
             raise
     
-    def get_issue_links(self, issue_id: str) -> Dict[str, Any]:
+    def get_issue_links(self, *, issue_id: str) -> Dict[str, Any]:
         """
         Get all links for a specific issue.
         
@@ -297,7 +297,7 @@ class IssuesClient:
             logger.error(f"Failed to get available link types: {str(e)}")
             raise
     
-    def update_issue(self, issue_id: str, **fields) -> Dict[str, Any]:
+    def update_issue(self, *, issue_id: str, **fields) -> Dict[str, Any]:
         """
         Update issue fields using YouTrack commands.
         
@@ -352,7 +352,7 @@ class IssuesClient:
             logger.error(f"Failed to update issue {issue_id}: {str(e)}")
             raise
     
-    def create_dependency(self, dependent_issue_id: str, dependency_issue_id: str) -> Dict[str, Any]:
+    def create_dependency(self, *, dependent_issue_id: str, dependency_issue_id: str) -> Dict[str, Any]:
         """
         Create a dependency relationship where one issue depends on another.
         
@@ -370,7 +370,7 @@ class IssuesClient:
         """
         return self.link_issues(dependent_issue_id, dependency_issue_id, "depends on")
     
-    def remove_link(self, source_issue_id: str, target_issue_id: str, link_type: str = "relates to") -> Dict[str, Any]:
+    def remove_link(self, *, source_issue_id: str, target_issue_id: str, link_type: str = "relates to") -> Dict[str, Any]:
         """
         Remove a link between two issues using YouTrack commands.
         
