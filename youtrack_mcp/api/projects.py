@@ -36,7 +36,7 @@ class ProjectsClient:
         """
         self.client = client
     
-    def get_projects(self, include_archived: bool = False) -> List[Project]:
+    async def get_projects(self, include_archived: bool = False) -> List[Project]:
         """
         Get all projects.
         
@@ -50,10 +50,10 @@ class ProjectsClient:
         if not include_archived:
             params["$filter"] = "archived eq false"
             
-        response = self.client.get("admin/projects", params=params)
+        response = await self.client.get("admin/projects", params=params)
         return [Project.model_validate(project) for project in response]
     
-    def get_project(self, project_id: str) -> Project:
+    async def get_project(self, project_id: str) -> Project:
         """
         Get a project by ID.
         
@@ -63,12 +63,12 @@ class ProjectsClient:
         Returns:
             The project data
         """
-        response = self.client.get(f"admin/projects/{project_id}", params={
+        response = await self.client.get(f"admin/projects/{project_id}", params={
             "fields": "id,name,shortName,description,archived,created,updated,lead(id,name,login)"
         })
         return Project.model_validate(response)
     
-    def get_project_by_name(self, project_name: str) -> Optional[Project]:
+    async def get_project_by_name(self, project_name: str) -> Optional[Project]:
         """
         Get a project by its name or short name.
         
@@ -78,7 +78,7 @@ class ProjectsClient:
         Returns:
             The project data or None if not found
         """
-        projects = self.get_projects(include_archived=True)
+        projects = await self.get_projects(include_archived=True)
         
         # First try to match by short name (exact match)
         for project in projects:
@@ -97,7 +97,7 @@ class ProjectsClient:
                 
         return None
     
-    def get_project_issues(self, project_id: str, limit: int = 10) -> List[Dict[str, Any]]:
+    async def get_project_issues(self, project_id: str, limit: int = 10) -> List[Dict[str, Any]]:
         """
         Get issues for a specific project.
         
@@ -121,7 +121,7 @@ class ProjectsClient:
         }
         
         try:
-            issues = self.client.get("issues", params=params)
+            issues = await self.client.get("issues", params=params)
             logger.info(f"Retrieved {len(issues) if isinstance(issues, list) else 0} issues")
             return issues
         except Exception as e:
@@ -129,7 +129,7 @@ class ProjectsClient:
             # Return empty list on error
             return []
     
-    def create_project(self, 
+    async def create_project(self, 
                       name: str, 
                       short_name: str, 
                       description: Optional[str] = None,
@@ -169,7 +169,7 @@ class ProjectsClient:
         logger.info(f"Base URL: {self.client.base_url}, API endpoint: admin/projects")
             
         try:
-            response = self.client.post("admin/projects", data=data)
+            response = await self.client.post("admin/projects", data=data)
             logger.info(f"Create project response: {json.dumps(response)}")
             
             # The response might not include all required fields,
@@ -177,7 +177,7 @@ class ProjectsClient:
             if isinstance(response, dict) and 'id' in response:
                 try:
                     # Get the full project details
-                    created_project = self.get_project(response['id'])
+                    created_project = await self.get_project(response['id'])
                     logger.info(f"Successfully retrieved full project details: {created_project.name}")
                     return created_project
                 except Exception as e:
@@ -206,7 +206,7 @@ class ProjectsClient:
             logger.error(f"Error creating project: {str(e)}")
             raise
     
-    def update_project(self, 
+    async def update_project(self, 
                       project_id: str,
                       name: Optional[str] = None,
                       description: Optional[str] = None,
@@ -246,17 +246,17 @@ class ProjectsClient:
             # Make sure we have at least one parameter to update
             if not data:
                 logger.info("No parameters to update, returning current project data")
-                return self.get_project(project_id)
+                return await self.get_project(project_id)
             
             logger.info(f"Updating project with data: {data}")
-            response = self.client.post(f"admin/projects/{project_id}", data=data)
+            response = await self.client.post(f"admin/projects/{project_id}", data=data)
             logger.info(f"Update project response: {response}")
             
             # The API response might not contain all required fields,
             # so we need to get the full project data after the update
             try:
                 # Get the updated project data
-                updated_project = self.get_project(project_id)
+                updated_project = await self.get_project(project_id)
                 logger.info(f"Successfully retrieved updated project: {updated_project.name}")
                 return updated_project
             except Exception as e:
@@ -266,7 +266,7 @@ class ProjectsClient:
                     logger.info(f"Creating partial project from response: {response}")
                     # Try to get the original project to fill in missing fields
                     try:
-                        original_project = self.get_project(project_id)
+                        original_project = await self.get_project(project_id)
                         # Update with new values
                         for key, value in data.items():
                             if key == 'leader':
@@ -285,16 +285,16 @@ class ProjectsClient:
             logger.error(f"Error updating project {project_id}: {str(e)}")
             raise
     
-    def delete_project(self, project_id: str) -> None:
+    async def delete_project(self, project_id: str) -> None:
         """
         Delete a project.
         
         Args:
             project_id: The project ID
         """
-        self.client.delete(f"admin/projects/{project_id}")
+        await self.client.delete(f"admin/projects/{project_id}")
         
-    def get_custom_fields(self, project_id: str) -> List[Dict[str, Any]]:
+    async def get_custom_fields(self, project_id: str) -> List[Dict[str, Any]]:
         """
         Get custom fields for a project.
         
@@ -304,9 +304,9 @@ class ProjectsClient:
         Returns:
             List of custom fields
         """
-        return self.client.get(f"admin/projects/{project_id}/customFields")
+        return await self.client.get(f"admin/projects/{project_id}/customFields")
     
-    def add_custom_field(self, 
+    async def add_custom_field(self, 
                         project_id: str, 
                         field_id: str, 
                         empty_field_text: Optional[str] = None) -> Dict[str, Any]:
@@ -328,4 +328,4 @@ class ProjectsClient:
         if empty_field_text:
             data["emptyFieldText"] = empty_field_text
             
-        return self.client.post(f"admin/projects/{project_id}/customFields", data=data) 
+        return await self.client.post(f"admin/projects/{project_id}/customFields", data=data) 

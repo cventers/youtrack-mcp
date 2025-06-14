@@ -1,13 +1,14 @@
 """
 Base client for YouTrack REST API.
 """
+import asyncio
 import logging
 import time
 from typing import Any, Dict, List, Optional, Union
 import json
 import random
 
-import requests
+import httpx
 from pydantic import BaseModel, Field, model_validator
 
 from youtrack_mcp.config import config
@@ -18,7 +19,7 @@ logger = logging.getLogger(__name__)
 class YouTrackAPIError(Exception):
     """Base exception for YouTrack API errors."""
     
-    def __init__(self, message: str, status_code: Optional[int] = None, response: Optional[requests.Response] = None):
+    def __init__(self, message: str, status_code: Optional[int] = None, response: Optional[httpx.Response] = None):
         self.status_code = status_code
         self.response = response
         super().__init__(message)
@@ -67,7 +68,7 @@ class YouTrackModel(BaseModel):
 
 
 class YouTrackClient:
-    """Base client for YouTrack REST API."""
+    """Async YouTrack REST API client using httpx."""
     
     def __init__(self, base_url: Optional[str] = None, api_token: Optional[str] = None, 
                  verify_ssl: Optional[bool] = None, max_retries: int = 3, retry_delay: float = 1.0):
@@ -91,27 +92,29 @@ class YouTrackClient:
         if not self.api_token:
             raise ValueError("API token is required")
         
-        # Session for connection pooling and header reuse
-        self.session = requests.Session()
-        self.session.headers.update({
+        # Async client for connection pooling and header reuse
+        self._client = None
+        self._client_headers = {
             "Authorization": f"Bearer {self.api_token}",
             "Accept": "application/json",
             "Content-Type": "application/json"
-        })
-        
-        # Set SSL verification options
-        self.session.verify = self.verify_ssl
-        if not self.verify_ssl:
-            # Use the custom SSL context
-            self.session.verify = False
-            # Suppress insecure request warnings
-            from requests.packages.urllib3.exceptions import InsecureRequestWarning
-            requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
+        }
         
         logger.debug(f"YouTrack client initialized for {'YouTrack Cloud' if config.is_cloud_instance() else self.base_url}")
         
         # Cache for field definitions to avoid repeated API calls
         self._field_cache = {}
+    
+    async def _get_client(self) -> httpx.AsyncClient:
+        """Get or create the async HTTP client."""
+        if self._client is None or self._client.is_closed:
+            self._client = httpx.AsyncClient(
+                headers=self._client_headers,
+                verify=self.verify_ssl,
+                timeout=httpx.Timeout(30.0),  # 30 second timeout
+                limits=httpx.Limits(max_keepalive_connections=10, max_connections=20)
+            )
+        return self._client
     
     def _get_api_url(self, endpoint: str) -> str:
         """
@@ -128,7 +131,7 @@ class YouTrackClient:
         else:
             return f"{self.base_url}/api/{endpoint}"
     
-    def _handle_response(self, response: requests.Response) -> Dict[str, Any]:
+    def _handle_response(self, response: httpx.Response) -> Dict[str, Any]:
         """
         Handle API response, raising appropriate exceptions for errors.
         
@@ -151,10 +154,10 @@ class YouTrackClient:
             
             try:
                 return response.json()
-            except json.JSONDecodeError:
+            except Exception:
                 # Handle non-JSON responses
                 logger.warning(f"Non-JSON response received from API: {response.content[:100]}")
-                return {"raw_content": response.content.decode("utf-8", errors="replace")}
+                return {"raw_content": response.text}
         
         # Handle error responses
         error_message = f"API request failed with status {status_code}"
@@ -164,9 +167,9 @@ class YouTrackClient:
             error_data = response.json()
             if isinstance(error_data, dict) and "error" in error_data:
                 error_message = f"{error_message}: {error_data['error']}"
-        except (json.JSONDecodeError, KeyError):
+        except Exception:
             if response.content:
-                error_message = f"{error_message}: {response.content.decode('utf-8', errors='replace')}"
+                error_message = f"{error_message}: {response.text}"
         
         # Raise appropriate exception based on status code
         if status_code == 400:
@@ -184,14 +187,14 @@ class YouTrackClient:
         else:
             raise YouTrackAPIError(error_message, status_code, response)
     
-    def _make_request(self, method: str, endpoint: str, **kwargs) -> Dict[str, Any]:
+    async def _make_request(self, method: str, endpoint: str, **kwargs) -> Dict[str, Any]:
         """
-        Make API request with retry logic for transient errors.
+        Make async API request with retry logic for transient errors.
         
         Args:
             method: HTTP method (GET, POST, PUT, DELETE)
             endpoint: API endpoint
-            **kwargs: Additional arguments to pass to requests
+            **kwargs: Additional arguments to pass to httpx
             
         Returns:
             Parsed JSON response
@@ -211,10 +214,12 @@ class YouTrackClient:
             logger.debug(f"{method} {url} with data: {kwargs['data']}")
         else:
             logger.debug(f"{method} {url}")
+        
+        client = await self._get_client()
             
         while retries <= self.max_retries:
             try:
-                response = self.session.request(method, url, **kwargs)
+                response = await client.request(method, url, **kwargs)
                 return self._handle_response(response)
             except (ServerError, RateLimitError) as e:
                 # These are potentially transient, so we retry
@@ -228,13 +233,13 @@ class YouTrackClient:
                 # Calculate backoff delay (exponential with jitter)
                 backoff = delay * (2 ** retries) * (0.5 + 0.5 * random.random())
                 logger.warning(f"Transient error, retrying in {backoff:.2f}s: {str(e)}")
-                time.sleep(backoff)
+                await asyncio.sleep(backoff)  # Use async sleep
             except YouTrackAPIError as e:
                 # Non-transient errors
                 logger.error(f"API error for {method} {url}: {str(e)}")
                 if hasattr(e, 'response') and e.response is not None:
                     try:
-                        error_content = e.response.content.decode('utf-8', errors='replace')
+                        error_content = e.response.text
                         logger.error(f"Response content: {error_content}")
                     except:
                         pass
@@ -251,29 +256,29 @@ class YouTrackClient:
         # This should never happen, but just in case
         raise YouTrackAPIError(f"Maximum retries exceeded for {method} {url}")
     
-    def get(self, endpoint: str, params: Optional[Dict[str, Any]] = None, **kwargs) -> Dict[str, Any]:
+    async def get(self, endpoint: str, params: Optional[Dict[str, Any]] = None, **kwargs) -> Dict[str, Any]:
         """
-        Make GET request to API.
+        Make async GET request to API.
         
         Args:
             endpoint: API endpoint
             params: Query parameters
-            **kwargs: Additional arguments to pass to requests
+            **kwargs: Additional arguments to pass to httpx
             
         Returns:
             Parsed JSON response
         """
-        return self._make_request("GET", endpoint, params=params, **kwargs)
+        return await self._make_request("GET", endpoint, params=params, **kwargs)
     
-    def post(self, endpoint: str, data: Optional[Dict[str, Any]] = None, json_data: Optional[Dict[str, Any]] = None, **kwargs) -> Dict[str, Any]:
+    async def post(self, endpoint: str, data: Optional[Dict[str, Any]] = None, json_data: Optional[Dict[str, Any]] = None, **kwargs) -> Dict[str, Any]:
         """
-        Make POST request to API.
+        Make async POST request to API.
         
         Args:
             endpoint: API endpoint
             data: Form data
             json_data: JSON data
-            **kwargs: Additional arguments to pass to requests
+            **kwargs: Additional arguments to pass to httpx
             
         Returns:
             Parsed JSON response
@@ -285,51 +290,52 @@ class YouTrackClient:
             
             # Some endpoints expect parameters in different formats
             # YouTrack API usually expects data as JSON
-            return self._make_request("POST", endpoint, json=data, **kwargs)
+            return await self._make_request("POST", endpoint, json=data, **kwargs)
         
-        return self._make_request("POST", endpoint, data=data, json=json_data, **kwargs)
+        return await self._make_request("POST", endpoint, data=data, json=json_data, **kwargs)
     
-    def put(self, endpoint: str, data: Optional[Dict[str, Any]] = None, json_data: Optional[Dict[str, Any]] = None, **kwargs) -> Dict[str, Any]:
+    async def put(self, endpoint: str, data: Optional[Dict[str, Any]] = None, json_data: Optional[Dict[str, Any]] = None, **kwargs) -> Dict[str, Any]:
         """
-        Make PUT request to API.
+        Make async PUT request to API.
         
         Args:
             endpoint: API endpoint
             data: Form data
             json_data: JSON data
-            **kwargs: Additional arguments to pass to requests
+            **kwargs: Additional arguments to pass to httpx
             
         Returns:
             Parsed JSON response
         """
-        return self._make_request("PUT", endpoint, data=data, json=json_data, **kwargs)
+        return await self._make_request("PUT", endpoint, data=data, json=json_data, **kwargs)
     
-    def delete(self, endpoint: str, **kwargs) -> Dict[str, Any]:
+    async def delete(self, endpoint: str, **kwargs) -> Dict[str, Any]:
         """
-        Make DELETE request to API.
+        Make async DELETE request to API.
         
         Args:
             endpoint: API endpoint
-            **kwargs: Additional arguments to pass to requests
+            **kwargs: Additional arguments to pass to httpx
             
         Returns:
             Parsed JSON response
         """
-        return self._make_request("DELETE", endpoint, **kwargs)
+        return await self._make_request("DELETE", endpoint, **kwargs)
     
-    def close(self) -> None:
-        """Close the API client session."""
-        self.session.close()
+    async def close(self) -> None:
+        """Close the async HTTP client."""
+        if self._client and not self._client.is_closed:
+            await self._client.aclose()
         
-    def __enter__(self):
-        """Enter context manager."""
+    async def __aenter__(self):
+        """Enter async context manager."""
         return self
     
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        """Exit context manager, closing session."""
-        self.close()
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Exit async context manager, closing client."""
+        await self.close()
     
-    def get_enum_bundle_elements(self, bundle_id: str) -> Dict[str, Any]:
+    async def get_enum_bundle_elements(self, bundle_id: str) -> Dict[str, Any]:
         """
         Get enum bundle elements by bundle ID with caching.
         
@@ -346,14 +352,14 @@ class YouTrackClient:
         try:
             # Get enum bundle elements with values
             fields = "values(id,name,description,ordinal)"
-            response = self.get(f"admin/customFieldSettings/bundles/enum/{bundle_id}?fields={fields}")
+            response = await self.get(f"admin/customFieldSettings/bundles/enum/{bundle_id}?fields={fields}")
             self._field_cache[cache_key] = response
             return response
         except Exception as e:
             logger.warning(f"Failed to get enum bundle {bundle_id}: {str(e)}")
             return {}
     
-    def get_state_bundle_elements(self, bundle_id: str) -> Dict[str, Any]:
+    async def get_state_bundle_elements(self, bundle_id: str) -> Dict[str, Any]:
         """
         Get state bundle elements by bundle ID with caching.
         
@@ -370,14 +376,14 @@ class YouTrackClient:
         try:
             # Get state bundle elements with values
             fields = "values(id,name,description,isResolved)"
-            response = self.get(f"admin/customFieldSettings/bundles/state/{bundle_id}?fields={fields}")
+            response = await self.get(f"admin/customFieldSettings/bundles/state/{bundle_id}?fields={fields}")
             self._field_cache[cache_key] = response
             return response
         except Exception as e:
             logger.warning(f"Failed to get state bundle {bundle_id}: {str(e)}")
             return {}
     
-    def get_project_custom_fields(self, project_id: str) -> Dict[str, Any]:
+    async def get_project_custom_fields(self, project_id: str) -> Dict[str, Any]:
         """
         Get custom field definitions for a project with caching.
         
@@ -394,14 +400,14 @@ class YouTrackClient:
         try:
             # Get project custom fields with bundle information
             fields = "id,name,fieldType,bundle(id,isUpdateable)"
-            response = self.get(f"admin/projects/{project_id}/customFields?fields={fields}")
+            response = await self.get(f"admin/projects/{project_id}/customFields?fields={fields}")
             self._field_cache[cache_key] = response
             return response
         except Exception as e:
             logger.warning(f"Failed to get custom fields for project {project_id}: {str(e)}")
             return {}
     
-    def resolve_field_value(self, field_data: Dict[str, Any], project_id: Optional[str] = None) -> Optional[str]:
+    async def resolve_field_value(self, field_data: Dict[str, Any], project_id: Optional[str] = None) -> Optional[str]:
         """
         Resolve a custom field value to its human-readable text.
         
@@ -452,16 +458,16 @@ class YouTrackClient:
             if value_type in ["StateBundleElement", "EnumBundleElement"] and project_id and field_id:
                 # First, try to get the field definition to find the bundle ID
                 try:
-                    project_fields = self.get_project_custom_fields(project_id)
+                    project_fields = await self.get_project_custom_fields(project_id)
                     if isinstance(project_fields, list):
                         for proj_field in project_fields:
                             if proj_field.get("id") == field_id:
                                 bundle_id = proj_field.get("bundle", {}).get("id")
                                 if bundle_id:
                                     if value_type == "StateBundleElement":
-                                        bundle_data = self.get_state_bundle_elements(bundle_id)
+                                        bundle_data = await self.get_state_bundle_elements(bundle_id)
                                     else:
-                                        bundle_data = self.get_enum_bundle_elements(bundle_id)
+                                        bundle_data = await self.get_enum_bundle_elements(bundle_id)
                                     
                                     if "values" in bundle_data and isinstance(bundle_data["values"], list):
                                         for value in bundle_data["values"]:

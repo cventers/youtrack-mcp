@@ -88,7 +88,7 @@ def initialize_clients():
 
 # Issue Tools
 @mcp.tool()
-def get_issue(issue_id: str) -> Dict[str, Any]:
+async def get_issue(issue_id: str) -> Dict[str, Any]:
     """
     Get information about a specific issue.
     
@@ -100,7 +100,7 @@ def get_issue(issue_id: str) -> Dict[str, Any]:
     """
     try:
         fields = "id,idReadable,summary,description,created,updated,project(id,name,shortName),reporter(id,login,name),assignee(id,login,name),customFields(id,name,value(id,name,$type))"
-        raw_issue = youtrack_client.get(f"issues/{issue_id}?fields={fields}")
+        raw_issue = await youtrack_client.get(f"issues/{issue_id}?fields={fields}")
         
         # Enhance with ISO8601 timestamps
         raw_issue = add_iso8601_timestamps(raw_issue)
@@ -113,7 +113,7 @@ def get_issue(issue_id: str) -> Dict[str, Any]:
 
 
 @mcp.tool()
-def get_issue_raw(issue_id: str, fields: str = None) -> Dict[str, Any]:
+async def get_issue_raw(issue_id: str, fields: str = None) -> Dict[str, Any]:
     """
     Get raw issue data with custom field selection.
     
@@ -129,7 +129,7 @@ def get_issue_raw(issue_id: str, fields: str = None) -> Dict[str, Any]:
             # Default comprehensive fields
             fields = "id,idReadable,summary,description,created,updated,resolved,project(id,name,shortName),reporter(id,login,name,email),assignee(id,login,name,email),updater(id,login,name),customFields(id,name,value(id,name,$type,text,presentation)),attachments(id,name,size,url),comments(id,text,created,author(id,login,name)),links(id,direction,linkType(id,name),issues(id,idReadable,summary))"
         
-        result = youtrack_client.get(f"issues/{issue_id}?fields={fields}")
+        result = await youtrack_client.get(f"issues/{issue_id}?fields={fields}")
         return result
         
     except Exception as e:
@@ -138,7 +138,7 @@ def get_issue_raw(issue_id: str, fields: str = None) -> Dict[str, Any]:
 
 
 @mcp.tool()
-def create_issue(project: str, summary: str, description: str = None) -> Dict[str, Any]:
+async def create_issue(project: str, summary: str, description: str = None) -> Dict[str, Any]:
     """
     Create a new issue in YouTrack.
     
@@ -159,7 +159,7 @@ def create_issue(project: str, summary: str, description: str = None) -> Dict[st
         if description:
             issue_data["description"] = description
         
-        result = youtrack_client.post("issues", data=issue_data)
+        result = await youtrack_client.post("issues", data=issue_data)
         return result
         
     except Exception as e:
@@ -168,7 +168,7 @@ def create_issue(project: str, summary: str, description: str = None) -> Dict[st
 
 
 @mcp.tool()
-def search_issues(query: str, limit: int = 10) -> List[Dict[str, Any]]:
+async def search_issues(query: str, limit: int = 10) -> List[Dict[str, Any]]:
     """
     Search for issues using YouTrack query language.
     
@@ -187,7 +187,7 @@ def search_issues(query: str, limit: int = 10) -> List[Dict[str, Any]]:
             "$top": limit
         }
         
-        results = youtrack_client.get("issues", params=params)
+        results = await youtrack_client.get("issues", params=params)
         
         # Enhance with ISO8601 timestamps
         results = add_iso8601_timestamps(results)
@@ -200,7 +200,7 @@ def search_issues(query: str, limit: int = 10) -> List[Dict[str, Any]]:
 
 
 @mcp.tool()
-def advanced_search(query: str, sort_by: str = None, sort_order: str = "asc", 
+async def advanced_search(query: str, sort_by: str = None, sort_order: str = "asc", 
                    limit: int = 50, skip: int = 0) -> Dict[str, Any]:
     """
     Advanced search for issues with sorting and pagination.
@@ -231,7 +231,7 @@ def advanced_search(query: str, sort_by: str = None, sort_order: str = "asc",
             else:
                 params["$orderBy"] = f"{sort_by} asc"
         
-        results = youtrack_client.get("issues", params=params)
+        results = await youtrack_client.get("issues", params=params)
         
         # Enhance with ISO8601 timestamps
         results = add_iso8601_timestamps(results)
@@ -255,7 +255,7 @@ def advanced_search(query: str, sort_by: str = None, sort_order: str = "asc",
 
 
 @mcp.tool()
-def filter_issues(project: str = None, assignee: str = None, reporter: str = None,
+async def filter_issues(project: str = None, assignee: str = None, reporter: str = None,
                  state: str = None, priority: str = None, created_after: str = None,
                  created_before: str = None, updated_after: str = None, 
                  updated_before: str = None, limit: int = 50) -> List[Dict[str, Any]]:
@@ -313,7 +313,7 @@ def filter_issues(project: str = None, assignee: str = None, reporter: str = Non
             query = " ".join(query_parts)
         
         # Use advanced search for consistent results
-        result = advanced_search(query, sort_by="updated", sort_order="desc", limit=limit)
+        result = await advanced_search(query, sort_by="updated", sort_order="desc", limit=limit)
         return result.get("results", [])
         
     except Exception as e:
@@ -322,7 +322,7 @@ def filter_issues(project: str = None, assignee: str = None, reporter: str = Non
 
 
 @mcp.tool()
-def search_with_custom_fields(project: str = None, custom_field_filters: Dict[str, str] = None,
+async def search_with_custom_fields(project: str = None, custom_field_filters: Dict[str, str] = None,
                              base_query: str = "", limit: int = 50) -> List[Dict[str, Any]]:
     """
     Search issues with custom field filters.
@@ -364,7 +364,7 @@ def search_with_custom_fields(project: str = None, custom_field_filters: Dict[st
             query = " ".join(query_parts)
         
         # Use advanced search
-        result = advanced_search(query, sort_by="updated", sort_order="desc", limit=limit)
+        result = await advanced_search(query, sort_by="updated", sort_order="desc", limit=limit)
         return result.get("results", [])
         
     except Exception as e:
@@ -373,7 +373,7 @@ def search_with_custom_fields(project: str = None, custom_field_filters: Dict[st
 
 
 @mcp.tool()
-def add_comment(issue_id: str, text: str) -> Dict[str, Any]:
+async def add_comment(issue_id: str, text: str) -> Dict[str, Any]:
     """
     Add a comment to an issue.
     
@@ -386,7 +386,7 @@ def add_comment(issue_id: str, text: str) -> Dict[str, Any]:
     """
     try:
         comment_data = {"text": text}
-        result = youtrack_client.post(f"issues/{issue_id}/comments", data=comment_data)
+        result = await youtrack_client.post(f"issues/{issue_id}/comments", data=comment_data)
         return {"status": "success", "result": result}
         
     except Exception as e:
@@ -395,7 +395,7 @@ def add_comment(issue_id: str, text: str) -> Dict[str, Any]:
 
 
 @mcp.tool()
-def update_issue(issue_id: str, assignee: str = None, priority: str = None, 
+async def update_issue(issue_id: str, assignee: str = None, priority: str = None, 
                 state: str = None, type: str = None) -> Dict[str, Any]:
     """
     Update issue fields using YouTrack commands.
@@ -437,7 +437,7 @@ def update_issue(issue_id: str, assignee: str = None, priority: str = None,
             "issues": [{"idReadable": issue_id}]
         }
         
-        result = youtrack_client.post("commands", data=command_data)
+        result = await youtrack_client.post("commands", data=command_data)
         return {"status": "success", "message": f"Successfully updated issue {issue_id}", "result": result}
         
     except Exception as e:
@@ -446,7 +446,7 @@ def update_issue(issue_id: str, assignee: str = None, priority: str = None,
 
 
 @mcp.tool()
-def link_issues(source_issue_id: str, target_issue_id: str, link_type: str = "relates to") -> Dict[str, Any]:
+async def link_issues(source_issue_id: str, target_issue_id: str, link_type: str = "relates to") -> Dict[str, Any]:
     """
     Link two issues together using a specified link type.
     
@@ -464,7 +464,7 @@ def link_issues(source_issue_id: str, target_issue_id: str, link_type: str = "re
             "issues": [{"idReadable": source_issue_id}]
         }
         
-        result = youtrack_client.post("commands", data=command_data)
+        result = await youtrack_client.post("commands", data=command_data)
         return {
             "status": "success",
             "message": f"Successfully linked {source_issue_id} to {target_issue_id} with link type '{link_type}'",
@@ -477,7 +477,7 @@ def link_issues(source_issue_id: str, target_issue_id: str, link_type: str = "re
 
 
 @mcp.tool()
-def remove_link(source_issue_id: str, target_issue_id: str, link_type: str = "relates to") -> Dict[str, Any]:
+async def remove_link(source_issue_id: str, target_issue_id: str, link_type: str = "relates to") -> Dict[str, Any]:
     """
     Remove a link between two issues.
     
@@ -495,7 +495,7 @@ def remove_link(source_issue_id: str, target_issue_id: str, link_type: str = "re
             "issues": [{"idReadable": source_issue_id}]
         }
         
-        result = youtrack_client.post("commands", data=command_data)
+        result = await youtrack_client.post("commands", data=command_data)
         return {
             "status": "success", 
             "message": f"Successfully removed {link_type} link from {source_issue_id} to {target_issue_id}",
@@ -508,7 +508,7 @@ def remove_link(source_issue_id: str, target_issue_id: str, link_type: str = "re
 
 
 @mcp.tool()
-def create_dependency(dependent_issue_id: str, dependency_issue_id: str) -> Dict[str, Any]:
+async def create_dependency(dependent_issue_id: str, dependency_issue_id: str) -> Dict[str, Any]:
     """
     Create a dependency relationship where one issue depends on another.
     
@@ -519,11 +519,11 @@ def create_dependency(dependent_issue_id: str, dependency_issue_id: str) -> Dict
     Returns:
         Dependency creation result
     """
-    return link_issues(dependent_issue_id, dependency_issue_id, "depends on")
+    return await link_issues(dependent_issue_id, dependency_issue_id, "depends on")
 
 
 @mcp.tool()
-def get_issue_links(issue_id: str) -> List[Dict[str, Any]]:
+async def get_issue_links(issue_id: str) -> List[Dict[str, Any]]:
     """
     Get all links for a specific issue.
     
@@ -537,7 +537,7 @@ def get_issue_links(issue_id: str) -> List[Dict[str, Any]]:
         fields = "id,direction,linkType(id,name,directed),issues(id,idReadable,summary,project(id,name,shortName))"
         params = {"fields": fields}
         
-        links = youtrack_client.get(f"issues/{issue_id}/links", params=params)
+        links = await youtrack_client.get(f"issues/{issue_id}/links", params=params)
         return links if isinstance(links, list) else []
         
     except Exception as e:
@@ -546,7 +546,7 @@ def get_issue_links(issue_id: str) -> List[Dict[str, Any]]:
 
 
 @mcp.tool()
-def get_available_link_types() -> List[Dict[str, Any]]:
+async def get_available_link_types() -> List[Dict[str, Any]]:
     """
     Get available issue link types from YouTrack.
     
@@ -556,7 +556,7 @@ def get_available_link_types() -> List[Dict[str, Any]]:
     try:
         fields = "id,name,directed,sourceToTarget,targetToSource,aggregation,readOnly"
         params = {"fields": fields}
-        link_types = youtrack_client.get("issueLinkTypes", params=params)
+        link_types = await youtrack_client.get("issueLinkTypes", params=params)
         return link_types if isinstance(link_types, list) else []
         
     except Exception as e:
@@ -566,7 +566,7 @@ def get_available_link_types() -> List[Dict[str, Any]]:
 
 # Project Tools
 @mcp.tool()
-def create_project(short_name: str, name: str, description: str = None) -> Dict[str, Any]:
+async def create_project(short_name: str, name: str, description: str = None) -> Dict[str, Any]:
     """
     Create a new project in YouTrack.
     
@@ -587,7 +587,7 @@ def create_project(short_name: str, name: str, description: str = None) -> Dict[
         if description:
             project_data["description"] = description
         
-        result = youtrack_client.post("admin/projects", data=project_data)
+        result = await youtrack_client.post("admin/projects", data=project_data)
         return result
         
     except Exception as e:
@@ -596,7 +596,7 @@ def create_project(short_name: str, name: str, description: str = None) -> Dict[
 
 
 @mcp.tool()
-def update_project(project: str, name: str = None, description: str = None, 
+async def update_project(project: str, name: str = None, description: str = None, 
                   archived: bool = None) -> Dict[str, Any]:
     """
     Update an existing project.
@@ -623,7 +623,7 @@ def update_project(project: str, name: str = None, description: str = None,
         if not update_data:
             return {"error": "No valid field updates provided"}
         
-        result = youtrack_client.post(f"admin/projects/{project}", data=update_data)
+        result = await youtrack_client.post(f"admin/projects/{project}", data=update_data)
         return {"status": "success", "message": f"Successfully updated project {project}", "result": result}
         
     except Exception as e:
@@ -632,7 +632,7 @@ def update_project(project: str, name: str = None, description: str = None,
 
 
 @mcp.tool()
-def get_project_issues(project: str, query: str = "", limit: int = 50) -> List[Dict[str, Any]]:
+async def get_project_issues(project: str, query: str = "", limit: int = 50) -> List[Dict[str, Any]]:
     """
     Get all issues for a specific project.
     
@@ -657,7 +657,7 @@ def get_project_issues(project: str, query: str = "", limit: int = 50) -> List[D
             "$top": limit
         }
         
-        results = youtrack_client.get("issues", params=params)
+        results = await youtrack_client.get("issues", params=params)
         
         # Enhance with ISO8601 timestamps
         results = add_iso8601_timestamps(results)
@@ -670,7 +670,7 @@ def get_project_issues(project: str, query: str = "", limit: int = 50) -> List[D
 
 
 @mcp.tool()
-def get_custom_fields(project: str = None) -> List[Dict[str, Any]]:
+async def get_custom_fields(project: str = None) -> List[Dict[str, Any]]:
     """
     Get custom fields, optionally filtered by project.
     
@@ -685,12 +685,12 @@ def get_custom_fields(project: str = None) -> List[Dict[str, Any]]:
             # Get project-specific custom fields
             fields = "id,name,fieldType,customField(id,name,fieldType)"
             params = {"fields": fields}
-            result = youtrack_client.get(f"admin/projects/{project}/customFields", params=params)
+            result = await youtrack_client.get(f"admin/projects/{project}/customFields", params=params)
         else:
             # Get all custom fields
             fields = "id,name,fieldType,defaultValues(id,name)"
             params = {"fields": fields}
-            result = youtrack_client.get("admin/customFieldSettings/customFields", params=params)
+            result = await youtrack_client.get("admin/customFieldSettings/customFields", params=params)
         
         return result if isinstance(result, list) else []
         
@@ -700,7 +700,7 @@ def get_custom_fields(project: str = None) -> List[Dict[str, Any]]:
 
 
 @mcp.tool()
-def get_project_by_name(name_or_key: str) -> Dict[str, Any]:
+async def get_project_by_name(name_or_key: str) -> Dict[str, Any]:
     """
     Find project by name or short name.
     
@@ -713,14 +713,14 @@ def get_project_by_name(name_or_key: str) -> Dict[str, Any]:
     try:
         # Search by short name first (exact match)
         try:
-            result = get_project(name_or_key)
+            result = await get_project(name_or_key)
             if "error" not in result:
                 return result
         except:
             pass
         
         # Search by name in all projects
-        projects = get_projects(include_archived=True)
+        projects = await get_projects(include_archived=True)
         for project in projects:
             if isinstance(project, dict):
                 if (project.get("name", "").lower() == name_or_key.lower() or
@@ -735,7 +735,7 @@ def get_project_by_name(name_or_key: str) -> Dict[str, Any]:
 
 
 @mcp.tool()
-def get_projects(include_archived: bool = False) -> List[Dict[str, Any]]:
+async def get_projects(include_archived: bool = False) -> List[Dict[str, Any]]:
     """
     Get a list of all projects.
     
@@ -749,7 +749,7 @@ def get_projects(include_archived: bool = False) -> List[Dict[str, Any]]:
         fields = "id,name,shortName,description,archived"
         params = {"fields": fields}
         
-        projects = youtrack_client.get("admin/projects", params=params)
+        projects = await youtrack_client.get("admin/projects", params=params)
         
         if not include_archived and isinstance(projects, list):
             projects = [p for p in projects if not p.get("archived", False)]
@@ -762,7 +762,7 @@ def get_projects(include_archived: bool = False) -> List[Dict[str, Any]]:
 
 
 @mcp.tool()
-def get_project(project: str) -> Dict[str, Any]:
+async def get_project(project: str) -> Dict[str, Any]:
     """
     Get information about a specific project.
     
@@ -774,7 +774,7 @@ def get_project(project: str) -> Dict[str, Any]:
     """
     try:
         fields = "id,name,shortName,description,archived,leader(id,login,name)"
-        result = youtrack_client.get(f"admin/projects/{project}?fields={fields}")
+        result = await youtrack_client.get(f"admin/projects/{project}?fields={fields}")
         return result
         
     except Exception as e:
@@ -784,7 +784,7 @@ def get_project(project: str) -> Dict[str, Any]:
 
 # User Tools
 @mcp.tool()
-def get_user(user_id: str) -> Dict[str, Any]:
+async def get_user(user_id: str) -> Dict[str, Any]:
     """
     Get a user by their ID.
     
@@ -796,7 +796,7 @@ def get_user(user_id: str) -> Dict[str, Any]:
     """
     try:
         fields = "id,login,name,email,guest,online,banned,ringId"
-        result = youtrack_client.get(f"users/{user_id}?fields={fields}")
+        result = await youtrack_client.get(f"users/{user_id}?fields={fields}")
         return result
         
     except Exception as e:
@@ -805,7 +805,7 @@ def get_user(user_id: str) -> Dict[str, Any]:
 
 
 @mcp.tool()
-def get_user_groups(user_login: str) -> List[Dict[str, Any]]:
+async def get_user_groups(user_login: str) -> List[Dict[str, Any]]:
     """
     Get groups for a specific user.
     
@@ -820,7 +820,7 @@ def get_user_groups(user_login: str) -> List[Dict[str, Any]]:
         params = {"fields": fields}
         
         # Get user groups
-        groups = youtrack_client.get(f"users/{user_login}/groups", params=params)
+        groups = await youtrack_client.get(f"users/{user_login}/groups", params=params)
         return groups if isinstance(groups, list) else []
         
     except Exception as e:
@@ -829,7 +829,7 @@ def get_user_groups(user_login: str) -> List[Dict[str, Any]]:
 
 
 @mcp.tool()
-def get_current_user() -> Dict[str, Any]:
+async def get_current_user() -> Dict[str, Any]:
     """
     Get information about the currently authenticated user.
     
@@ -838,7 +838,7 @@ def get_current_user() -> Dict[str, Any]:
     """
     try:
         fields = "id,login,name,email,guest,online,banned"
-        result = youtrack_client.get(f"users/me?fields={fields}")
+        result = await youtrack_client.get(f"users/me?fields={fields}")
         return result
         
     except Exception as e:
@@ -847,7 +847,7 @@ def get_current_user() -> Dict[str, Any]:
 
 
 @mcp.tool()
-def search_users(query: str, limit: int = 10) -> List[Dict[str, Any]]:
+async def search_users(query: str, limit: int = 10) -> List[Dict[str, Any]]:
     """
     Search for users using YouTrack query.
     
@@ -866,7 +866,7 @@ def search_users(query: str, limit: int = 10) -> List[Dict[str, Any]]:
             "$top": limit
         }
         
-        results = youtrack_client.get("users", params=params)
+        results = await youtrack_client.get("users", params=params)
         return results if isinstance(results, list) else []
         
     except Exception as e:
@@ -875,7 +875,7 @@ def search_users(query: str, limit: int = 10) -> List[Dict[str, Any]]:
 
 
 @mcp.tool()
-def get_user_by_login(login: str) -> Dict[str, Any]:
+async def get_user_by_login(login: str) -> Dict[str, Any]:
     """
     Get a user by their login name.
     
@@ -887,7 +887,7 @@ def get_user_by_login(login: str) -> Dict[str, Any]:
     """
     try:
         fields = "id,login,name,email,guest,online,banned,ringId"
-        result = youtrack_client.get(f"users/{login}?fields={fields}")
+        result = await youtrack_client.get(f"users/{login}?fields={fields}")
         return result
         
     except Exception as e:

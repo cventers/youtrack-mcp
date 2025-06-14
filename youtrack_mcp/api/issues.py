@@ -43,7 +43,7 @@ class IssuesClient:
         """
         self.client = client
     
-    def get_issue(self, *, issue_id: str) -> Issue:
+    async def get_issue(self, *, issue_id: str) -> Issue:
         """
         Get an issue by ID.
         
@@ -53,21 +53,21 @@ class IssuesClient:
         Returns:
             The issue data with resolved field values
         """
-        response = self.client.get(f"issues/{issue_id}")
+        response = await self.client.get(f"issues/{issue_id}")
         
         # If the response doesn't have all needed fields, fetch more details
         if isinstance(response, dict) and response.get('$type') == 'Issue' and 'summary' not in response:
             # Get additional fields we need including detailed custom field values
             fields = "id,idReadable,summary,description,created,updated,project(id,name,shortName),reporter(id,login,name),assignee(id,login,name),customFields(id,name,value(id,name,$type))"
-            detailed_response = self.client.get(f"issues/{issue_id}?fields={fields}")
+            detailed_response = await self.client.get(f"issues/{issue_id}?fields={fields}")
             response = detailed_response
         
         # Enhance the response with resolved field values
-        enhanced_response = self._enhance_issue_with_field_values(response)
+        enhanced_response = await self._enhance_issue_with_field_values(response)
         
         return Issue.model_validate(enhanced_response)
     
-    def create_issue(self, 
+    async def create_issue(self, 
                      project_id: str, 
                      summary: str, 
                      description: Optional[str] = None,
@@ -109,44 +109,16 @@ class IssuesClient:
             # For debugging
             logger.info(f"Creating issue with data: {json.dumps(data)}")
             
-            # Post directly with the json parameter to ensure correct format
-            url = "issues"
-            response = self.client.session.post(
-                f"{self.client.base_url}/{url}",
-                json=data,
-                headers={
-                    "Content-Type": "application/json",
-                    "Accept": "application/json"
-                }
-            )
-            
-            # Handle the response
-            if response.status_code >= 400:
-                error_msg = f"Error creating issue: {response.status_code}"
-                try:
-                    error_content = response.json()
-                    error_msg += f" - {json.dumps(error_content)}"
-                except:
-                    error_msg += f" - {response.text}"
-                    
-                logger.error(error_msg)
-                raise YouTrackAPIError(error_msg, response.status_code, response)
-                
-            # Process successful response
-            try:
-                result = response.json()
-                return Issue.model_validate(result)
-            except Exception as e:
-                logger.error(f"Error parsing response: {str(e)}")
-                # Return raw response if we can't parse it
-                return Issue(id=str(response.status_code), summary="Created successfully")
+            # Use the async client's post method
+            response = await self.client.post("issues", data=data)
+            return Issue.model_validate(response)
                 
         except Exception as e:
             import logging
             logging.getLogger(__name__).error(f"Error creating issue: {str(e)}, Data: {data}")
             raise
     
-    def update_issue(self, 
+    async def update_issue(self, 
                      issue_id: str, 
                      summary: Optional[str] = None,
                      description: Optional[str] = None,
@@ -176,12 +148,12 @@ class IssuesClient:
             
         if not data:
             # Nothing to update
-            return self.get_issue(issue_id)
+            return await self.get_issue(issue_id=issue_id)
             
-        response = self.client.post(f"issues/{issue_id}", data=data)
+        response = await self.client.post(f"issues/{issue_id}", data=data)
         return Issue.model_validate(response)
     
-    def search_issues(self, *, query: str, limit: int = 10) -> List[Issue]:
+    async def search_issues(self, *, query: str, limit: int = 10) -> List[Issue]:
         """
         Search for issues using YouTrack query language.
         
@@ -195,13 +167,13 @@ class IssuesClient:
         # Request additional fields to ensure we get summary including detailed custom field values
         fields = "id,idReadable,summary,description,created,updated,project(id,name,shortName),reporter(id,login,name),assignee(id,login,name),customFields(id,name,value(id,name,$type))"
         params = {"query": query, "$top": limit, "fields": fields}
-        response = self.client.get("issues", params=params)
+        response = await self.client.get("issues", params=params)
         
         issues = []
         for item in response:
             try:
                 # Enhance each issue with resolved field values
-                enhanced_item = self._enhance_issue_with_field_values(item)
+                enhanced_item = await self._enhance_issue_with_field_values(item)
                 issues.append(Issue.model_validate(enhanced_item))
             except Exception as e:
                 # Log the error but continue processing other issues
@@ -210,7 +182,7 @@ class IssuesClient:
         
         return issues
     
-    def add_comment(self, *, issue_id: str, text: str) -> Dict[str, Any]:
+    async def add_comment(self, *, issue_id: str, text: str) -> Dict[str, Any]:
         """
         Add a comment to an issue.
         
@@ -222,9 +194,9 @@ class IssuesClient:
             The created comment data
         """
         data = {"text": text}
-        return self.client.post(f"issues/{issue_id}/comments", data=data)
+        return await self.client.post(f"issues/{issue_id}/comments", data=data)
     
-    def link_issues(self, *, source_issue_id: str, target_issue_id: str, link_type: str = "relates to") -> Dict[str, Any]:
+    async def link_issues(self, *, source_issue_id: str, target_issue_id: str, link_type: str = "relates to") -> Dict[str, Any]:
         """
         Link two issues together using YouTrack commands.
         
@@ -250,14 +222,14 @@ class IssuesClient:
         
         try:
             # Execute the command using the commands API
-            result = self.client.post("commands", data=command_data)
+            result = await self.client.post("commands", data=command_data)
             logger.info(f"Successfully linked {source_issue_id} to {target_issue_id}")
             return result
         except Exception as e:
             logger.error(f"Failed to link issues {source_issue_id} -> {target_issue_id}: {str(e)}")
             raise
     
-    def get_issue_links(self, *, issue_id: str) -> Dict[str, Any]:
+    async def get_issue_links(self, *, issue_id: str) -> Dict[str, Any]:
         """
         Get all links for a specific issue.
         
@@ -272,14 +244,14 @@ class IssuesClient:
         params = {"fields": fields}
         
         try:
-            links = self.client.get(f"issues/{issue_id}/links", params=params)
+            links = await self.client.get(f"issues/{issue_id}/links", params=params)
             logger.debug(f"Retrieved {len(links) if isinstance(links, list) else 0} links for issue {issue_id}")
             return links
         except Exception as e:
             logger.error(f"Failed to get links for issue {issue_id}: {str(e)}")
             raise
     
-    def get_available_link_types(self) -> Dict[str, Any]:
+    async def get_available_link_types(self) -> Dict[str, Any]:
         """
         Get available issue link types from YouTrack.
         
@@ -290,14 +262,14 @@ class IssuesClient:
             # Get all issue link types with their names and directions
             fields = "id,name,directed,sourceToTarget,targetToSource,aggregation,readOnly"
             params = {"fields": fields}
-            link_types = self.client.get("issueLinkTypes", params=params)
+            link_types = await self.client.get("issueLinkTypes", params=params)
             logger.debug(f"Retrieved {len(link_types) if isinstance(link_types, list) else 0} link types")
             return link_types
         except Exception as e:
             logger.error(f"Failed to get available link types: {str(e)}")
             raise
     
-    def update_issue(self, *, issue_id: str, **fields) -> Dict[str, Any]:
+    async def update_issue_fields(self, *, issue_id: str, **fields) -> Dict[str, Any]:
         """
         Update issue fields using YouTrack commands.
         
@@ -345,14 +317,14 @@ class IssuesClient:
         
         try:
             # Execute the command using the commands API
-            result = self.client.post("commands", data=command_data)
+            result = await self.client.post("commands", data=command_data)
             logger.info(f"Successfully updated issue {issue_id}")
             return result
         except Exception as e:
             logger.error(f"Failed to update issue {issue_id}: {str(e)}")
             raise
     
-    def create_dependency(self, *, dependent_issue_id: str, dependency_issue_id: str) -> Dict[str, Any]:
+    async def create_dependency(self, *, dependent_issue_id: str, dependency_issue_id: str) -> Dict[str, Any]:
         """
         Create a dependency relationship where one issue depends on another.
         
@@ -368,9 +340,9 @@ class IssuesClient:
         Returns:
             Command execution result
         """
-        return self.link_issues(dependent_issue_id, dependency_issue_id, "depends on")
+        return await self.link_issues(source_issue_id=dependent_issue_id, target_issue_id=dependency_issue_id, link_type="depends on")
     
-    def remove_link(self, *, source_issue_id: str, target_issue_id: str, link_type: str = "relates to") -> Dict[str, Any]:
+    async def remove_link(self, *, source_issue_id: str, target_issue_id: str, link_type: str = "relates to") -> Dict[str, Any]:
         """
         Remove a link between two issues using YouTrack commands.
         
@@ -393,14 +365,14 @@ class IssuesClient:
         
         try:
             # Execute the command using the commands API
-            result = self.client.post("commands", data=command_data)
+            result = await self.client.post("commands", data=command_data)
             logger.info(f"Successfully removed link {source_issue_id} -> {target_issue_id}")
             return result
         except Exception as e:
             logger.error(f"Failed to remove link {source_issue_id} -> {target_issue_id}: {str(e)}")
             raise
     
-    def _enhance_issue_with_field_values(self, issue_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def _enhance_issue_with_field_values(self, issue_data: Dict[str, Any]) -> Dict[str, Any]:
         """
         Enhance issue data with resolved custom field values.
         
@@ -437,7 +409,7 @@ class IssuesClient:
                     logger.debug(f"Processing field {field_name} of type {field_type}")
                     
                     # Try to resolve the field value to human-readable text
-                    resolved_value = self.client.resolve_field_value(field, project_id)
+                    resolved_value = await self.client.resolve_field_value(field, project_id)
                     if resolved_value:
                         enhanced_field["value_text"] = resolved_value
                         logger.debug(f"Resolved {field_name} to: {resolved_value}")

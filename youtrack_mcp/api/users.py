@@ -39,7 +39,7 @@ class UsersClient:
         """
         self.client = client
     
-    def get_current_user(self) -> User:
+    async def get_current_user(self) -> User:
         """
         Get the current authenticated user.
         
@@ -47,10 +47,10 @@ class UsersClient:
             The user data
         """
         fields = "id,login,name,email,jabber,ringId,guest,online,banned"
-        response = self.client.get(f"users/me?fields={fields}")
+        response = await self.client.get(f"users/me?fields={fields}")
         return User.model_validate(response)
     
-    def get_user(self, user_id: str) -> User:
+    async def get_user(self, user_id: str) -> User:
         """
         Get a user by ID.
         
@@ -61,10 +61,10 @@ class UsersClient:
             The user data
         """
         fields = "id,login,name,email,jabber,ringId,guest,online,banned"
-        response = self.client.get(f"users/{user_id}?fields={fields}")
+        response = await self.client.get(f"users/{user_id}?fields={fields}")
         return User.model_validate(response)
     
-    def search_users(self, query: str, limit: int = 10) -> List[User]:
+    async def search_users(self, query: str, limit: int = 10) -> List[User]:
         """
         Search for users.
         
@@ -78,7 +78,7 @@ class UsersClient:
         # Request additional fields to ensure we get complete user data
         fields = "id,login,name,email,jabber,ringId,guest,online,banned"
         params = {"query": query, "$top": limit, "fields": fields}
-        response = self.client.get("users", params=params)
+        response = await self.client.get("users", params=params)
         
         users = []
         for item in response:
@@ -91,7 +91,7 @@ class UsersClient:
         
         return users
     
-    def get_user_by_login(self, login: str) -> Optional[User]:
+    async def get_user_by_login(self, login: str) -> Optional[User]:
         """
         Get a user by login name.
         
@@ -102,10 +102,10 @@ class UsersClient:
             The user data or None if not found
         """
         # Search for the exact login
-        users = self.search_users(f"login: {login}", limit=1)
+        users = await self.search_users(f"login: {login}", limit=1)
         return users[0] if users else None
     
-    def get_user_groups(self, user_id: str) -> List[Dict[str, Any]]:
+    async def get_user_groups(self, user_id: str) -> List[Dict[str, Any]]:
         """
         Get groups for a user.
         
@@ -115,10 +115,10 @@ class UsersClient:
         Returns:
             List of group data
         """
-        response = self.client.get(f"users/{user_id}/groups")
+        response = await self.client.get(f"users/{user_id}/groups")
         return response
     
-    def check_user_permissions(self, user_id: str, permission: str) -> bool:
+    async def check_user_permissions(self, user_id: str, permission: str) -> bool:
         """
         Check if a user has a specific permission.
         
@@ -132,7 +132,7 @@ class UsersClient:
         try:
             # YouTrack doesn't have a direct API for checking permissions,
             # but we can check user's groups and infer permissions
-            groups = self.get_user_groups(user_id)
+            groups = await self.get_user_groups(user_id)
             
             # Different permissions might require different group checks
             # This is a simplified example
