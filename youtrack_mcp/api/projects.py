@@ -4,24 +4,93 @@ YouTrack Projects API client.
 from typing import Any, Dict, List, Optional
 import json
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
+from typing import Self
 
-from youtrack_mcp.api.client import YouTrackClient
+from youtrack_mcp.api.client import YouTrackClient, YouTrackModel
 import logging
 
 
-class Project(BaseModel):
-    """Model for a YouTrack project."""
+class Project(YouTrackModel):
+    """Model for a YouTrack project with enhanced validation."""
     
-    id: str
-    name: str
-    shortName: str
-    description: Optional[str] = None
-    archived: bool = False
-    created: Optional[int] = None
-    updated: Optional[int] = None
-    lead: Optional[Dict[str, Any]] = None
-    custom_fields: List[Dict[str, Any]] = Field(default_factory=list)
+    # Core project fields
+    name: str = Field(description="Project display name")
+    short_name: str = Field(alias="shortName", description="Project short name/key (used in issue IDs)")
+    description: Optional[str] = Field(None, description="Project description")
+    
+    # Project status and metadata
+    archived: bool = Field(False, description="Whether project is archived")
+    created: Optional[int] = Field(None, description="Creation timestamp in milliseconds")
+    updated: Optional[int] = Field(None, description="Last update timestamp in milliseconds")
+    
+    # Related entities
+    lead: Optional[Dict[str, Any]] = Field(None, description="Project lead/owner information")
+    leader: Optional[Dict[str, Any]] = Field(None, description="Project leader information")
+    
+    # Custom fields and configuration
+    custom_fields: List[Dict[str, Any]] = Field(
+        default_factory=list,
+        alias="customFields", 
+        description="Project custom field definitions"
+    )
+    
+    # Additional project metadata
+    team: List[Dict[str, Any]] = Field(default_factory=list, description="Project team members")
+    issue_count: Optional[int] = Field(None, description="Total number of issues in project")
+    
+    @field_validator('name', 'description')
+    @classmethod
+    def validate_text_fields(cls, v: Optional[str]) -> Optional[str]:
+        """Validate and clean text fields."""
+        if v is not None:
+            cleaned = ' '.join(v.split())
+            return cleaned if cleaned else None
+        return v
+    
+    @field_validator('short_name')
+    @classmethod
+    def validate_short_name(cls, v: str) -> str:
+        """Validate project short name format."""
+        if not v:
+            raise ValueError("Project short name cannot be empty")
+        
+        # Clean and validate format
+        cleaned = v.strip().upper()
+        
+        # Basic validation - should be alphanumeric with optional hyphens/underscores
+        if not all(c.isalnum() or c in '-_' for c in cleaned):
+            raise ValueError("Project short name can only contain letters, numbers, hyphens, and underscores")
+        
+        if len(cleaned) > 10:
+            raise ValueError("Project short name should be 10 characters or less")
+        
+        return cleaned
+    
+    @field_validator('created', 'updated')
+    @classmethod
+    def validate_timestamps(cls, v: Optional[int]) -> Optional[int]:
+        """Validate timestamp fields."""
+        if v is not None and v < 0:
+            raise ValueError("Timestamp cannot be negative")
+        return v
+    
+    @model_validator(mode='after')
+    def validate_project_integrity(self) -> Self:
+        """Validate overall project data integrity."""
+        # Ensure created comes before updated
+        if self.created and self.updated and self.created > self.updated:
+            logger.warning(f"Project {self.id}: created timestamp is after updated timestamp")
+        
+        return self
+    
+    def is_active(self) -> bool:
+        """Check if project is active (not archived)."""
+        return not self.archived
+    
+    def get_display_name(self) -> str:
+        """Get formatted display name for the project."""
+        return f"{self.name} ({self.short_name})"
 
 
 class ProjectsClient:

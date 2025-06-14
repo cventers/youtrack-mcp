@@ -4,12 +4,17 @@ python-dotenv>=1.0.0
 mcp>=1.0.0
 nest_asyncio>=1.5.6
 
+# Optional security dependencies
+keyring>=24.0.0  # For secure credential storage
+
 # Development dependencies
 pytest>=7.0.0
+pytest-asyncio>=0.21.0
+pytest-cov>=3.0.0
+pytest-mock>=3.10.0
 black>=22.1.0
 flake8>=4.0.1
 mypy>=0.931
-isort>=5.10.1
-pytest-cov>=3.0.0 
+isort>=5.10.1 
 fastapi>=0.115.12
 requests>=2.32.3

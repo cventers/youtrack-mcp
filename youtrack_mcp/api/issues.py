@@ -5,30 +5,91 @@ from typing import Any, Dict, List, Optional
 import json
 import logging
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
+from typing import Self
 
-from youtrack_mcp.api.client import YouTrackClient, YouTrackAPIError
+from youtrack_mcp.api.client import YouTrackClient, YouTrackAPIError, YouTrackModel
 
 logger = logging.getLogger(__name__)
 
 
-class Issue(BaseModel):
-    """Model for a YouTrack issue."""
+class Issue(YouTrackModel):
+    """Model for a YouTrack issue with enhanced validation."""
     
-    id: str
-    summary: Optional[str] = None
-    description: Optional[str] = None
-    created: Optional[int] = None
-    updated: Optional[int] = None
-    project: Dict[str, Any] = Field(default_factory=dict)
-    reporter: Optional[Dict[str, Any]] = None
-    assignee: Optional[Dict[str, Any]] = None
-    custom_fields: List[Dict[str, Any]] = Field(default_factory=list)
+    # Core issue fields
+    summary: Optional[str] = Field(None, description="Issue summary/title")
+    description: Optional[str] = Field(None, description="Issue description")
+    created: Optional[int] = Field(None, description="Creation timestamp in milliseconds")
+    updated: Optional[int] = Field(None, description="Last update timestamp in milliseconds")
+    resolved: Optional[int] = Field(None, description="Resolution timestamp in milliseconds")
     
-    model_config = {
-        "extra": "allow",  # Allow extra fields from the API
-        "populate_by_name": True  # Allow population by field name (helps with aliases)
-    }
+    # Related entities
+    project: Dict[str, Any] = Field(default_factory=dict, description="Project information")
+    reporter: Optional[Dict[str, Any]] = Field(None, description="Issue reporter information")
+    assignee: Optional[Dict[str, Any]] = Field(None, description="Issue assignee information")
+    
+    # Custom fields and metadata
+    custom_fields: List[Dict[str, Any]] = Field(
+        default_factory=list, 
+        alias="customFields",
+        description="Custom field values"
+    )
+    attachments: List[Dict[str, Any]] = Field(default_factory=list, description="Issue attachments")
+    comments: List[Dict[str, Any]] = Field(default_factory=list, description="Issue comments")
+    links: List[Dict[str, Any]] = Field(default_factory=list, description="Issue links")
+    
+    # Computed fields for convenience
+    id_readable: Optional[str] = Field(None, alias="idReadable", description="Human-readable issue ID")
+    
+    @field_validator('summary', 'description')
+    @classmethod
+    def validate_text_fields(cls, v: Optional[str]) -> Optional[str]:
+        """Validate and clean text fields."""
+        if v is not None:
+            # Strip excessive whitespace and normalize
+            cleaned = ' '.join(v.split())
+            return cleaned if cleaned else None
+        return v
+    
+    @field_validator('created', 'updated', 'resolved')
+    @classmethod
+    def validate_timestamps(cls, v: Optional[int]) -> Optional[int]:
+        """Validate timestamp fields."""
+        if v is not None and v < 0:
+            raise ValueError("Timestamp cannot be negative")
+        return v
+    
+    @model_validator(mode='after')
+    def validate_issue_integrity(self) -> Self:
+        """Validate overall issue data integrity."""
+        # Ensure created comes before updated
+        if self.created and self.updated and self.created > self.updated:
+            logger.warning(f"Issue {self.id}: created timestamp is after updated timestamp")
+        
+        # Ensure resolved comes after created
+        if self.created and self.resolved and self.created > self.resolved:
+            logger.warning(f"Issue {self.id}: created timestamp is after resolved timestamp")
+        
+        return self
+    
+    def get_custom_field_value(self, field_name: str) -> Optional[Any]:
+        """
+        Get the value of a custom field by name.
+        
+        Args:
+            field_name: Name of the custom field
+            
+        Returns:
+            Field value if found, None otherwise
+        """
+        for field in self.custom_fields:
+            if field.get("name") == field_name:
+                return field.get("value")
+        return None
+    
+    def has_assignee(self) -> bool:
+        """Check if the issue has an assignee."""
+        return self.assignee is not None and self.assignee.get("id") is not None
 
 
 class IssuesClient:

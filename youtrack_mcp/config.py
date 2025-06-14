@@ -3,6 +3,7 @@ Configuration for YouTrack MCP server.
 """
 import os
 import ssl
+import logging
 from typing import Optional, Dict, Any
 
 # Optional import for dotenv
@@ -13,6 +14,20 @@ try:
 except ImportError:
     # dotenv is not required
     pass
+
+# Import security utilities (with fallback if not available)
+try:
+    from .security import (
+        token_validator, 
+        credential_manager, 
+        audit_log,
+        TokenFileManager
+    )
+    SECURITY_AVAILABLE = True
+except ImportError:
+    SECURITY_AVAILABLE = False
+
+logger = logging.getLogger(__name__)
 
 
 class Config:
@@ -52,24 +67,83 @@ class Config:
     @classmethod
     def validate(cls) -> None:
         """
-        Validate the configuration settings.
+        Validate the configuration settings with enhanced security.
         
         Raises:
             ValueError: If required settings are missing or invalid
         """
-        # Try to read token from file if no token is set but file is specified
-        if not cls.YOUTRACK_API_TOKEN and cls.YOUTRACK_TOKEN_FILE:
-            try:
-                with open(cls.YOUTRACK_TOKEN_FILE, 'r') as f:
-                    cls.YOUTRACK_API_TOKEN = f.read().strip()
-            except Exception as e:
-                raise ValueError(f"Failed to read YouTrack API token from file {cls.YOUTRACK_TOKEN_FILE}: {e}")
+        token_source = "unknown"
+        
+        # Try multiple sources for the API token in order of preference
+        if not cls.YOUTRACK_API_TOKEN:
+            # 1. Try keyring first (most secure)
+            if SECURITY_AVAILABLE:
+                keyring_username = os.getenv("YOUTRACK_KEYRING_USERNAME", "default")
+                keyring_token = credential_manager.retrieve_token(keyring_username)
+                if keyring_token:
+                    cls.YOUTRACK_API_TOKEN = keyring_token
+                    token_source = "keyring"
+                    logger.info("Token loaded from secure keyring")
+            
+            # 2. Try token file
+            if not cls.YOUTRACK_API_TOKEN and cls.YOUTRACK_TOKEN_FILE:
+                if SECURITY_AVAILABLE:
+                    # Use secure file reader
+                    file_token = TokenFileManager.read_token_file(cls.YOUTRACK_TOKEN_FILE)
+                    if file_token:
+                        cls.YOUTRACK_API_TOKEN = file_token
+                        token_source = "secure_file"
+                else:
+                    # Fallback to basic file reading
+                    try:
+                        with open(cls.YOUTRACK_TOKEN_FILE, 'r') as f:
+                            cls.YOUTRACK_API_TOKEN = f.read().strip()
+                        token_source = "file"
+                        logger.warning(f"Token loaded from file without security validation: {cls.YOUTRACK_TOKEN_FILE}")
+                    except Exception as e:
+                        raise ValueError(f"Failed to read YouTrack API token from file {cls.YOUTRACK_TOKEN_FILE}: {e}")
+            
+            # 3. Environment variable (already loaded)
+            if cls.YOUTRACK_API_TOKEN and token_source == "unknown":
+                token_source = "env_var"
         
         # API token is always required
         if not cls.YOUTRACK_API_TOKEN:
-            raise ValueError("YouTrack API token is required. Provide it using YOUTRACK_API_TOKEN environment variable, YOUTRACK_TOKEN_FILE, or in configuration.")
+            error_msg = (
+                "YouTrack API token is required. Provide it using:\n"
+                "1. YOUTRACK_API_TOKEN environment variable\n"
+                "2. YOUTRACK_TOKEN_FILE pointing to a token file\n"
+                "3. Secure keyring storage (if available)\n"
+                "4. Configuration parameter"
+            )
+            if SECURITY_AVAILABLE:
+                error_msg += f"\n\nFor secure storage, use: credential_manager.store_token('username', 'your_token')"
+            raise ValueError(error_msg)
         
-        # URL is only required for self-hosted instances (Cloud instances can use API token only)
+        # Validate token format and log security audit
+        if SECURITY_AVAILABLE:
+            validation_result = token_validator.validate_token_format(cls.YOUTRACK_API_TOKEN)
+            token_hash = token_validator.get_token_hash(cls.YOUTRACK_API_TOKEN)
+            
+            # Log token access for security audit
+            audit_log.log_token_access(
+                event="token_validation",
+                token_hash=token_hash,
+                source=token_source,
+                success=validation_result["valid"]
+            )
+            
+            if not validation_result["valid"]:
+                masked_token = token_validator.mask_token(cls.YOUTRACK_API_TOKEN)
+                raise ValueError(f"Invalid YouTrack API token format (token: {masked_token}): {validation_result['error']}")
+            
+            logger.info(f"Token validation successful - type: {validation_result['token_type']}, source: {token_source}")
+            
+            # Extract workspace info if available
+            if validation_result.get("workspace"):
+                logger.info(f"Detected workspace: {validation_result['workspace']}")
+        
+        # URL validation for self-hosted instances
         if not cls.YOUTRACK_CLOUD and not cls.YOUTRACK_URL:
             raise ValueError("YouTrack URL is required for self-hosted instances. Provide it using YOUTRACK_URL environment variable or set YOUTRACK_CLOUD=true for cloud instances.")
         

@@ -3,28 +3,59 @@ YouTrack Users API client.
 """
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, EmailStr
+from typing import Self
 
-from youtrack_mcp.api.client import YouTrackClient
+from youtrack_mcp.api.client import YouTrackClient, YouTrackModel
 
 
-class User(BaseModel):
-    """Model for a YouTrack user."""
+class User(YouTrackModel):
+    """Model for a YouTrack user with enhanced validation."""
     
-    id: str
-    login: Optional[str] = None
-    name: Optional[str] = None
-    email: Optional[str] = None
-    jabber: Optional[str] = None
-    ring_id: Optional[str] = None
-    guest: Optional[bool] = None
-    online: Optional[bool] = None
-    banned: Optional[bool] = None
+    # Core user fields
+    login: Optional[str] = Field(None, description="User login name")
+    name: Optional[str] = Field(None, description="User display name")
+    email: Optional[str] = Field(None, description="User email address")
+    jabber: Optional[str] = Field(None, description="Jabber/XMPP address")
     
-    model_config = {
-        "extra": "allow",  # Allow extra fields from the API
-        "populate_by_name": True  # Allow population by field name (helps with aliases)
-    }
+    # User status and metadata
+    ring_id: Optional[str] = Field(None, alias="ringId", description="Ring ID for authentication")
+    guest: Optional[bool] = Field(None, description="Whether user is a guest")
+    online: Optional[bool] = Field(None, description="Whether user is currently online")
+    banned: Optional[bool] = Field(None, description="Whether user is banned")
+    
+    # Additional fields
+    avatar_url: Optional[str] = Field(None, alias="avatarUrl", description="User avatar URL")
+    tags: List[str] = Field(default_factory=list, description="User tags")
+    groups: List[Dict[str, Any]] = Field(default_factory=list, description="User groups")
+    
+    @field_validator('email')
+    @classmethod
+    def validate_email(cls, v: Optional[str]) -> Optional[str]:
+        """Validate email format."""
+        if v is not None:
+            # Basic email validation (Pydantic's EmailStr is stricter than needed for YouTrack)
+            if '@' not in v or '.' not in v.split('@')[-1]:
+                raise ValueError("Invalid email format")
+            return v.lower().strip()
+        return v
+    
+    @field_validator('login', 'name')
+    @classmethod
+    def validate_text_fields(cls, v: Optional[str]) -> Optional[str]:
+        """Validate and clean text fields."""
+        if v is not None:
+            cleaned = v.strip()
+            return cleaned if cleaned else None
+        return v
+    
+    def is_active(self) -> bool:
+        """Check if user is active (not banned and not a guest)."""
+        return not (self.banned or self.guest)
+    
+    def get_display_name(self) -> str:
+        """Get the best display name for the user."""
+        return self.name or self.login or self.id
 
 
 class UsersClient:

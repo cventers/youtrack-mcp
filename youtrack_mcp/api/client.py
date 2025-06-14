@@ -13,6 +13,13 @@ from pydantic import BaseModel, Field, model_validator
 
 from youtrack_mcp.config import config
 
+# Import security utilities with fallback
+try:
+    from youtrack_mcp.security import token_validator, audit_log
+    SECURITY_AVAILABLE = True
+except ImportError:
+    SECURITY_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 
@@ -56,15 +63,17 @@ class ServerError(YouTrackAPIError):
 
 
 class YouTrackModel(BaseModel):
-    """Base model for YouTrack API resources."""
+    """Base model for YouTrack API resources with Pydantic v2 configuration."""
     
     id: str
     
-    class Config:
-        """Pydantic configuration for YouTrack models."""
-        
-        extra = "allow"  # Allow extra fields in the model
-        populate_by_name = True  # Allow population by field name
+    model_config = {
+        "extra": "allow",  # Allow extra fields in the model
+        "populate_by_name": True,  # Allow population by field name
+        "validate_assignment": True,  # Validate field assignments
+        "use_enum_values": True,  # Use enum values in serialization
+        "str_strip_whitespace": True,  # Strip whitespace from strings
+    }
 
 
 class YouTrackClient:
@@ -92,6 +101,27 @@ class YouTrackClient:
         if not self.api_token:
             raise ValueError("API token is required")
         
+        # Validate token format and log security audit if available
+        if SECURITY_AVAILABLE:
+            validation_result = token_validator.validate_token_format(self.api_token)
+            token_hash = token_validator.get_token_hash(self.api_token)
+            
+            audit_log.log_token_access(
+                event="client_initialization",
+                token_hash=token_hash,
+                source="config",
+                success=validation_result["valid"]
+            )
+            
+            if not validation_result["valid"]:
+                masked_token = token_validator.mask_token(self.api_token)
+                raise ValueError(f"Invalid API token format (token: {masked_token}): {validation_result['error']}")
+            
+            # Store token hash for logging
+            self._token_hash = token_hash
+        else:
+            self._token_hash = "unknown"
+        
         # Async client for connection pooling and header reuse
         self._client = None
         self._client_headers = {
@@ -100,10 +130,32 @@ class YouTrackClient:
             "Content-Type": "application/json"
         }
         
-        logger.debug(f"YouTrack client initialized for {'YouTrack Cloud' if config.is_cloud_instance() else self.base_url}")
+        # Use masked token in logs
+        masked_token = token_validator.mask_token(self.api_token) if SECURITY_AVAILABLE else "***"
+        logger.debug(f"YouTrack client initialized for {'YouTrack Cloud' if config.is_cloud_instance() else self.base_url} with token {masked_token}")
         
         # Cache for field definitions to avoid repeated API calls
         self._field_cache = {}
+    
+    def _safe_error_message(self, message: str) -> str:
+        """
+        Create a safe error message with masked sensitive information.
+        
+        Args:
+            message: Original error message
+            
+        Returns:
+            Error message with sensitive data masked
+        """
+        if not SECURITY_AVAILABLE:
+            return message
+        
+        # Mask any potential tokens in the error message
+        if self.api_token and self.api_token in message:
+            masked_token = token_validator.mask_token(self.api_token)
+            message = message.replace(self.api_token, masked_token)
+        
+        return message
     
     async def _get_client(self) -> httpx.AsyncClient:
         """Get or create the async HTTP client."""
@@ -171,21 +223,33 @@ class YouTrackClient:
             if response.content:
                 error_message = f"{error_message}: {response.text}"
         
+        # Make error message safe by masking sensitive information
+        safe_error_message = self._safe_error_message(error_message)
+        
+        # Log security audit for authentication errors
+        if SECURITY_AVAILABLE and status_code in (401, 403):
+            audit_log.log_token_access(
+                event="authentication_failure",
+                token_hash=self._token_hash,
+                source="api_request",
+                success=False
+            )
+        
         # Raise appropriate exception based on status code
         if status_code == 400:
-            raise ValidationError(error_message, status_code, response)
+            raise ValidationError(safe_error_message, status_code, response)
         elif status_code == 401:
-            raise AuthenticationError(error_message, status_code, response)
+            raise AuthenticationError(safe_error_message, status_code, response)
         elif status_code == 403:
-            raise PermissionDeniedError(error_message, status_code, response)
+            raise PermissionDeniedError(safe_error_message, status_code, response)
         elif status_code == 404:
-            raise ResourceNotFoundError(error_message, status_code, response)
+            raise ResourceNotFoundError(safe_error_message, status_code, response)
         elif status_code == 429:
-            raise RateLimitError(error_message, status_code, response)
+            raise RateLimitError(safe_error_message, status_code, response)
         elif 500 <= status_code < 600:
-            raise ServerError(error_message, status_code, response)
+            raise ServerError(safe_error_message, status_code, response)
         else:
-            raise YouTrackAPIError(error_message, status_code, response)
+            raise YouTrackAPIError(safe_error_message, status_code, response)
     
     async def _make_request(self, method: str, endpoint: str, **kwargs) -> Dict[str, Any]:
         """
