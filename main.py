@@ -990,24 +990,28 @@ def apply_cli_config(args):
         config.VERIFY_SSL = args.verify_ssl
 
 
-async def run_http_server(host: str, port: int):
-    """Run HTTP server using FastMCP's built-in HTTP support."""
+def run_http_server(host: str, port: int):
+    """Run HTTP server with JSON-RPC MCP endpoints for ChatGPT integration."""
     logger.info(f"Starting HTTP server on {host}:{port}")
-    logger.info("HTTP mode - tools available via REST API")
+    logger.info("HTTP mode - JSON-RPC MCP endpoints for ChatGPT integration")
     
-    # FastMCP should handle HTTP server creation
-    # This is a placeholder - actual implementation depends on FastMCP's HTTP capabilities
-    from fastapi import FastAPI
+    from fastapi import FastAPI, Request, HTTPException, Depends
+    from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+    from fastapi.responses import JSONResponse, StreamingResponse
     import uvicorn
+    import uuid
+    import asyncio
+    import time
+    from typing import Dict, AsyncIterator
     
     # Create FastAPI app
     app = FastAPI(
         title="YouTrack MCP Server",
-        description="MCP Server for JetBrains YouTrack",
+        description="MCP Server for JetBrains YouTrack - HTTP/JSON-RPC for ChatGPT",
         version=APP_VERSION
     )
     
-    # Add CORS
+    # Add CORS for ChatGPT integration
     from fastapi.middleware.cors import CORSMiddleware
     app.add_middleware(
         CORSMiddleware,
@@ -1017,11 +1021,359 @@ async def run_http_server(host: str, port: int):
         allow_headers=["*"],
     )
     
-    # Mount MCP endpoints (this would need FastMCP HTTP integration)
-    logger.warning("HTTP server setup - FastMCP HTTP integration needed")
+    # Optional Bearer token authentication
+    security = HTTPBearer(auto_error=False)
+    
+    async def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
+        """Verify bearer token if provided."""
+        if credentials:
+            # TODO: Add actual token validation here
+            # For now, accept any bearer token
+            logger.info(f"Authenticated request with token: {credentials.credentials[:10]}...")
+        return credentials
+    
+    @app.get("/")
+    async def root():
+        """Root endpoint with server info."""
+        return {
+            "name": "YouTrack MCP Server",
+            "version": APP_VERSION,
+            "description": "HTTP/JSON-RPC MCP Server for ChatGPT integration",
+            "endpoints": {
+                "mcp": "/mcp - Main JSON-RPC endpoint (synchronous)",
+                "sse": "/sse/{session_id} - Server-Sent Events connection",
+                "sse_message": "/sse/{session_id}/message - Send messages to SSE session",
+                "sse_list": "/sse - List active SSE connections", 
+                "health": "/health - Health check",
+                "tools": "/tools - List available tools"
+            },
+            "integration_notes": {
+                "chatgpt": "Use /mcp endpoint for direct tool calls",
+                "streaming": "Use /sse endpoints for real-time streaming responses",
+                "authentication": "Optional Bearer token in Authorization header"
+            }
+        }
+    
+    @app.get("/health")
+    async def health_check():
+        """Health check endpoint."""
+        return {"status": "healthy", "version": APP_VERSION}
+    
+    @app.get("/tools")
+    async def list_tools():
+        """List available MCP tools."""
+        # Get tools from MCP server
+        tools_info = []
+        for tool_name, tool_func in mcp.tools.items():
+            # Get function signature and docstring
+            import inspect
+            sig = inspect.signature(tool_func.func)
+            doc = tool_func.func.__doc__ or "No description available"
+            
+            tools_info.append({
+                "name": tool_name,
+                "description": doc.strip().split('\n')[0],  # First line of docstring
+                "parameters": [
+                    {
+                        "name": param.name,
+                        "type": str(param.annotation) if param.annotation != inspect.Parameter.empty else "Any",
+                        "required": param.default == inspect.Parameter.empty
+                    }
+                    for param in sig.parameters.values()
+                ]
+            })
+        
+        return {"tools": tools_info}
+    
+    @app.post("/mcp")
+    async def handle_mcp_request(request: Request, auth: HTTPAuthorizationCredentials = Depends(verify_token)):
+        """Handle JSON-RPC MCP requests from ChatGPT."""
+        try:
+            # Parse JSON-RPC request
+            body = await request.json()
+            
+            # Validate JSON-RPC format
+            if not isinstance(body, dict):
+                raise HTTPException(status_code=400, detail="Request must be JSON object")
+            
+            jsonrpc = body.get("jsonrpc")
+            if jsonrpc != "2.0":
+                raise HTTPException(status_code=400, detail="Must use JSON-RPC 2.0")
+            
+            method = body.get("method")
+            params = body.get("params", {})
+            request_id = body.get("id", str(uuid.uuid4()))
+            
+            logger.info(f"MCP Request: {method} with params: {params}")
+            
+            # Handle different MCP methods
+            if method == "tools/list":
+                # Return list of available tools
+                tools_list = []
+                for tool_name, tool_func in mcp.tools.items():
+                    import inspect
+                    sig = inspect.signature(tool_func.func)
+                    doc = tool_func.func.__doc__ or "No description available"
+                    
+                    # Build parameter schema
+                    properties = {}
+                    required = []
+                    
+                    for param_name, param in sig.parameters.items():
+                        param_type = "string"  # Default type
+                        if param.annotation != inspect.Parameter.empty:
+                            if param.annotation == int:
+                                param_type = "integer"
+                            elif param.annotation == bool:
+                                param_type = "boolean"
+                            elif param.annotation == float:
+                                param_type = "number"
+                        
+                        properties[param_name] = {"type": param_type}
+                        if param.default == inspect.Parameter.empty:
+                            required.append(param_name)
+                    
+                    tools_list.append({
+                        "name": tool_name,
+                        "description": doc.strip(),
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": properties,
+                            "required": required
+                        }
+                    })
+                
+                return JSONResponse({
+                    "jsonrpc": "2.0",
+                    "id": request_id,
+                    "result": {"tools": tools_list}
+                })
+            
+            elif method == "tools/call":
+                # Call a specific tool
+                tool_name = params.get("name")
+                arguments = params.get("arguments", {})
+                
+                if not tool_name:
+                    raise HTTPException(status_code=400, detail="Tool name required")
+                
+                if tool_name not in mcp.tools:
+                    raise HTTPException(status_code=404, detail=f"Tool '{tool_name}' not found")
+                
+                # Call the tool function
+                tool_func = mcp.tools[tool_name]
+                try:
+                    # Execute the tool
+                    result = await tool_func.func(**arguments)
+                    
+                    # Format result for MCP
+                    content = []
+                    if isinstance(result, str):
+                        content.append({"type": "text", "text": result})
+                    elif isinstance(result, dict):
+                        content.append({"type": "text", "text": json.dumps(result, indent=2)})
+                    else:
+                        content.append({"type": "text", "text": str(result)})
+                    
+                    return JSONResponse({
+                        "jsonrpc": "2.0", 
+                        "id": request_id,
+                        "result": {"content": content}
+                    })
+                    
+                except Exception as e:
+                    logger.error(f"Tool execution error: {str(e)}")
+                    return JSONResponse({
+                        "jsonrpc": "2.0",
+                        "id": request_id,
+                        "error": {
+                            "code": -32603,
+                            "message": "Internal error",
+                            "data": str(e)
+                        }
+                    }, status_code=500)
+            
+            else:
+                return JSONResponse({
+                    "jsonrpc": "2.0",
+                    "id": request_id,
+                    "error": {
+                        "code": -32601,
+                        "message": "Method not found",
+                        "data": f"Unknown method: {method}"
+                    }
+                }, status_code=404)
+                
+        except Exception as e:
+            logger.error(f"MCP request processing error: {str(e)}")
+            return JSONResponse({
+                "jsonrpc": "2.0",
+                "id": "unknown",
+                "error": {
+                    "code": -32700,
+                    "message": "Parse error",
+                    "data": str(e)
+                }
+            }, status_code=400)
+    
+    # SSE connection management
+    sse_connections: Dict[str, asyncio.Queue] = {}
+    
+    @app.get("/sse/{session_id}")
+    async def sse_endpoint(session_id: str, request: Request):
+        """Server-Sent Events endpoint for real-time streaming."""
+        async def event_stream() -> AsyncIterator[str]:
+            # Create connection queue
+            sse_connections[session_id] = asyncio.Queue()
+            
+            try:
+                # Send initial connection event
+                yield f"data: {json.dumps({'type': 'connected', 'session_id': session_id})}\n\n"
+                
+                while True:
+                    # Check if client disconnected
+                    if await request.is_disconnected():
+                        break
+                    
+                    try:
+                        # Wait for events with timeout
+                        event = await asyncio.wait_for(
+                            sse_connections[session_id].get(), 
+                            timeout=30.0
+                        )
+                        yield f"data: {json.dumps(event)}\n\n"
+                    except asyncio.TimeoutError:
+                        # Send keepalive
+                        yield f"data: {json.dumps({'type': 'keepalive', 'timestamp': time.time()})}\n\n"
+                    
+            except Exception as e:
+                logger.error(f"SSE connection error: {e}")
+            finally:
+                # Cleanup connection
+                if session_id in sse_connections:
+                    del sse_connections[session_id]
+                logger.info(f"SSE connection closed: {session_id}")
+        
+        return StreamingResponse(
+            event_stream(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Headers": "*",
+            }
+        )
+    
+    @app.post("/sse/{session_id}/message")
+    async def sse_message(session_id: str, request: Request, auth: HTTPAuthorizationCredentials = Depends(verify_token)):
+        """Send message to SSE connection."""
+        try:
+            body = await request.json()
+            
+            if session_id not in sse_connections:
+                raise HTTPException(status_code=404, detail="SSE session not found")
+            
+            # Validate JSON-RPC format
+            jsonrpc = body.get("jsonrpc")
+            if jsonrpc != "2.0":
+                raise HTTPException(status_code=400, detail="Must use JSON-RPC 2.0")
+            
+            method = body.get("method")
+            params = body.get("params", {})
+            request_id = body.get("id", str(uuid.uuid4()))
+            
+            logger.info(f"SSE MCP Request: {method} for session {session_id}")
+            
+            # Handle the request similar to /mcp endpoint
+            if method == "tools/call":
+                tool_name = params.get("name")
+                arguments = params.get("arguments", {})
+                
+                if not tool_name or tool_name not in mcp.tools:
+                    await sse_connections[session_id].put({
+                        "jsonrpc": "2.0",
+                        "id": request_id,
+                        "error": {
+                            "code": -32601,
+                            "message": "Tool not found",
+                            "data": f"Unknown tool: {tool_name}"
+                        }
+                    })
+                    return {"status": "error", "message": "Tool not found"}
+                
+                # Execute tool asynchronously
+                tool_func = mcp.tools[tool_name]
+                try:
+                    # Send progress update
+                    await sse_connections[session_id].put({
+                        "type": "progress",
+                        "message": f"Executing {tool_name}...",
+                        "request_id": request_id
+                    })
+                    
+                    # Execute the tool
+                    result = await tool_func.func(**arguments)
+                    
+                    # Format result for MCP
+                    content = []
+                    if isinstance(result, str):
+                        content.append({"type": "text", "text": result})
+                    elif isinstance(result, dict):
+                        content.append({"type": "text", "text": json.dumps(result, indent=2)})
+                    else:
+                        content.append({"type": "text", "text": str(result)})
+                    
+                    # Send result via SSE
+                    await sse_connections[session_id].put({
+                        "jsonrpc": "2.0",
+                        "id": request_id,
+                        "result": {"content": content}
+                    })
+                    
+                    return {"status": "success", "message": "Tool executed, result sent via SSE"}
+                    
+                except Exception as e:
+                    logger.error(f"SSE Tool execution error: {str(e)}")
+                    await sse_connections[session_id].put({
+                        "jsonrpc": "2.0",
+                        "id": request_id,
+                        "error": {
+                            "code": -32603,
+                            "message": "Internal error",
+                            "data": str(e)
+                        }
+                    })
+                    return {"status": "error", "message": str(e)}
+            
+            else:
+                await sse_connections[session_id].put({
+                    "jsonrpc": "2.0",
+                    "id": request_id,
+                    "error": {
+                        "code": -32601,
+                        "message": "Method not found",
+                        "data": f"Unknown method: {method}"
+                    }
+                })
+                return {"status": "error", "message": "Method not found"}
+                
+        except Exception as e:
+            logger.error(f"SSE message processing error: {str(e)}")
+            raise HTTPException(status_code=500, detail=str(e))
+    
+    @app.get("/sse")
+    async def list_sse_connections():
+        """List active SSE connections."""
+        return {
+            "active_connections": list(sse_connections.keys()),
+            "connection_count": len(sse_connections)
+        }
+    
+    logger.info("HTTP server configured for ChatGPT integration with JSON-RPC MCP endpoints and SSE streaming")
     
     # Run server
-    await uvicorn.run(app, host=host, port=port, log_level="info")
+    uvicorn.run(app, host=host, port=port, log_level="info")
 
 
 def main():
@@ -1048,7 +1400,7 @@ def main():
     if args.transport == "http":
         logger.info(f"HTTP mode: {args.host}:{args.port}")
         # Run HTTP server
-        asyncio.run(run_http_server(args.host, args.port))
+        run_http_server(args.host, args.port)
     else:
         logger.info("STDIO mode: for Claude/MCP integration")
         # Run stdio server
