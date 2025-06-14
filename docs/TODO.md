@@ -452,6 +452,30 @@
   - [ ] Environment-specific configs
   - [ ] Runtime configuration updates
 
+## MCP Resources Integration
+
+### High Priority - Resources vs Tools
+
+- [ ] **Add MCP Resources for documentation and configuration**
+  - [ ] Create `mcp_resources.py` module for resource handling
+  - [ ] Add YouTrack query syntax guide as `youtrack://query-syntax` resource
+  - [ ] Add available field definitions as `youtrack://project/{id}/fields` resource
+  - [ ] Add project list as `youtrack://projects` resource
+  - [ ] Add user directory as `youtrack://users` resource
+  - Impact: Provides context to LLMs without consuming tool slots
+
+- [ ] **Implement dual resource/tool strategy**
+  - [ ] Use Resources for: documentation, field schemas, project metadata
+  - [ ] Use Tools for: actions, searches, updates, issue operations
+  - [ ] Add resource refresh capability with TTL caching
+  - Pros: Better context, reduced tool complexity, cacheable reference data
+  - Cons: Additional implementation complexity, need resource management
+
+- [ ] **Add resource-aware error handling**
+  - [ ] Reference available resources in error messages
+  - [ ] Suggest relevant resources for common error scenarios
+  - [ ] Auto-refresh stale resource data when errors indicate schema changes
+
 ## Long-term Enhancements (Based on Technical Review)
 
 ### Medium Priority - Modern Tooling
@@ -501,28 +525,45 @@
 2. **Add MCP compliance tests** - Prevent CLI auto-resume breakage  
 3. **Fix token security** - Security risk
 4. **Fix Pydantic v2 migration** - Runtime warnings
+**Dependencies:** None
+**Success Metrics:** All async calls use httpx, compliance tests pass, token loaded per-request
+**Risk Mitigation:** Test with existing FastAPI endpoints, backup current implementation
 
 ### Phase 2: Claude CLI Compatibility (Week 2)
 1. **Fast handshake for auto-resume** - Critical for reliability
 2. **Structured JSON logging** - Better debugging
 3. **MCP_TIMEOUT support** - Prevent startup kills
 4. **Project-scoped .mcp.json examples** - Better UX
+**Dependencies:** Phase 1 MCP compliance tests
+**Success Metrics:** <2s handshake time, JSON logs parseable, examples in README
+**Risk Mitigation:** Test auto-resume scenarios, validate log format compatibility
 
-### Phase 3: Exception Handling (Week 3)
+### Phase 3: Exception Handling & MCP Resources (Week 3)
 1. **Replace generic exceptions** - Bot feedback priority
 2. **Add structured error responses** - Better error UX
-3. **HTTP status code handling** - API robustness
-4. **Request validation** - Prevent bad API calls
+3. **Implement MCP Resources** - Context without tool slots
+4. **HTTP status code handling** - API robustness
+**Dependencies:** Phase 2 logging infrastructure
+**Success Metrics:** Specific exceptions for all error types, resources accessible to LLMs
+**Risk Mitigation:** Maintain backward compatibility, test error scenarios extensively
 
-### Phase 4: Custom Fields (Week 4)
+### Phase 4: Custom Fields & Activity Tracking (Week 4)
 1. **Generic custom field updates** - User priority feature
 2. **Enhanced field handling** - Core functionality
-3. **Field validation tools** - Better UX
+3. **User activity search tools** - Core functionality
+4. **Date/time conversion utilities** - LLM usability
+**Dependencies:** Phase 3 error handling, MCP Resources for field schemas
+**Success Metrics:** All custom field types supported, activity search working
+**Risk Mitigation:** Test with diverse project configurations, validate date parsing
 
-### Phase 5: Testing & Security (Week 5)
-1. **Harden Dockerfile** - Security compliance
+### Phase 5: Performance & Testing (Week 5)
+1. **Implement caching strategy** - Performance for activity searches
 2. **Multi-model regression tests** - Quality assurance
-3. **Systemd examples** - Deployment docs
+3. **Harden Dockerfile** - Security compliance
+4. **Activity summarization engine** - Advanced features
+**Dependencies:** Phase 4 activity tracking, stable API patterns
+**Success Metrics:** <5s company-wide searches, all LLM providers pass tests
+**Risk Mitigation:** Cache fallback strategies, performance baseline measurements
 
 ## Code Examples from Technical Review
 
@@ -870,6 +911,39 @@ Restart=on-failure
 WantedBy=default.target
 ```
 
+## Technical Implementation Research Needed
+
+### API Research Requirements
+- [ ] **YouTrack Activities API investigation**
+  - Research: Does `/api/activities` endpoint exist? What fields are available?
+  - Alternative: Use `/api/issues/{id}/activities` per-issue approach
+  - Fallback: Parse issue history changes for activity extraction
+
+- [ ] **Custom field type handling research**
+  - Research: Complete list of YouTrack custom field types and their API representations
+  - Test: Multi-value fields, user fields, date fields, enum fields
+  - Document: Conversion patterns for each field type
+
+- [ ] **Rate limiting and pagination research**
+  - Research: YouTrack API rate limits, burst allowances, retry-after headers
+  - Test: Large result set pagination patterns
+  - Document: Optimal batch sizes for different operation types
+
+## Success Metrics & Validation
+
+### Phase Success Criteria
+- **Phase 1:** All existing functionality works with httpx, 100% MCP compliance test pass
+- **Phase 2:** Auto-resume success rate >95%, structured logs parseable by standard tools
+- **Phase 3:** LLM error resolution rate >80%, resources accessible in Claude Code
+- **Phase 4:** Support for all custom field types in use, activity search <10s response
+- **Phase 5:** Company-wide searches complete in <30s, regression test coverage >90%
+
+### Risk Mitigation Strategies
+- **API Changes:** Mock YouTrack responses for testing, version compatibility checks
+- **Performance Degradation:** Baseline measurements, performance budgets, rollback plans
+- **Breaking Changes:** Semantic versioning, deprecation warnings, migration guides
+- **Memory Issues:** Memory profiling, cache size limits, garbage collection monitoring
+
 ## Notes
 
 - Priority levels based on upstream technical review and bot feedback
@@ -878,3 +952,5 @@ WantedBy=default.target
 - Custom fields remain high priority due to user usage patterns
 - Focus on backward compatibility for all changes
 - Each phase builds on previous phase's improvements
+- MCP Resources provide context without consuming limited tool slots
+- Activity tracking requires significant API research and optimization
