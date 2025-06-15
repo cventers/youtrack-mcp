@@ -27,6 +27,18 @@ try:
 except ImportError:
     SECURITY_AVAILABLE = False
 
+# Import OAuth2/OIDC utilities (with fallback if not available)
+try:
+    from .auth import (
+        OAuth2Config,
+        OAuth2Manager,
+        create_youtrack_oauth2_config,
+        create_generic_oauth2_config
+    )
+    OAUTH2_AVAILABLE = True
+except ImportError:
+    OAUTH2_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 
@@ -50,6 +62,18 @@ class Config:
     MCP_SERVER_NAME: str = os.getenv("MCP_SERVER_NAME", "youtrack-mcp")
     MCP_SERVER_DESCRIPTION: str = os.getenv("MCP_SERVER_DESCRIPTION", "YouTrack MCP Server")
     MCP_DEBUG: bool = os.getenv("MCP_DEBUG", "false").lower() in ("true", "1", "yes")
+    
+    # OAuth2/OIDC configuration
+    OAUTH2_ENABLED: bool = os.getenv("OAUTH2_ENABLED", "false").lower() in ("true", "1", "yes")
+    OAUTH2_CLIENT_ID: str = os.getenv("OAUTH2_CLIENT_ID", "")
+    OAUTH2_CLIENT_SECRET: str = os.getenv("OAUTH2_CLIENT_SECRET", "")
+    OAUTH2_TOKEN_ENDPOINT: str = os.getenv("OAUTH2_TOKEN_ENDPOINT", "")
+    OAUTH2_AUTHORIZATION_ENDPOINT: str = os.getenv("OAUTH2_AUTHORIZATION_ENDPOINT", "")
+    OAUTH2_USERINFO_ENDPOINT: str = os.getenv("OAUTH2_USERINFO_ENDPOINT", "")
+    OAUTH2_JWKS_URI: str = os.getenv("OAUTH2_JWKS_URI", "")
+    OAUTH2_ISSUER: str = os.getenv("OAUTH2_ISSUER", "")
+    OAUTH2_SCOPE: str = os.getenv("OAUTH2_SCOPE", "openid profile")
+    OAUTH2_GRANT_TYPE: str = os.getenv("OAUTH2_GRANT_TYPE", "client_credentials")
     
     @classmethod
     def from_dict(cls, config_dict: Dict[str, Any]) -> None:
@@ -227,6 +251,56 @@ class Config:
             
         # Should never reach here as is_cloud_instance() returns True if URL is missing
         raise ValueError("YouTrack URL is required. Please set YOUTRACK_URL environment variable.")
+    
+    @classmethod
+    def get_oauth2_config(cls) -> Optional['OAuth2Config']:
+        """
+        Get OAuth2/OIDC configuration if enabled and available.
+        
+        Returns:
+            OAuth2Config instance or None if not enabled/available
+        """
+        if not cls.OAUTH2_ENABLED or not OAUTH2_AVAILABLE:
+            return None
+        
+        if not cls.OAUTH2_CLIENT_ID or not cls.OAUTH2_CLIENT_SECRET or not cls.OAUTH2_TOKEN_ENDPOINT:
+            logger.warning("OAuth2 is enabled but required configuration is missing")
+            return None
+        
+        return OAuth2Config(
+            client_id=cls.OAUTH2_CLIENT_ID,
+            client_secret=cls.OAUTH2_CLIENT_SECRET,
+            token_endpoint=cls.OAUTH2_TOKEN_ENDPOINT,
+            authorization_endpoint=cls.OAUTH2_AUTHORIZATION_ENDPOINT or None,
+            userinfo_endpoint=cls.OAUTH2_USERINFO_ENDPOINT or None,
+            jwks_uri=cls.OAUTH2_JWKS_URI or None,
+            issuer=cls.OAUTH2_ISSUER or None,
+            scope=cls.OAUTH2_SCOPE,
+            grant_type=cls.OAUTH2_GRANT_TYPE
+        )
+    
+    @classmethod
+    def create_youtrack_oauth2_config(cls, workspace: str) -> Optional['OAuth2Config']:
+        """
+        Create OAuth2 configuration for YouTrack Cloud/Hub.
+        
+        Args:
+            workspace: YouTrack workspace name
+            
+        Returns:
+            OAuth2Config for YouTrack or None if not available
+        """
+        if not OAUTH2_AVAILABLE or not cls.OAUTH2_CLIENT_ID or not cls.OAUTH2_CLIENT_SECRET:
+            return None
+        
+        base_url = f"https://{workspace}.youtrack.cloud" if workspace else cls.get_base_url().rstrip("/api")
+        
+        return create_youtrack_oauth2_config(
+            base_url=base_url,
+            client_id=cls.OAUTH2_CLIENT_ID,
+            client_secret=cls.OAUTH2_CLIENT_SECRET,
+            scope=cls.OAUTH2_SCOPE
+        )
 
 
 # Create a global config instance

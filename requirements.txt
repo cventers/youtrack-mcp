@@ -6,6 +6,8 @@ nest_asyncio>=1.5.6
 
 # Optional security dependencies
 keyring>=24.0.0  # For secure credential storage
+PyJWT>=2.8.0  # For JWT token validation
+cryptography>=41.0.0  # For JWT signature verification
 
 # Development dependencies
 pytest>=7.0.0
