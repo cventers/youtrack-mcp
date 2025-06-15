@@ -8,6 +8,7 @@ import argparse
 import asyncio
 import logging
 import os
+import re
 import sys
 from typing import Any, Dict, List, Optional
 
@@ -23,6 +24,12 @@ from youtrack_mcp.api.users import UsersClient
 from youtrack_mcp.api.search import SearchClient
 from youtrack_mcp.config import Config, config
 from youtrack_mcp.utils import convert_timestamp_to_iso8601, add_iso8601_timestamps
+
+# Advanced search engine
+from youtrack_mcp.search_advanced import (
+    AdvancedSearchEngine, SearchQuery, SearchOperator, SortOrder, SearchScope,
+    create_issue_search, create_date_range_search, create_text_search
+)
 
 # Set up logging
 logging.basicConfig(
@@ -44,6 +51,7 @@ issues_api: Optional[IssuesClient] = None
 projects_api: Optional[ProjectsClient] = None
 users_api: Optional[UsersClient] = None
 search_api: Optional[SearchClient] = None
+advanced_search: Optional[AdvancedSearchEngine] = None
 
 
 def load_config():
@@ -75,15 +83,16 @@ def load_config():
 
 def initialize_clients():
     """Initialize API clients."""
-    global youtrack_client, issues_api, projects_api, users_api, search_api
+    global youtrack_client, issues_api, projects_api, users_api, search_api, advanced_search
     
     youtrack_client = YouTrackClient()
     issues_api = IssuesClient(youtrack_client)
     projects_api = ProjectsClient(youtrack_client)
     users_api = UsersClient(youtrack_client)
     search_api = SearchClient(youtrack_client)
+    advanced_search = AdvancedSearchEngine(youtrack_client, enable_cache=True, enable_analytics=True)
     
-    logger.info("API clients initialized")
+    logger.info("API clients and advanced search engine initialized")
 
 
 # Issue Tools
@@ -370,6 +379,283 @@ async def search_with_custom_fields(project: str = None, custom_field_filters: D
     except Exception as e:
         logger.exception("Error in search_with_custom_fields")
         return [{"error": str(e)}]
+
+
+# Advanced Search Tools
+@mcp.tool()
+async def intelligent_search(
+    query_text: str = None,
+    project: str = None,
+    assignee: str = None,
+    state: str = None,
+    priority: str = None,
+    created_after: str = None,
+    created_before: str = None,
+    updated_after: str = None,
+    updated_before: str = None,
+    sort_by: str = "updated",
+    sort_order: str = "desc",
+    limit: int = 50,
+    offset: int = 0,
+    include_resolved: bool = True,
+    include_archived: bool = False
+) -> Dict[str, Any]:
+    """
+    Intelligent search with advanced query building, caching, and analytics.
+    
+    Args:
+        query_text: Free text search across summary and description
+        project: Project name or short name
+        assignee: Assignee login name ('unassigned' for unassigned issues)
+        state: Issue state (e.g., 'Open', 'Fixed', 'Verified')
+        priority: Issue priority (e.g., 'Critical', 'High', 'Normal', 'Low')
+        created_after: Created after date (YYYY-MM-DD or relative like '-7d')
+        created_before: Created before date (YYYY-MM-DD)
+        updated_after: Updated after date (YYYY-MM-DD or relative like '-1w')
+        updated_before: Updated before date (YYYY-MM-DD)
+        sort_by: Field to sort by (created, updated, priority, summary)
+        sort_order: Sort order ('asc' or 'desc')
+        limit: Maximum number of results (1-1000)
+        offset: Results offset for pagination
+        include_resolved: Include resolved/closed issues
+        include_archived: Include issues from archived projects
+        
+    Returns:
+        Search results with metadata, suggestions, and analytics
+    """
+    try:
+        # Create advanced search query
+        search_query = advanced_search.create_query()
+        
+        # Add text search
+        if query_text:
+            search_query.add_text_search(query_text)
+        
+        # Add structured conditions
+        if project:
+            search_query.add_condition("project", SearchOperator.EQUALS, project)
+        
+        if assignee:
+            if assignee.lower() == "unassigned":
+                search_query.add_condition("assignee", SearchOperator.EQUALS, "Unassigned")
+            else:
+                search_query.add_condition("assignee", SearchOperator.EQUALS, assignee)
+        
+        if state:
+            search_query.add_condition("State", SearchOperator.EQUALS, state)
+        
+        if priority:
+            search_query.add_condition("Priority", SearchOperator.EQUALS, priority)
+        
+        # Handle date ranges with relative dates
+        from datetime import datetime, timedelta
+        
+        def parse_relative_date(date_str: str) -> datetime:
+            """Parse relative dates like '-7d', '-1w', '-1m'."""
+            if date_str.startswith('-'):
+                match = re.match(r'-(\d+)([dwmy])', date_str.lower())
+                if match:
+                    num, unit = int(match.group(1)), match.group(2)
+                    if unit == 'd':
+                        return datetime.now() - timedelta(days=num)
+                    elif unit == 'w':
+                        return datetime.now() - timedelta(weeks=num)
+                    elif unit == 'm':
+                        return datetime.now() - timedelta(days=num * 30)
+                    elif unit == 'y':
+                        return datetime.now() - timedelta(days=num * 365)
+            
+            # Try to parse as regular date
+            try:
+                return datetime.strptime(date_str, "%Y-%m-%d")
+            except ValueError:
+                return None
+        
+        # Add date range conditions
+        if created_after or created_before:
+            from_date = parse_relative_date(created_after) if created_after else None
+            to_date = parse_relative_date(created_before) if created_before else None
+            if from_date or to_date:
+                search_query.add_date_range("created", from_date, to_date)
+        
+        if updated_after or updated_before:
+            from_date = parse_relative_date(updated_after) if updated_after else None
+            to_date = parse_relative_date(updated_before) if updated_before else None
+            if from_date or to_date:
+                search_query.add_date_range("updated", from_date, to_date)
+        
+        # Configure query options
+        search_query.include_resolved = include_resolved
+        search_query.include_archived = include_archived
+        search_query.set_pagination(limit, offset)
+        search_query.set_sorting(sort_by, SortOrder.DESC if sort_order.lower() == "desc" else SortOrder.ASC)
+        
+        # Execute search
+        result = await advanced_search.search(search_query)
+        
+        # Enhance with ISO8601 timestamps
+        enhanced_issues = add_iso8601_timestamps(result.issues)
+        
+        return {
+            "issues": enhanced_issues,
+            "total_count": result.total_count,
+            "execution_time_ms": int(result.execution_time * 1000),
+            "query_used": result.query_used,
+            "cache_hit": result.cache_hit,
+            "suggested_queries": result.suggested_queries,
+            "facets": result.facets,
+            "pagination": {
+                "limit": limit,
+                "offset": offset,
+                "has_more": len(enhanced_issues) == limit
+            }
+        }
+        
+    except Exception as e:
+        logger.exception("Error in intelligent_search")
+        return {"error": str(e)}
+
+
+@mcp.tool()
+async def search_by_query_builder(conditions: List[Dict[str, Any]], 
+                                 sort_field: str = "updated", 
+                                 sort_order: str = "desc",
+                                 limit: int = 50) -> Dict[str, Any]:
+    """
+    Advanced search using structured query conditions.
+    
+    Args:
+        conditions: List of search conditions, each with:
+                   - field: Field name (e.g., 'project', 'assignee', 'State')
+                   - operator: Operator (':', '!:', '>', '<', 'in', 'not in', etc.)
+                   - value: Value to search for
+                   - negated: Whether to negate the condition (optional)
+        sort_field: Field to sort results by
+        sort_order: Sort order ('asc' or 'desc')
+        limit: Maximum number of results
+        
+    Returns:
+        Search results with metadata
+    """
+    try:
+        # Create search query
+        search_query = advanced_search.create_query()
+        
+        # Add conditions
+        for condition in conditions:
+            field = condition.get("field")
+            operator_str = condition.get("operator", ":")
+            value = condition.get("value")
+            negated = condition.get("negated", False)
+            
+            if not field or value is None:
+                continue
+            
+            # Map operator string to enum
+            operator_map = {
+                ":": SearchOperator.EQUALS,
+                "!:": SearchOperator.NOT_EQUALS,
+                "~": SearchOperator.CONTAINS,
+                "!~": SearchOperator.NOT_CONTAINS,
+                ">": SearchOperator.GREATER_THAN,
+                "<": SearchOperator.LESS_THAN,
+                ">=": SearchOperator.GREATER_EQUAL,
+                "<=": SearchOperator.LESS_EQUAL,
+                "in": SearchOperator.IN,
+                "not in": SearchOperator.NOT_IN,
+                "has": SearchOperator.HAS,
+                "!has": SearchOperator.NOT_HAS
+            }
+            
+            operator = operator_map.get(operator_str, SearchOperator.EQUALS)
+            search_query.add_condition(field, operator, value, negated)
+        
+        # Set sorting and pagination
+        search_query.set_sorting(sort_field, SortOrder.DESC if sort_order.lower() == "desc" else SortOrder.ASC)
+        search_query.set_pagination(limit)
+        
+        # Execute search
+        result = await advanced_search.search(search_query)
+        
+        # Enhance with ISO8601 timestamps
+        enhanced_issues = add_iso8601_timestamps(result.issues)
+        
+        return {
+            "issues": enhanced_issues,
+            "total_count": result.total_count,
+            "execution_time_ms": int(result.execution_time * 1000),
+            "query_used": result.query_used,
+            "cache_hit": result.cache_hit,
+            "conditions_applied": len(conditions)
+        }
+        
+    except Exception as e:
+        logger.exception("Error in search_by_query_builder")
+        return {"error": str(e)}
+
+
+@mcp.tool()
+async def search_suggestions(partial_query: str, limit: int = 5) -> List[str]:
+    """
+    Get search query suggestions based on partial input.
+    
+    Args:
+        partial_query: Partial search query to get suggestions for
+        limit: Maximum number of suggestions to return
+        
+    Returns:
+        List of suggested query completions
+    """
+    try:
+        suggestions = await advanced_search.get_search_suggestions(partial_query, limit)
+        return suggestions
+        
+    except Exception as e:
+        logger.exception("Error getting search suggestions")
+        return [f"Error: {str(e)}"]
+
+
+@mcp.tool()
+async def search_analytics() -> Dict[str, Any]:
+    """
+    Get search analytics and performance statistics.
+    
+    Returns:
+        Analytics data including popular queries, performance metrics, and cache statistics
+    """
+    try:
+        analytics_stats = advanced_search.get_analytics_stats()
+        cache_stats = advanced_search.get_cache_stats()
+        
+        return {
+            "analytics": analytics_stats,
+            "cache": cache_stats,
+            "status": "enabled" if advanced_search.enable_analytics else "disabled"
+        }
+        
+    except Exception as e:
+        logger.exception("Error getting search analytics")
+        return {"error": str(e)}
+
+
+@mcp.tool()
+async def clear_search_cache() -> Dict[str, Any]:
+    """
+    Clear the search cache to force fresh results.
+    
+    Returns:
+        Status of cache clearing operation
+    """
+    try:
+        if advanced_search.cache:
+            advanced_search.clear_cache()
+            return {"status": "success", "message": "Search cache cleared"}
+        else:
+            return {"status": "info", "message": "Search cache is not enabled"}
+        
+    except Exception as e:
+        logger.exception("Error clearing search cache")
+        return {"error": str(e)}
 
 
 @mcp.tool()
