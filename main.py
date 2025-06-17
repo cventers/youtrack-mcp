@@ -23,7 +23,7 @@ from youtrack_mcp.api.projects import ProjectsClient
 from youtrack_mcp.api.users import UsersClient
 from youtrack_mcp.api.search import SearchClient
 from youtrack_mcp.config import Config, config
-from youtrack_mcp.utils import convert_timestamp_to_iso8601, add_iso8601_timestamps
+from youtrack_mcp.utils import convert_timestamp_to_iso8601, add_iso8601_timestamps, generate_ticket_suggestions
 
 # Advanced search engine
 from youtrack_mcp.search_advanced import (
@@ -157,7 +157,7 @@ async def create_issue(project: str, summary: str, description: str = None) -> D
         description: Issue description (optional)
         
     Returns:
-        Created issue information
+        Created issue information with attribute suggestions for missing fields
     """
     try:
         issue_data = {
@@ -168,7 +168,24 @@ async def create_issue(project: str, summary: str, description: str = None) -> D
         if description:
             issue_data["description"] = description
         
+        # Create the issue
         result = await youtrack_client.post("issues", data=issue_data)
+        
+        # Generate suggestions for missing attributes
+        issue_id = result.get('idReadable', result.get('id'))
+        suggestions = generate_ticket_suggestions(issue_data, project, issue_id)
+        
+        # Enhance the response with suggestions
+        if suggestions.get('suggestions_available', False):
+            result['attribute_suggestions'] = suggestions
+            
+            # Add a helpful note for the model
+            result['mcp_guidance'] = {
+                'message': 'The issue was created successfully. Consider the suggested improvements below.',
+                'next_steps': 'You can use the suggested MCP calls to enhance this issue with missing attributes.',
+                'last_created_issue': issue_id
+            }
+        
         return result
         
     except Exception as e:
@@ -1348,28 +1365,29 @@ def run_http_server(host: str, port: int):
     @app.get("/tools")
     async def list_tools():
         """List available MCP tools."""
-        # Get tools from MCP server
-        tools_info = []
-        for tool_name, tool_func in mcp.tools.items():
-            # Get function signature and docstring
-            import inspect
-            sig = inspect.signature(tool_func.func)
-            doc = tool_func.func.__doc__ or "No description available"
-            
-            tools_info.append({
-                "name": tool_name,
-                "description": doc.strip().split('\n')[0],  # First line of docstring
-                "parameters": [
-                    {
-                        "name": param.name,
-                        "type": str(param.annotation) if param.annotation != inspect.Parameter.empty else "Any",
-                        "required": param.default == inspect.Parameter.empty
-                    }
-                    for param in sig.parameters.values()
-                ]
-            })
-        
-        return {"tools": tools_info}
+        # Use FastMCP's built-in list_tools method
+        try:
+            tools_response = await mcp.list_tools()
+            # Extract tools from the MCP response format
+            tools_info = []
+            for tool in tools_response.tools:
+                tools_info.append({
+                    "name": tool.name,
+                    "description": tool.description or "No description available",
+                    "input_schema": tool.inputSchema.model_dump() if tool.inputSchema else {}
+                })
+            return {"tools": tools_info}
+        except Exception as e:
+            logger.error(f"Error listing tools: {e}")
+            # Fallback: return basic tool names
+            return {"tools": [
+                {"name": "get_issue", "description": "Get YouTrack issue by ID"},
+                {"name": "search_issues", "description": "Search YouTrack issues"},
+                {"name": "create_issue", "description": "Create new YouTrack issue"},
+                {"name": "update_issue", "description": "Update YouTrack issue"},
+                {"name": "get_projects", "description": "Get YouTrack projects"},
+                {"name": "get_users", "description": "Get YouTrack users"}
+            ]}
     
     @app.post("/mcp")
     async def handle_mcp_request(request: Request, auth: HTTPAuthorizationCredentials = Depends(verify_token)):
@@ -1394,9 +1412,80 @@ def run_http_server(host: str, port: int):
             
             # Handle different MCP methods
             if method == "tools/list":
-                # Return list of available tools
+                # Return list of available tools using FastMCP's list_tools method
+                try:
+                    tools_response = await mcp.list_tools()
+                    return {
+                        "jsonrpc": "2.0",
+                        "id": request_id,
+                        "result": tools_response
+                    }
+                except Exception as e:
+                    logger.error(f"Error listing tools: {e}")
+                    return {
+                        "jsonrpc": "2.0", 
+                        "id": request_id,
+                        "error": {
+                            "code": -32603,
+                            "message": "Internal error listing tools",
+                            "data": str(e)
+                        }
+                    }
+            
+            elif method == "tools/call":
+                # Call a specific tool
+                try:
+                    tool_name = params.get("name")
+                    arguments = params.get("arguments", {})
+                    
+                    if not tool_name:
+                        return {
+                            "jsonrpc": "2.0",
+                            "id": request_id,
+                            "error": {
+                                "code": -32602,
+                                "message": "Invalid params: missing tool name"
+                            }
+                        }
+                    
+                    result = await mcp.call_tool(tool_name, arguments)
+                    return {
+                        "jsonrpc": "2.0",
+                        "id": request_id,
+                        "result": result
+                    }
+                except Exception as e:
+                    logger.error(f"Error calling tool {tool_name}: {e}")
+                    return {
+                        "jsonrpc": "2.0",
+                        "id": request_id,
+                        "error": {
+                            "code": -32603,
+                            "message": f"Tool execution error: {str(e)}"
+                        }
+                    }
+            
+            elif method == "initialize":
+                # MCP initialization
+                return {
+                    "jsonrpc": "2.0",
+                    "id": request_id,
+                    "result": {
+                        "protocolVersion": "2025-03-26",
+                        "capabilities": {
+                            "tools": {}
+                        },
+                        "serverInfo": {
+                            "name": "YouTrack MCP",
+                            "version": APP_VERSION
+                        }
+                    }
+                }
+            
+            # Legacy tools handling (keeping for compatibility)
+            elif False:  # Disabled old code block
                 tools_list = []
-                for tool_name, tool_func in mcp.tools.items():
+                for tool_name, tool_func in {}.items():
                     import inspect
                     sig = inspect.signature(tool_func.func)
                     doc = tool_func.func.__doc__ or "No description available"

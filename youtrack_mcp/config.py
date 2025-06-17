@@ -5,6 +5,7 @@ import os
 import ssl
 import logging
 from typing import Optional, Dict, Any
+from pathlib import Path
 
 # Optional import for dotenv
 try:
@@ -14,6 +15,9 @@ try:
 except ImportError:
     # dotenv is not required
     pass
+
+# Import YAML (required dependency)
+import yaml
 
 # Import security utilities (with fallback if not available)
 try:
@@ -74,6 +78,106 @@ class Config:
     OAUTH2_ISSUER: str = os.getenv("OAUTH2_ISSUER", "")
     OAUTH2_SCOPE: str = os.getenv("OAUTH2_SCOPE", "openid profile")
     OAUTH2_GRANT_TYPE: str = os.getenv("OAUTH2_GRANT_TYPE", "client_credentials")
+    
+    # Response formatting quirks
+    NO_EPOCH: bool = os.getenv("YOUTRACK_NO_EPOCH", "true").lower() in ("true", "1", "yes")
+    
+    # Ticket attribute suggestions
+    SUGGESTIONS_ENABLED: bool = os.getenv("YOUTRACK_SUGGESTIONS_ENABLED", "true").lower() in ("true", "1", "yes")
+    SUGGESTIONS_CONFIG: Dict[str, Any] = {}
+    
+    @classmethod
+    def load_yaml_config(cls, config_path: Optional[str] = None) -> None:
+        """
+        Load configuration from YAML file with environment variable overrides.
+        
+        Args:
+            config_path: Path to YAML config file. If None, searches for config.yaml
+        """
+        
+        # Find config file
+        if config_path is None:
+            # Look for config.yaml in current directory or parent directory
+            current_dir = Path.cwd()
+            config_paths = [
+                current_dir / "config.yaml",
+                current_dir.parent / "config.yaml",
+                Path(__file__).parent.parent / "config.yaml"
+            ]
+            config_path = None
+            for path in config_paths:
+                if path.exists():
+                    config_path = str(path)
+                    break
+        
+        if not config_path or not Path(config_path).exists():
+            raise FileNotFoundError(f"YAML configuration file not found. Searched: {[str(p) for p in config_paths]}")
+        
+        # Load YAML configuration
+        with open(config_path, 'r') as f:
+            yaml_config = yaml.safe_load(f)
+        
+        if not yaml_config:
+            raise ValueError(f"Empty or invalid YAML configuration file: {config_path}")
+        
+        # Apply YAML configuration with environment variable overrides
+        cls._apply_yaml_config(yaml_config)
+        logger.info(f"Configuration loaded from: {config_path}")
+    
+    @classmethod
+    def _apply_yaml_config(cls, yaml_config: Dict[str, Any]) -> None:
+        """
+        Apply YAML configuration with environment variable overrides.
+        
+        Args:
+            yaml_config: The loaded YAML configuration
+        """
+        # YouTrack configuration
+        if 'youtrack' in yaml_config:
+            youtrack = yaml_config['youtrack']
+            cls.YOUTRACK_URL = os.getenv("YOUTRACK_URL", youtrack.get('url', ''))
+            cls.YOUTRACK_API_TOKEN = os.getenv("YOUTRACK_API_TOKEN", youtrack.get('api_token', ''))
+            cls.YOUTRACK_TOKEN_FILE = os.getenv("YOUTRACK_TOKEN_FILE", youtrack.get('token_file', ''))
+            cls.VERIFY_SSL = os.getenv("YOUTRACK_VERIFY_SSL", str(youtrack.get('verify_ssl', True))).lower() in ("true", "1", "yes")
+            cls.YOUTRACK_CLOUD = os.getenv("YOUTRACK_CLOUD", str(youtrack.get('cloud', False))).lower() in ("true", "1", "yes")
+        
+        # API configuration
+        if 'api' in yaml_config:
+            api = yaml_config['api']
+            cls.MAX_RETRIES = int(os.getenv("YOUTRACK_MAX_RETRIES", str(api.get('max_retries', 3))))
+            cls.RETRY_DELAY = float(os.getenv("YOUTRACK_RETRY_DELAY", str(api.get('retry_delay', 1.0))))
+        
+        # MCP configuration
+        if 'mcp' in yaml_config:
+            mcp = yaml_config['mcp']
+            cls.MCP_SERVER_NAME = os.getenv("MCP_SERVER_NAME", mcp.get('server_name', 'youtrack-mcp'))
+            cls.MCP_SERVER_DESCRIPTION = os.getenv("MCP_SERVER_DESCRIPTION", mcp.get('server_description', 'YouTrack MCP Server'))
+            cls.MCP_DEBUG = os.getenv("MCP_DEBUG", str(mcp.get('debug', False))).lower() in ("true", "1", "yes")
+        
+        # OAuth2 configuration
+        if 'oauth2' in yaml_config:
+            oauth2 = yaml_config['oauth2']
+            cls.OAUTH2_ENABLED = os.getenv("OAUTH2_ENABLED", str(oauth2.get('enabled', False))).lower() in ("true", "1", "yes")
+            cls.OAUTH2_CLIENT_ID = os.getenv("OAUTH2_CLIENT_ID", oauth2.get('client_id', ''))
+            cls.OAUTH2_CLIENT_SECRET = os.getenv("OAUTH2_CLIENT_SECRET", oauth2.get('client_secret', ''))
+            cls.OAUTH2_TOKEN_ENDPOINT = os.getenv("OAUTH2_TOKEN_ENDPOINT", oauth2.get('token_endpoint', ''))
+            cls.OAUTH2_AUTHORIZATION_ENDPOINT = os.getenv("OAUTH2_AUTHORIZATION_ENDPOINT", oauth2.get('authorization_endpoint', ''))
+            cls.OAUTH2_USERINFO_ENDPOINT = os.getenv("OAUTH2_USERINFO_ENDPOINT", oauth2.get('userinfo_endpoint', ''))
+            cls.OAUTH2_JWKS_URI = os.getenv("OAUTH2_JWKS_URI", oauth2.get('jwks_uri', ''))
+            cls.OAUTH2_ISSUER = os.getenv("OAUTH2_ISSUER", oauth2.get('issuer', ''))
+            cls.OAUTH2_SCOPE = os.getenv("OAUTH2_SCOPE", oauth2.get('scope', 'openid profile'))
+            cls.OAUTH2_GRANT_TYPE = os.getenv("OAUTH2_GRANT_TYPE", oauth2.get('grant_type', 'client_credentials'))
+        
+        # Quirks configuration
+        if 'quirks' in yaml_config:
+            quirks = yaml_config['quirks']
+            cls.NO_EPOCH = os.getenv("YOUTRACK_NO_EPOCH", str(quirks.get('no_epoch', True))).lower() in ("true", "1", "yes")
+        
+        # Suggestions configuration
+        if 'suggestions' in yaml_config:
+            suggestions = yaml_config['suggestions']
+            cls.SUGGESTIONS_ENABLED = os.getenv("YOUTRACK_SUGGESTIONS_ENABLED", str(suggestions.get('enabled', True))).lower() in ("true", "1", "yes")
+            cls.SUGGESTIONS_CONFIG = suggestions
     
     @classmethod
     def from_dict(cls, config_dict: Dict[str, Any]) -> None:
@@ -303,5 +407,14 @@ class Config:
         )
 
 
-# Create a global config instance
-config = Config() 
+# Create a global config instance and load YAML configuration
+config = Config()
+
+# Auto-load YAML configuration if available
+try:
+    config.load_yaml_config()
+except FileNotFoundError:
+    logger.warning("No YAML configuration file found, using environment variables and defaults")
+except Exception as e:
+    logger.error(f"Failed to load YAML configuration: {e}")
+    # Continue with environment variables and defaults 

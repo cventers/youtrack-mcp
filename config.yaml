@@ -1,0 +1,145 @@
+# YouTrack MCP Server Configuration
+# This YAML file provides configuration for the YouTrack MCP server
+
+# YouTrack API Configuration
+youtrack:
+  # YouTrack instance URL (for self-hosted instances)
+  # For cloud instances, leave empty or set cloud: true
+  url: ""
+  
+  # API token for authentication
+  # Can be overridden by environment variables or token file
+  api_token: ""
+  
+  # Path to token file (alternative to api_token)
+  token_file: ""
+  
+  # SSL certificate verification
+  verify_ssl: true
+  
+  # Cloud instance configuration
+  cloud: false
+  
+  # Workspace name (for cloud instances)
+  workspace: ""
+
+# API Client Configuration
+api:
+  # Maximum number of retries for failed requests
+  max_retries: 3
+  
+  # Delay between retries (in seconds)
+  retry_delay: 1.0
+
+# MCP Server Configuration
+mcp:
+  # Server name and description
+  server_name: "youtrack-mcp"
+  server_description: "YouTrack MCP Server"
+  
+  # Debug mode
+  debug: false
+
+# OAuth2/OIDC Configuration (optional)
+oauth2:
+  # Enable OAuth2 authentication
+  enabled: false
+  
+  # OAuth2 client configuration
+  client_id: ""
+  client_secret: ""
+  
+  # OAuth2 endpoints
+  token_endpoint: ""
+  authorization_endpoint: ""
+  userinfo_endpoint: ""
+  jwks_uri: ""
+  issuer: ""
+  
+  # OAuth2 scope and grant type
+  scope: "openid profile"
+  grant_type: "client_credentials"
+
+# Response Formatting Quirks
+quirks:
+  # Remove epoch values from responses and provide only structured datetime values
+  # When true, epoch timestamps are removed and only ISO8601 formatted dates are included
+  no_epoch: true
+
+# Ticket Attribute Suggestions
+# Configure which attributes to suggest when creating issues if they're missing
+suggestions:
+  # Enable/disable the suggestion system
+  enabled: true
+  
+  # Attributes to suggest with their default values or prompts
+  # The system will suggest these if not provided by the model
+  ticket_attributes:
+    # Priority suggestions
+    priority:
+      enabled: true
+      default: "Normal"
+      options: ["Critical", "High", "Normal", "Low"]
+      prompt: "Consider setting a priority based on the issue severity"
+    
+    # Component/Subsystem suggestions  
+    component:
+      enabled: true
+      default: null
+      prompt: "Consider specifying which component or subsystem this affects"
+    
+    # Issue type suggestions
+    type:
+      enabled: true
+      default: "Bug"
+      options: ["Bug", "Feature", "Task", "Epic", "Story"]
+      prompt: "Consider specifying the issue type"
+    
+    # Tags suggestions
+    tags:
+      enabled: true
+      default: []
+      prompt: "Consider adding relevant tags to categorize this issue"
+    
+    # Assignee suggestions
+    assignee:
+      enabled: true
+      default: null
+      prompt: "Consider assigning this issue to a team member"
+    
+    # Due date suggestions for urgent issues
+    due_date:
+      enabled: false
+      default: null
+      prompt: "Consider setting a due date for time-sensitive issues"
+    
+    # Estimated time suggestions
+    estimation:
+      enabled: false
+      default: null
+      prompt: "Consider providing a time estimate for this work"
+  
+  # Project-specific overrides (optional)
+  # These can override the global settings per project
+  project_overrides:
+    # Example project-specific settings
+    # "MY-PROJECT":
+    #   priority:
+    #     default: "High"
+    #     options: ["Critical", "High", "Medium"]
+    #   component:
+    #     default: "Backend"
+    
+  # Suggestion behavior configuration
+  behavior:
+    # How to present suggestions in the response
+    format: "structured"  # Options: "structured", "narrative", "minimal"
+    
+    # Whether to include example MCP calls for amendments
+    include_example_calls: true
+    
+    # Maximum number of suggestions to include
+    max_suggestions: 5
+    
+    # Whether to suggest amendments for critical fields only
+    critical_only: false
