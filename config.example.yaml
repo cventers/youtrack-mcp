@@ -1,0 +1,153 @@
+# YouTrack MCP Server Configuration
+# Copy this file to config.yaml and customize for your environment
+
+# YouTrack connection settings
+youtrack:
+  # For self-hosted instances
+  url: "https://youtrack.yourcompany.com"
+  
+  # For YouTrack Cloud (alternative: set cloud: true and provide workspace)
+  # url: "https://yourworkspace.youtrack.cloud"
+  # cloud: true
+  
+  # API token (can also use token_file or environment variables)
+  # api_token: "your_api_token_here"
+  token_file: "/path/to/token/file"
+  
+  # SSL verification
+  verify_ssl: true
+
+# API client settings
+api:
+  max_retries: 3
+  retry_delay: 1.0
+
+# MCP server settings
+mcp:
+  server_name: "youtrack-mcp"
+  server_description: "YouTrack MCP Server"
+  debug: false
+
+# AI/LLM Configuration
+ai:
+  # Enable AI features
+  enabled: true
+  max_memory_mb: 2048
+  
+  # OpenAI-compatible API provider (highest priority)
+  llm:
+    # OpenAI example
+    api_url: "https://api.openai.com/v1"
+    api_key: "sk-your-openai-key"
+    model: "gpt-3.5-turbo"
+    
+    # Anthropic Claude example
+    # api_url: "https://api.anthropic.com/v1"
+    # api_key: "sk-ant-your-anthropic-key"
+    # model: "claude-3-haiku-20240307"
+    
+    # Local Ollama example
+    # api_url: "http://localhost:11434/v1"
+    # api_key: "ollama"
+    # model: "llama2"
+    
+    max_tokens: 1000
+    temperature: 0.3
+    timeout: 30
+    enabled: true
+  
+  # Hugging Face Transformers (local CPU inference)
+  huggingface:
+    # Recommended models for CPU inference
+    model: "Qwen/Qwen1.5-0.5B-Chat"  # Balanced performance
+    # model: "TinyLlama/TinyLlama-1.1B-Chat-v1.0"  # Lightweight
+    # model: "Qwen/Qwen1.5-1.8B-Chat"  # High quality (needs quantization)
+    
+    device: "cpu"
+    max_tokens: 1000
+    temperature: 0.3
+    torch_dtype: "auto"
+    
+    # Quantization (reduces memory usage)
+    quantization_4bit: false  # Enable for larger models (4GB+ RAM)
+    quantization_8bit: false  # Alternative quantization
+    
+    # Security
+    trust_remote_code: false
+    
+    enabled: false  # Set to true to enable local models
+  
+  # Local model (future feature)
+  local:
+    model_path: "/path/to/local/model"
+    enabled: false
+
+# OAuth2/OIDC configuration (optional)
+oauth2:
+  enabled: false
+  client_id: "your_client_id"
+  client_secret: "your_client_secret"
+  token_endpoint: "https://youtrack.yourcompany.com/hub/api/rest/oauth2/token"
+  scope: "openid profile"
+  grant_type: "client_credentials"
+
+# Feature settings
+quirks:
+  no_epoch: true  # Convert epoch timestamps to ISO8601
+
+suggestions:
+  enabled: true
+
+# Example configurations for different scenarios:
+
+# 1. OpenAI with fallback to local model:
+# ai:
+#   enabled: true
+#   llm:
+#     api_url: "https://api.openai.com/v1"
+#     api_key: "sk-your-key"
+#     model: "gpt-3.5-turbo"
+#     enabled: true
+#   huggingface:
+#     model: "Qwen/Qwen1.5-0.5B-Chat"
+#     device: "cpu"
+#     enabled: true
+
+# 2. Privacy-first local only:
+# ai:
+#   enabled: true
+#   llm:
+#     enabled: false
+#   huggingface:
+#     model: "Qwen/Qwen1.5-0.5B-Chat"
+#     device: "cpu"
+#     quantization_4bit: true
+#     enabled: true
+
+# 3. Ollama local server:
+# ai:
+#   enabled: true
+#   llm:
+#     api_url: "http://localhost:11434/v1"
+#     api_key: "ollama"
+#     model: "llama2"
+#     enabled: true
+#   huggingface:
+#     enabled: false
+
+# 4. Anthropic Claude:
+# ai:
+#   enabled: true
+#   llm:
+#     api_url: "https://api.anthropic.com/v1"
+#     api_key: "sk-ant-your-key"
+#     model: "claude-3-haiku-20240307"
+#     enabled: true
+
+# 5. Rule-based only (no AI models):
+# ai:
+#   enabled: true
+#   llm:
+#     enabled: false
+#   huggingface:
+#     enabled: false

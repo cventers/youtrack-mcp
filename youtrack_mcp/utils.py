@@ -2,8 +2,125 @@
 Utility functions for YouTrack MCP server.
 """
 import json
+import re
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Union, Optional
+
+
+def normalize_issue_ids(data: Union[Dict, List, Any]) -> Union[Dict, List, Any]:
+    """
+    Normalize issue IDs to ensure human-readable IDs are preferred over internal IDs.
+    
+    This function recursively processes YouTrack API responses to:
+    1. Make idReadable the primary 'id' field
+    2. Move internal database IDs to '_internal_id' field
+    3. Add usage guidance to discourage use of internal IDs
+    
+    Args:
+        data: YouTrack API response data (dict, list, or other)
+        
+    Returns:
+        Normalized data with human-readable IDs as primary identifiers
+    """
+    if isinstance(data, dict):
+        result = data.copy()
+        
+        # If this looks like an issue object with both id and idReadable
+        if 'idReadable' in result and 'id' in result:
+            readable_id = result['idReadable']
+            internal_id = result['id']
+            
+            # Only swap if they're different (avoid unnecessary changes)
+            if readable_id != internal_id and readable_id:
+                # Make human-readable ID the primary ID
+                result['id'] = readable_id
+                # Store internal ID in discouraged field name
+                result['_internal_id'] = internal_id
+                # Remove the original idReadable field to avoid confusion
+                result.pop('idReadable', None)
+                # Add usage guidance
+                result['_id_usage_note'] = f"Always use 'id' field ({readable_id}) for issue references, not '_internal_id'"
+        
+        # Recursively process nested objects
+        for key, value in result.items():
+            if isinstance(value, (dict, list)):
+                result[key] = normalize_issue_ids(value)
+        
+        return result
+    
+    elif isinstance(data, list):
+        # Process each item in the list
+        return [normalize_issue_ids(item) for item in data]
+    
+    else:
+        # Return unchanged for other types
+        return data
+
+
+def is_human_readable_id(issue_id: str) -> bool:
+    """
+    Check if an issue ID is in human-readable format (e.g., PROJECT-123).
+    
+    Args:
+        issue_id: Issue ID to check
+        
+    Returns:
+        True if the ID appears to be human-readable, False otherwise
+    """
+    if not isinstance(issue_id, str):
+        return False
+    
+    # Human-readable IDs typically follow PROJECT-NUMBER pattern
+    # Examples: PAY-557, PROJ-123, ABC-1
+    human_readable_pattern = r'^[A-Z][A-Z0-9]*-\d+$'
+    return bool(re.match(human_readable_pattern, issue_id))
+
+
+def validate_issue_id(issue_id: str) -> Dict[str, Any]:
+    """
+    Validate and classify an issue ID.
+    
+    Args:
+        issue_id: Issue ID to validate
+        
+    Returns:
+        Dictionary with validation results and recommendations
+    """
+    if not isinstance(issue_id, str) or not issue_id.strip():
+        return {
+            'valid': False,
+            'type': 'invalid',
+            'message': 'Issue ID must be a non-empty string',
+            'recommendation': 'Provide a valid issue ID (e.g., PROJECT-123)'
+        }
+    
+    issue_id = issue_id.strip()
+    
+    if is_human_readable_id(issue_id):
+        return {
+            'valid': True,
+            'type': 'human_readable',
+            'message': f'Valid human-readable issue ID: {issue_id}',
+            'recommendation': 'This is the preferred ID format'
+        }
+    
+    # Check if it looks like an internal ID (typically just numbers or number-number)
+    internal_pattern = r'^\d+(-\d+)?$'
+    if re.match(internal_pattern, issue_id):
+        return {
+            'valid': True,
+            'type': 'internal',
+            'message': f'Internal database ID detected: {issue_id}',
+            'recommendation': 'Consider using human-readable ID (e.g., PROJECT-123) for better readability'
+        }
+    
+    # Could be valid but unrecognized format
+    return {
+        'valid': True,
+        'type': 'unknown',
+        'message': f'Unrecognized ID format: {issue_id}',
+        'recommendation': 'Verify this is a valid YouTrack issue identifier'
+    }
 
 
 def current_datetime() -> str:

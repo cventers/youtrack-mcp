@@ -369,3 +369,91 @@ docker run -i --rm \
   -e MCP_DEBUG=true \
   tonyzorin/youtrack-mcp:latest
 ```
+
+## AI-Enhanced Features
+
+The YouTrack MCP includes AI-powered capabilities for intelligent assistance:
+
+### Natural Language Query Translation
+Convert plain English to YouTrack Query Language:
+```
+"Show me critical bugs from last week" → "Priority: Critical created: -7d .. *"
+```
+
+### Smart Error Enhancement
+Get helpful explanations and fix suggestions for API errors with context-aware guidance.
+
+### Activity Pattern Analysis
+Analyze user productivity and collaboration patterns with AI-generated insights and recommendations.
+
+### Multi-Provider AI Support
+- **External APIs**: OpenAI, Anthropic Claude, Ollama
+- **Local CPU Models**: Hugging Face Transformers (privacy-first)
+- **Rule-Based Fallback**: Always reliable without dependencies
+
+## Documentation
+
+### Configuration Guides
+- **[LLM Integration Guide](docs/LLM_INTEGRATION.md)** - Complete AI/LLM setup and configuration
+- **[YAML Configuration](docs/YAML_CONFIGURATION.md)** - Structured configuration file format
+- **[CPU Model Guide](docs/CPU_MODELS.md)** - Local AI models for CPU-only inference
+
+### Advanced Features
+- **[OAuth2 Setup](docs/OAUTH2_SETUP.md)** - Enterprise authentication configuration
+- **[Security Guide](docs/SECURITY.md)** - Security best practices and token management
+- **[Advanced Search](docs/ADVANCED_SEARCH.md)** - Powerful search capabilities and filters
+
+### API Reference
+- **[Third-Party Docs](docs/third-party.md)** - Complete YouTrack API documentation
+- **[Implementation TODO](docs/TODO.md)** - Development roadmap and planned features
+
+### Quick Configuration Examples
+
+#### AI with OpenAI (via YAML)
+```yaml
+# config.yaml
+youtrack:
+  url: "https://yourworkspace.youtrack.cloud"
+  api_token: "perm:your_token"
+
+ai:
+  enabled: true
+  llm:
+    api_url: "https://api.openai.com/v1"
+    api_key: "sk-your-openai-key"
+    model: "gpt-3.5-turbo"
+    enabled: true
+```
+
+#### Privacy-First Local AI
+```yaml
+# config.yaml
+ai:
+  enabled: true
+  llm:
+    enabled: false  # No external APIs
+  huggingface:
+    model: "Qwen/Qwen1.5-0.5B-Chat"
+    device: "cpu"
+    enabled: true
+```
+
+#### Environment Variables (Docker)
+```bash
+# With OpenAI
+docker run -i --rm \
+  -e YOUTRACK_URL=https://yourworkspace.youtrack.cloud \
+  -e YOUTRACK_API_TOKEN=perm:your-token \
+  -e YOUTRACK_LLM_API_URL=https://api.openai.com/v1 \
+  -e YOUTRACK_LLM_API_KEY=sk-your-key \
+  -e YOUTRACK_LLM_ENABLED=true \
+  tonyzorin/youtrack-mcp:latest
+
+# Local CPU AI only
+docker run -i --rm \
+  -e YOUTRACK_URL=https://yourworkspace.youtrack.cloud \
+  -e YOUTRACK_API_TOKEN=perm:your-token \
+  -e YOUTRACK_HF_MODEL=Qwen/Qwen1.5-0.5B-Chat \
+  -e YOUTRACK_HF_ENABLED=true \
+  tonyzorin/youtrack-mcp:latest
+```

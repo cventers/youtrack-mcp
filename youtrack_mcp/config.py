@@ -86,6 +86,34 @@ class Config:
     SUGGESTIONS_ENABLED: bool = os.getenv("YOUTRACK_SUGGESTIONS_ENABLED", "true").lower() in ("true", "1", "yes")
     SUGGESTIONS_CONFIG: Dict[str, Any] = {}
     
+    # AI/LLM configuration
+    AI_ENABLED: bool = os.getenv("YOUTRACK_AI_ENABLED", "true").lower() in ("true", "1", "yes")
+    AI_MAX_MEMORY_MB: int = int(os.getenv("YOUTRACK_AI_MAX_MEMORY_MB", "2048"))
+    
+    # OpenAI-compatible LLM provider
+    LLM_API_URL: str = os.getenv("YOUTRACK_LLM_API_URL", "")
+    LLM_API_KEY: str = os.getenv("YOUTRACK_LLM_API_KEY", "")
+    LLM_MODEL: str = os.getenv("YOUTRACK_LLM_MODEL", "gpt-3.5-turbo")
+    LLM_MAX_TOKENS: int = int(os.getenv("YOUTRACK_LLM_MAX_TOKENS", "1000"))
+    LLM_TEMPERATURE: float = float(os.getenv("YOUTRACK_LLM_TEMPERATURE", "0.3"))
+    LLM_TIMEOUT: int = int(os.getenv("YOUTRACK_LLM_TIMEOUT", "30"))
+    LLM_ENABLED: bool = os.getenv("YOUTRACK_LLM_ENABLED", "true").lower() in ("true", "1", "yes")
+    
+    # Hugging Face Transformers
+    HF_MODEL: str = os.getenv("YOUTRACK_HF_MODEL", "")
+    HF_DEVICE: str = os.getenv("YOUTRACK_HF_DEVICE", "cpu")
+    HF_MAX_TOKENS: int = int(os.getenv("YOUTRACK_HF_MAX_TOKENS", "1000"))
+    HF_TEMPERATURE: float = float(os.getenv("YOUTRACK_HF_TEMPERATURE", "0.3"))
+    HF_TORCH_DTYPE: str = os.getenv("YOUTRACK_HF_TORCH_DTYPE", "")
+    HF_4BIT: bool = os.getenv("YOUTRACK_HF_4BIT", "false").lower() in ("true", "1", "yes")
+    HF_8BIT: bool = os.getenv("YOUTRACK_HF_8BIT", "false").lower() in ("true", "1", "yes")
+    HF_TRUST_REMOTE_CODE: bool = os.getenv("YOUTRACK_HF_TRUST_REMOTE_CODE", "false").lower() in ("true", "1", "yes")
+    HF_ENABLED: bool = os.getenv("YOUTRACK_HF_ENABLED", "false").lower() in ("true", "1", "yes")
+    
+    # Local model configuration (future)
+    LOCAL_MODEL_PATH: str = os.getenv("YOUTRACK_LOCAL_MODEL_PATH", "")
+    LOCAL_MODEL_ENABLED: bool = os.getenv("YOUTRACK_LOCAL_MODEL_ENABLED", "false").lower() in ("true", "1", "yes")
+    
     @classmethod
     def load_yaml_config(cls, config_path: Optional[str] = None) -> None:
         """
@@ -178,6 +206,42 @@ class Config:
             suggestions = yaml_config['suggestions']
             cls.SUGGESTIONS_ENABLED = os.getenv("YOUTRACK_SUGGESTIONS_ENABLED", str(suggestions.get('enabled', True))).lower() in ("true", "1", "yes")
             cls.SUGGESTIONS_CONFIG = suggestions
+        
+        # AI/LLM configuration
+        if 'ai' in yaml_config:
+            ai = yaml_config['ai']
+            cls.AI_ENABLED = os.getenv("YOUTRACK_AI_ENABLED", str(ai.get('enabled', True))).lower() in ("true", "1", "yes")
+            cls.AI_MAX_MEMORY_MB = int(os.getenv("YOUTRACK_AI_MAX_MEMORY_MB", str(ai.get('max_memory_mb', 2048))))
+            
+            # OpenAI-compatible provider
+            if 'llm' in ai:
+                llm = ai['llm']
+                cls.LLM_API_URL = os.getenv("YOUTRACK_LLM_API_URL", llm.get('api_url', ''))
+                cls.LLM_API_KEY = os.getenv("YOUTRACK_LLM_API_KEY", llm.get('api_key', ''))
+                cls.LLM_MODEL = os.getenv("YOUTRACK_LLM_MODEL", llm.get('model', 'gpt-3.5-turbo'))
+                cls.LLM_MAX_TOKENS = int(os.getenv("YOUTRACK_LLM_MAX_TOKENS", str(llm.get('max_tokens', 1000))))
+                cls.LLM_TEMPERATURE = float(os.getenv("YOUTRACK_LLM_TEMPERATURE", str(llm.get('temperature', 0.3))))
+                cls.LLM_TIMEOUT = int(os.getenv("YOUTRACK_LLM_TIMEOUT", str(llm.get('timeout', 30))))
+                cls.LLM_ENABLED = os.getenv("YOUTRACK_LLM_ENABLED", str(llm.get('enabled', True))).lower() in ("true", "1", "yes")
+            
+            # Hugging Face Transformers
+            if 'huggingface' in ai:
+                hf = ai['huggingface']
+                cls.HF_MODEL = os.getenv("YOUTRACK_HF_MODEL", hf.get('model', ''))
+                cls.HF_DEVICE = os.getenv("YOUTRACK_HF_DEVICE", hf.get('device', 'cpu'))
+                cls.HF_MAX_TOKENS = int(os.getenv("YOUTRACK_HF_MAX_TOKENS", str(hf.get('max_tokens', 1000))))
+                cls.HF_TEMPERATURE = float(os.getenv("YOUTRACK_HF_TEMPERATURE", str(hf.get('temperature', 0.3))))
+                cls.HF_TORCH_DTYPE = os.getenv("YOUTRACK_HF_TORCH_DTYPE", hf.get('torch_dtype', ''))
+                cls.HF_4BIT = os.getenv("YOUTRACK_HF_4BIT", str(hf.get('quantization_4bit', False))).lower() in ("true", "1", "yes")
+                cls.HF_8BIT = os.getenv("YOUTRACK_HF_8BIT", str(hf.get('quantization_8bit', False))).lower() in ("true", "1", "yes")
+                cls.HF_TRUST_REMOTE_CODE = os.getenv("YOUTRACK_HF_TRUST_REMOTE_CODE", str(hf.get('trust_remote_code', False))).lower() in ("true", "1", "yes")
+                cls.HF_ENABLED = os.getenv("YOUTRACK_HF_ENABLED", str(hf.get('enabled', False))).lower() in ("true", "1", "yes")
+            
+            # Local model (future)
+            if 'local' in ai:
+                local = ai['local']
+                cls.LOCAL_MODEL_PATH = os.getenv("YOUTRACK_LOCAL_MODEL_PATH", local.get('model_path', ''))
+                cls.LOCAL_MODEL_ENABLED = os.getenv("YOUTRACK_LOCAL_MODEL_ENABLED", str(local.get('enabled', False))).lower() in ("true", "1", "yes")
     
     @classmethod
     def from_dict(cls, config_dict: Dict[str, Any]) -> None:

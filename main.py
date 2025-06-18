@@ -10,6 +10,7 @@ import logging
 import os
 import re
 import sys
+from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
 # Standard MCP SDK imports
@@ -23,7 +24,9 @@ from youtrack_mcp.api.projects import ProjectsClient
 from youtrack_mcp.api.users import UsersClient
 from youtrack_mcp.api.search import SearchClient
 from youtrack_mcp.config import Config, config
-from youtrack_mcp.utils import convert_timestamp_to_iso8601, add_iso8601_timestamps, generate_ticket_suggestions
+from youtrack_mcp.utils import convert_timestamp_to_iso8601, add_iso8601_timestamps, generate_ticket_suggestions, normalize_issue_ids, validate_issue_id
+from youtrack_mcp.ai_processor import initialize_ai_processor, get_ai_processor
+from youtrack_mcp.llm_client import create_llm_client_from_config
 
 # Advanced search engine
 from youtrack_mcp.search_advanced import (
@@ -52,6 +55,7 @@ projects_api: Optional[ProjectsClient] = None
 users_api: Optional[UsersClient] = None
 search_api: Optional[SearchClient] = None
 advanced_search: Optional[AdvancedSearchEngine] = None
+ai_processor = None
 
 
 def load_config():
@@ -82,8 +86,8 @@ def load_config():
 
 
 def initialize_clients():
-    """Initialize API clients."""
-    global youtrack_client, issues_api, projects_api, users_api, search_api, advanced_search
+    """Initialize API clients, LLM client, and AI processor."""
+    global youtrack_client, issues_api, projects_api, users_api, search_api, advanced_search, ai_processor
     
     youtrack_client = YouTrackClient()
     issues_api = IssuesClient(youtrack_client)
@@ -92,7 +96,27 @@ def initialize_clients():
     search_api = SearchClient(youtrack_client)
     advanced_search = AdvancedSearchEngine(youtrack_client, enable_cache=True, enable_analytics=True)
     
-    logger.info("API clients and advanced search engine initialized")
+    # Initialize LLM client from environment configuration
+    llm_client = create_llm_client_from_config()
+    
+    # Initialize AI processor with LLM client
+    enable_ai = config.AI_ENABLED
+    max_memory = config.AI_MAX_MEMORY_MB
+    ai_processor = initialize_ai_processor(enable_ai=enable_ai, max_memory_mb=max_memory, llm_client=llm_client)
+    
+    logger.info("API clients, advanced search engine, LLM client, and AI processor initialized")
+    logger.info(f"AI features: {'enabled' if enable_ai else 'disabled'} (max memory: {max_memory}MB)")
+    
+    # Log LLM configuration status
+    if llm_client:
+        provider_count = len([c for c in llm_client.configs if c.enabled])
+        logger.info(f"LLM client initialized with {provider_count} provider(s)")
+        for i, config in enumerate(llm_client.configs):
+            if config.enabled:
+                model_info = config.model_name or "default"
+                logger.info(f"  {i+1}. {config.provider.value}: {model_info}")
+    else:
+        logger.info("LLM client not configured - using rule-based AI only")
 
 
 # Issue Tools
@@ -105,14 +129,17 @@ async def get_issue(issue_id: str) -> Dict[str, Any]:
         issue_id: The issue ID or readable ID (e.g., PROJECT-123)
         
     Returns:
-        Issue information
+        Issue information with 'id' field containing the human-readable ID (e.g., PAY-557).
+        Internal database IDs are in '_internal_id' field and should NOT be used for references.
+        Always use the 'id' field value when referencing issues in other operations.
     """
     try:
         fields = "id,idReadable,summary,description,created,updated,project(id,name,shortName),reporter(id,login,name),assignee(id,login,name),customFields(id,name,value(id,name,$type))"
         raw_issue = await youtrack_client.get(f"issues/{issue_id}?fields={fields}")
         
-        # Enhance with ISO8601 timestamps
+        # Enhance with ISO8601 timestamps and normalize IDs
         raw_issue = add_iso8601_timestamps(raw_issue)
+        raw_issue = normalize_issue_ids(raw_issue)
         
         return raw_issue
         
@@ -131,7 +158,8 @@ async def get_issue_raw(issue_id: str, fields: str = None) -> Dict[str, Any]:
         fields: Custom field selection string (optional)
         
     Returns:
-        Raw issue data without processing
+        Raw issue data with normalized IDs. The 'id' field contains human-readable ID (e.g., PAY-557).
+        Internal database IDs are in '_internal_id' field and should NOT be used for references.
     """
     try:
         if not fields:
@@ -139,6 +167,8 @@ async def get_issue_raw(issue_id: str, fields: str = None) -> Dict[str, Any]:
             fields = "id,idReadable,summary,description,created,updated,resolved,project(id,name,shortName),reporter(id,login,name,email),assignee(id,login,name,email),updater(id,login,name),customFields(id,name,value(id,name,$type,text,presentation)),attachments(id,name,size,url),comments(id,text,created,author(id,login,name)),links(id,direction,linkType(id,name),issues(id,idReadable,summary))"
         
         result = await youtrack_client.get(f"issues/{issue_id}?fields={fields}")
+        # Normalize IDs to prefer human-readable format
+        result = normalize_issue_ids(result)
         return result
         
     except Exception as e:
@@ -203,7 +233,9 @@ async def search_issues(query: str, limit: int = 10) -> List[Dict[str, Any]]:
         limit: Maximum number of results (default: 10)
         
     Returns:
-        List of matching issues
+        List of matching issues with normalized IDs. Each issue's 'id' field contains 
+        human-readable ID (e.g., PAY-557). Internal database IDs are in '_internal_id' field 
+        and should NOT be used for references. Always use the 'id' field when referencing issues.
     """
     try:
         fields = "id,idReadable,summary,description,created,updated,project(id,name,shortName),reporter(id,login,name),customFields(id,name,value(id,name,$type))"
@@ -215,8 +247,9 @@ async def search_issues(query: str, limit: int = 10) -> List[Dict[str, Any]]:
         
         results = await youtrack_client.get("issues", params=params)
         
-        # Enhance with ISO8601 timestamps
+        # Enhance with ISO8601 timestamps and normalize IDs
         results = add_iso8601_timestamps(results)
+        results = normalize_issue_ids(results)
         
         return results if isinstance(results, list) else []
         
@@ -239,7 +272,9 @@ async def advanced_search(query: str, sort_by: str = None, sort_order: str = "as
         skip: Number of results to skip for pagination (default: 0)
         
     Returns:
-        Dictionary with results and metadata
+        Dictionary with results and metadata. Each issue's 'id' field contains 
+        human-readable ID (e.g., PAY-557). Internal database IDs are in '_internal_id' field 
+        and should NOT be used for references. Always use the 'id' field when referencing issues.
     """
     try:
         fields = "id,idReadable,summary,description,created,updated,resolved,project(id,name,shortName),reporter(id,login,name),assignee(id,login,name),customFields(id,name,value(id,name,$type))"
@@ -259,8 +294,9 @@ async def advanced_search(query: str, sort_by: str = None, sort_order: str = "as
         
         results = await youtrack_client.get("issues", params=params)
         
-        # Enhance with ISO8601 timestamps
+        # Enhance with ISO8601 timestamps and normalize IDs
         results = add_iso8601_timestamps(results)
+        results = normalize_issue_ids(results)
         
         if not isinstance(results, list):
             results = []
@@ -1196,6 +1232,272 @@ async def get_user_by_login(login: str) -> Dict[str, Any]:
     except Exception as e:
         logger.exception(f"Error getting user by login {login}")
         return {"error": str(e)}
+
+
+@mcp.tool()
+async def validate_issue_id_format(issue_id: str) -> Dict[str, Any]:
+    """
+    Validate and classify an issue ID format to help ensure correct usage.
+    
+    Args:
+        issue_id: Issue ID to validate (e.g., PAY-557, PROJECT-123, or 82-12318)
+        
+    Returns:
+        Validation results with recommendations for proper ID usage.
+        Encourages use of human-readable IDs (PROJECT-123) over internal IDs (82-12318).
+    """
+    try:
+        validation_result = validate_issue_id(issue_id)
+        
+        # Add additional context for the AI
+        if validation_result['type'] == 'human_readable':
+            validation_result['ai_guidance'] = f"✅ Excellent! '{issue_id}' is a human-readable ID. Always prefer this format when referencing issues."
+        elif validation_result['type'] == 'internal':
+            validation_result['ai_guidance'] = f"⚠️  '{issue_id}' appears to be an internal database ID. These work but human-readable IDs (like PROJECT-123) are preferred for clarity."
+            validation_result['alternative_suggestion'] = "Try to find the corresponding human-readable ID (e.g., PAY-557) for this issue using get_issue() and use that in future references."
+        else:
+            validation_result['ai_guidance'] = f"'{issue_id}' has an unrecognized format. Verify this is a valid YouTrack issue identifier."
+        
+        return validation_result
+        
+    except Exception as e:
+        logger.exception(f"Error validating issue ID {issue_id}")
+        return {
+            'valid': False,
+            'type': 'error',
+            'message': f'Error validating issue ID: {str(e)}',
+            'recommendation': 'Ensure the issue ID is a valid string'
+        }
+
+
+@mcp.tool()
+async def smart_search_issues(natural_query: str, project_context: str = None, limit: int = 10) -> Dict[str, Any]:
+    """
+    Search for issues using natural language with AI-powered query translation.
+    
+    Args:
+        natural_query: Natural language query (e.g., "Show me critical bugs from last week")
+        project_context: Optional project context for more accurate translation
+        limit: Maximum number of results (default: 10)
+        
+    Returns:
+        Search results with translation details and issue list. Issues use human-readable IDs.
+    """
+    try:
+        ai = get_ai_processor()
+        
+        # Get project schemas for better translation
+        project_schemas = None
+        if project_context:
+            try:
+                projects = await youtrack_client.get("projects")
+                project_schemas = [p for p in projects if p.get('shortName') == project_context or p.get('name') == project_context]
+            except Exception:
+                logger.warning(f"Could not fetch project schema for {project_context}")
+        
+        # Translate natural language to YQL
+        translation = await ai.translate_natural_query(
+            natural_query=natural_query,
+            context_hints={'project': project_context} if project_context else None,
+            project_schemas=project_schemas
+        )
+        
+        # Execute the translated query
+        if translation.confidence > 0.3:  # Only execute if we have reasonable confidence
+            try:
+                results = await search_issues(translation.yql_query, limit)
+                
+                return {
+                    'translation': {
+                        'natural_query': translation.original_input,
+                        'yql_query': translation.yql_query,
+                        'confidence': translation.confidence,
+                        'reasoning': translation.reasoning,
+                        'detected_entities': translation.detected_entities
+                    },
+                    'results': results,
+                    'suggestions': translation.suggestions,
+                    'ai_enhanced': True
+                }
+            except Exception as search_error:
+                # If search fails, enhance the error with AI
+                enhanced_error = await ai.enhance_error_message(
+                    error=search_error,
+                    context={
+                        'operation': 'smart_search',
+                        'natural_query': natural_query,
+                        'translated_query': translation.yql_query,
+                        'project': project_context
+                    }
+                )
+                
+                return {
+                    'translation': {
+                        'natural_query': translation.original_input,
+                        'yql_query': translation.yql_query,
+                        'confidence': translation.confidence,
+                        'reasoning': translation.reasoning
+                    },
+                    'error': 'Search execution failed',
+                    'ai_enhanced_error': {
+                        'explanation': enhanced_error.enhanced_explanation,
+                        'fix_suggestion': enhanced_error.fix_suggestion,
+                        'example_correction': enhanced_error.example_correction,
+                        'learning_tip': enhanced_error.learning_tip
+                    },
+                    'ai_enhanced': True
+                }
+        else:
+            return {
+                'translation': {
+                    'natural_query': translation.original_input,
+                    'yql_query': translation.yql_query,
+                    'confidence': translation.confidence,
+                    'reasoning': translation.reasoning
+                },
+                'warning': 'Low confidence translation - please refine your query',
+                'suggestions': translation.suggestions,
+                'ai_enhanced': True
+            }
+        
+    except Exception as e:
+        logger.exception(f"Error in smart search: {e}")
+        return {
+            'error': f"Smart search failed: {str(e)}",
+            'fallback_suggestion': f"Try using regular search_issues() with YouTrack query language",
+            'natural_query': natural_query,
+            'ai_enhanced': False
+        }
+
+
+@mcp.tool()
+async def analyze_user_activity_patterns(user_login: str, days_back: int = 30, analysis_types: List[str] = None) -> Dict[str, Any]:
+    """
+    Analyze user activity patterns with AI-powered insights.
+    
+    Args:
+        user_login: User login name to analyze
+        days_back: Number of days to look back (default: 30)
+        analysis_types: Types of analysis ['productivity_trends', 'collaboration_patterns', 'focus_areas']
+        
+    Returns:
+        AI-powered activity analysis with insights and recommendations.
+    """
+    try:
+        ai = get_ai_processor()
+        
+        if analysis_types is None:
+            analysis_types = ['productivity_trends', 'collaboration_patterns', 'focus_areas']
+        
+        # Get user activity data
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=days_back)
+        
+        # Search for user activity
+        query = f"updated: {start_date.strftime('%Y-%m-%d')} .. {end_date.strftime('%Y-%m-%d')} assignee: {user_login}"
+        
+        try:
+            activity_issues = await search_issues(query, limit=500)
+            
+            # Convert to activity records for AI analysis
+            activity_data = []
+            for issue in activity_issues:
+                activity_data.append({
+                    'date': issue.get('updated_iso8601', issue.get('updated', '')),
+                    'project': issue.get('project', {}).get('shortName', 'Unknown'),
+                    'assignee': user_login,
+                    'type': 'issue_update',
+                    'issue_id': issue.get('id'),
+                    'summary': issue.get('summary', '')
+                })
+            
+            # Run AI analysis
+            patterns = await ai.analyze_activity_patterns(activity_data, analysis_types)
+            
+            return {
+                'user': user_login,
+                'analysis_period': f"{start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}",
+                'total_activities': len(activity_data),
+                'ai_insights': {
+                    'patterns': patterns.patterns,
+                    'insights': patterns.insights,
+                    'recommendations': patterns.recommendations,
+                    'productivity_score': patterns.productivity_score,
+                    'trends': patterns.trends
+                },
+                'analysis_types': analysis_types,
+                'ai_enhanced': True
+            }
+            
+        except Exception as search_error:
+            logger.error(f"Error fetching activity data: {search_error}")
+            return {
+                'error': f"Could not fetch activity data: {str(search_error)}",
+                'user': user_login,
+                'ai_enhanced': False
+            }
+        
+    except Exception as e:
+        logger.exception(f"Error in activity pattern analysis: {e}")
+        return {
+            'error': f"Pattern analysis failed: {str(e)}",
+            'user': user_login,
+            'ai_enhanced': False
+        }
+
+
+@mcp.tool()
+async def enhance_error_context(error_message: str, operation_context: Dict[str, Any] = None) -> Dict[str, Any]:
+    """
+    Enhance error messages with AI-powered context and suggestions.
+    
+    Args:
+        error_message: The error message to enhance
+        operation_context: Context about the failed operation
+        
+    Returns:
+        Enhanced error explanation with fix suggestions and learning tips.
+    """
+    try:
+        ai = get_ai_processor()
+        
+        if operation_context is None:
+            operation_context = {}
+        
+        # Create a mock exception for the AI processor
+        class ContextError(Exception):
+            def __init__(self, message):
+                self.message = message
+                super().__init__(message)
+            
+            def __str__(self):
+                return self.message
+        
+        mock_error = ContextError(error_message)
+        
+        # Get AI enhancement
+        enhancement = await ai.enhance_error_message(
+            error=mock_error,
+            context=operation_context
+        )
+        
+        return {
+            'original_error': error_message,
+            'enhanced_explanation': enhancement.enhanced_explanation,
+            'fix_suggestion': enhancement.fix_suggestion,
+            'example_correction': enhancement.example_correction,
+            'learning_tip': enhancement.learning_tip,
+            'confidence': enhancement.confidence,
+            'ai_enhanced': True
+        }
+        
+    except Exception as e:
+        logger.exception(f"Error in error enhancement: {e}")
+        return {
+            'original_error': error_message,
+            'enhancement_error': f"Could not enhance error: {str(e)}",
+            'ai_enhanced': False
+        }
 
 
 def parse_args():

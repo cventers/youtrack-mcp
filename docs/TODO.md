@@ -1,5 +1,29 @@
 # YouTrack MCP TODO List
 
+## ✅ COMPLETED - ID Consistency Fix (2025-01-18)
+
+### Issue Resolution: Human-Readable ID Preference
+- **Problem**: MCP tools inconsistently returned internal IDs (`82-12318`) vs human-readable IDs (`PAY-557`)
+- **Solution**: Implemented ID normalization system with clear AI guidance
+
+**Changes Made**:
+- ✅ **Added ID normalization utilities** (`utils.py`):
+  - `normalize_issue_ids()` - Ensures human-readable IDs are primary
+  - `is_human_readable_id()` - Validates ID format patterns
+  - `validate_issue_id()` - Provides ID classification and recommendations
+
+- ✅ **Updated all MCP tool responses**:
+  - All search and get tools now return `id` field with human-readable ID (e.g., `PAY-557`)
+  - Internal database IDs moved to `_internal_id` field (discouraged from use)
+  - Added `_id_usage_note` field with explicit guidance
+
+- ✅ **Enhanced tool descriptions**:
+  - Clear documentation that `id` field contains human-readable ID
+  - Explicit warnings against using `_internal_id` field
+  - Added `validate_issue_id_format()` tool for ID validation
+
+**Impact**: AI models will now consistently use human-readable IDs (PAY-557) instead of internal IDs (82-12318), improving readability and user experience.
+
 ## Critical Issues from Bot/Technical Review
 
 ### Immediate Priority - Performance & Compatibility
@@ -944,8 +968,125 @@ WantedBy=default.target
 - **Breaking Changes:** Semantic versioning, deprecation warnings, migration guides
 - **Memory Issues:** Memory profiling, cache size limits, garbage collection monitoring
 
+## 🚀 NEW ENHANCEMENT ROADMAP - AI-Powered YouTrack Assistant
+
+### **Phase A: Local AI Integration Foundation** (Priority: HIGH)
+
+- [ ] **Local AI Inference Engine Setup**
+  - [ ] Integrate lightweight CPU-optimized models (DeepSeek-7B 4-bit, DistilBERT)
+  - [ ] Create `LocalAIProcessor` class for query enhancement and error processing
+  - [ ] Implement model loading with memory optimization (<2GB RAM usage)
+  - [ ] Add configurable AI features (enable/disable per deployment)
+
+- [ ] **Smart Error Enhancement System**
+  - [ ] AI-powered error message improvement with learning context
+  - [ ] Context-aware query syntax correction using local inference
+  - [ ] Smart "did you mean" suggestions for field names and projects
+  - [ ] Error pattern learning from user interactions
+
+### **Phase B: Intelligent Query Processing** (Priority: HIGH)
+
+- [ ] **Natural Language to YQL Translation**
+  - [ ] Create `smart_search_issues()` tool with natural language input
+  - [ ] AI-powered query translation: "Show me critical bugs from last week" → YQL
+  - [ ] Context-aware project detection from conversation history
+  - [ ] Confidence scoring for query translations
+
+- [ ] **Advanced Caching with AI Prefetch**
+  - [ ] Multi-layer caching: Redis + in-process + background jobs
+  - [ ] AI-powered cache prefetch based on usage patterns
+  - [ ] Smart cache invalidation using activity monitoring
+  - [ ] Performance optimization: <5s company-wide searches
+
+### **Phase C: Predictive Analytics & Intelligence** (Priority: MEDIUM)
+
+- [ ] **Smart Issue Management**
+  - [ ] AI-powered issue priority prediction based on content analysis
+  - [ ] Resolution time estimation using historical patterns
+  - [ ] Similar issue detection with semantic matching
+  - [ ] Automated issue categorization and tagging suggestions
+
+- [ ] **Advanced Activity Analytics**
+  - [ ] `analyze_user_patterns()` tool with AI insights
+  - [ ] Team productivity analysis with collaboration patterns
+  - [ ] Predictive workload balancing suggestions
+  - [ ] Cross-project activity correlation analysis
+
+### **Phase D: Enhanced User Experience** (Priority: MEDIUM)
+
+- [ ] **Context-Aware Operations**
+  - [ ] Smart project context detection from conversation
+  - [ ] User preference learning for common operations
+  - [ ] Intelligent field suggestions based on project schema
+  - [ ] Auto-completion for repetitive tasks
+
+- [ ] **Advanced Reporting & Summarization**
+  - [ ] `generate_intelligent_report()` with AI-generated insights
+  - [ ] Executive summaries with actionable recommendations
+  - [ ] Trend analysis with predictive insights
+  - [ ] Custom report generation based on natural language requests
+
+### **Phase E: Advanced Integration & Optimization** (Priority: LOW)
+
+- [ ] **Performance & Scalability**
+  - [ ] Distributed cache architecture for multi-instance deployments
+  - [ ] Advanced rate limiting with intelligent batching
+  - [ ] Memory optimization for large-scale deployments
+  - [ ] Performance monitoring with AI-driven optimization
+
+- [ ] **Extended Integrations**
+  - [ ] LangChain adapter support for agent workflows
+  - [ ] WebHook integration for real-time updates
+  - [ ] Advanced notification system with smart filtering
+  - [ ] Export/import capabilities with data validation
+
+## Implementation Priority Order (UPDATED)
+
+### **Phase 1: ID Consistency + Core AI (Week 1)** ✅ COMPLETED + NEW
+1. ✅ **ID consistency fixes** - COMPLETED
+2. **Local AI inference engine** - CPU-optimized setup
+3. **Smart error enhancement** - AI-powered error processing
+4. **httpx.AsyncClient migration** - Performance improvement
+
+### **Phase 2: Query Intelligence (Week 2)**
+1. **Natural language query translation** - AI-powered YQL generation
+2. **Context-aware validation** - Smart query correction
+3. **Intelligent caching system** - AI prefetch optimization
+4. **MCP compliance testing** - Reliability assurance
+
+### **Phase 3: Analytics & Insights (Week 3)**
+1. **Activity pattern analysis** - AI-driven user insights
+2. **Predictive issue management** - Priority/time predictions
+3. **Smart reporting system** - Automated report generation
+4. **Advanced search capabilities** - Semantic matching
+
+### **Phase 4: Experience Enhancement (Week 4)**
+1. **Context detection system** - Conversation-aware operations
+2. **User preference learning** - Adaptive behavior
+3. **Intelligent field suggestions** - Schema-aware recommendations
+4. **Performance optimization** - Multi-layer caching
+
+### **Phase 5: Advanced Features (Week 5)**
+1. **Distributed architecture** - Multi-instance support
+2. **Advanced integrations** - LangChain, WebHooks
+3. **Scalability improvements** - Enterprise-ready features
+4. **Comprehensive testing** - Multi-model regression tests
+
+## Key Innovation: Local AI Integration
+
+The major enhancement is integrating **lightweight local AI models** for:
+
+1. **Real-time query enhancement** without external API calls
+2. **Context-aware error messaging** that learns from user patterns  
+3. **Intelligent argument validation** before YouTrack API hits
+4. **Natural language interface** for non-technical users
+5. **Predictive insights** based on activity analysis
+
+This transforms the MCP from a simple API wrapper into a **smart YouTrack assistant** while maintaining **privacy** (no external AI calls) and **performance** (CPU inference with quantized models).
+
 ## Notes
 
+- ✅ **ID Consistency**: Completed - all tools now consistently return human-readable IDs
 - Priority levels based on upstream technical review and bot feedback
 - Phase 1 addresses performance and stability issues flagged by bot
 - Exception handling improvements come after critical async fixes
@@ -954,3 +1095,4 @@ WantedBy=default.target
 - Each phase builds on previous phase's improvements
 - MCP Resources provide context without consuming limited tool slots
 - Activity tracking requires significant API research and optimization
+- **NEW**: Local AI integration provides immediate value while maintaining privacy
