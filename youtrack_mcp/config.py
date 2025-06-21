@@ -4,7 +4,7 @@ Configuration for YouTrack MCP server.
 import os
 import ssl
 import logging
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from pathlib import Path
 
 # Optional import for dotenv
@@ -113,6 +113,21 @@ class Config:
     # Local model configuration (future)
     LOCAL_MODEL_PATH: str = os.getenv("YOUTRACK_LOCAL_MODEL_PATH", "")
     LOCAL_MODEL_ENABLED: bool = os.getenv("YOUTRACK_LOCAL_MODEL_ENABLED", "false").lower() in ("true", "1", "yes")
+    
+    # Tool Category Configuration
+    TOOLS_ENABLED: Dict[str, bool] = {
+        # Category-level controls
+        "issue_management": os.getenv("YOUTRACK_TOOLS_ISSUE_MANAGEMENT", "true").lower() in ("true", "1", "yes"),
+        "search_discovery": os.getenv("YOUTRACK_TOOLS_SEARCH_DISCOVERY", "true").lower() in ("true", "1", "yes"),
+        "issue_linking": os.getenv("YOUTRACK_TOOLS_ISSUE_LINKING", "true").lower() in ("true", "1", "yes"),
+        "project_management": os.getenv("YOUTRACK_TOOLS_PROJECT_MANAGEMENT", "true").lower() in ("true", "1", "yes"),
+        "user_management": os.getenv("YOUTRACK_TOOLS_USER_MANAGEMENT", "true").lower() in ("true", "1", "yes"),
+        "ai_analytics": os.getenv("YOUTRACK_TOOLS_AI_ANALYTICS", "true").lower() in ("true", "1", "yes"),
+        "system_cache": os.getenv("YOUTRACK_TOOLS_SYSTEM_CACHE", "true").lower() in ("true", "1", "yes"),
+    }
+    
+    # Individual tool controls (overrides category settings)
+    INDIVIDUAL_TOOLS_ENABLED: Dict[str, bool] = {}
     
     @classmethod
     def load_yaml_config(cls, config_path: Optional[str] = None) -> None:
@@ -242,6 +257,24 @@ class Config:
                 local = ai['local']
                 cls.LOCAL_MODEL_PATH = os.getenv("YOUTRACK_LOCAL_MODEL_PATH", local.get('model_path', ''))
                 cls.LOCAL_MODEL_ENABLED = os.getenv("YOUTRACK_LOCAL_MODEL_ENABLED", str(local.get('enabled', False))).lower() in ("true", "1", "yes")
+        
+        # Tool configuration
+        if 'tools' in yaml_config:
+            tools = yaml_config['tools']
+            
+            # Category-level settings
+            if 'categories' in tools and tools['categories']:
+                categories = tools['categories']
+                for category, enabled in categories.items():
+                    env_key = f"YOUTRACK_TOOLS_{category.upper()}"
+                    cls.TOOLS_ENABLED[category] = os.getenv(env_key, str(enabled)).lower() in ("true", "1", "yes")
+            
+            # Individual tool settings
+            if 'individual' in tools and tools['individual']:
+                individual = tools['individual']
+                for tool_name, enabled in individual.items():
+                    env_key = f"YOUTRACK_TOOL_{tool_name.upper()}"
+                    cls.INDIVIDUAL_TOOLS_ENABLED[tool_name] = os.getenv(env_key, str(enabled)).lower() in ("true", "1", "yes")
     
     @classmethod
     def from_dict(cls, config_dict: Dict[str, Any]) -> None:
@@ -268,14 +301,17 @@ class Config:
         
         # Try multiple sources for the API token in order of preference
         if not cls.YOUTRACK_API_TOKEN:
-            # 1. Try keyring first (most secure)
-            if SECURITY_AVAILABLE:
+            # 1. Try keyring first (most secure) - DISABLED due to prompt issues
+            if SECURITY_AVAILABLE and os.getenv("YOUTRACK_DISABLE_KEYRING", "false").lower() != "true":
                 keyring_username = os.getenv("YOUTRACK_KEYRING_USERNAME", "default")
-                keyring_token = credential_manager.retrieve_token(keyring_username)
-                if keyring_token:
-                    cls.YOUTRACK_API_TOKEN = keyring_token
-                    token_source = "keyring"
-                    logger.info("Token loaded from secure keyring")
+                try:
+                    keyring_token = credential_manager.retrieve_token(keyring_username)
+                    if keyring_token:
+                        cls.YOUTRACK_API_TOKEN = keyring_token
+                        token_source = "keyring"
+                        logger.info("Token loaded from secure keyring")
+                except Exception as e:
+                    logger.warning(f"Keyring access failed, continuing without it: {e}")
             
             # 2. Try token file
             if not cls.YOUTRACK_API_TOKEN and cls.YOUTRACK_TOKEN_FILE:
@@ -469,6 +505,176 @@ class Config:
             client_secret=cls.OAUTH2_CLIENT_SECRET,
             scope=cls.OAUTH2_SCOPE
         )
+    
+    @classmethod
+    def get_tool_categories(cls) -> Dict[str, List[str]]:
+        """
+        Get the mapping of tool categories to tool names.
+        
+        Returns:
+            Dictionary mapping category names to lists of tool names
+        """
+        return {
+            "issue_management": [
+                "get_issue", "get_issue_raw", "create_issue", "update_issue", 
+                "add_comment", "get_comments", "get_task_comments", "get_project_comments", 
+                "get_comment", "update_comment", "delete_comment", "validate_issue_id_format"
+            ],
+            "search_discovery": [
+                "search_issues", "advanced_search", "filter_issues", "search_with_custom_fields",
+                "intelligent_search", "search_by_query_builder", "search_suggestions", "smart_search_issues"
+            ],
+            "issue_linking": [
+                "link_issues", "remove_link", "create_dependency", "get_issue_links", 
+                "get_available_link_types"
+            ],
+            "project_management": [
+                "create_project", "update_project", "get_project_issues", "get_custom_fields",
+                "get_project_by_name", "get_projects", "get_project"
+            ],
+            "user_management": [
+                "get_user", "get_user_groups", "get_current_user", "search_users", "get_user_by_login"
+            ],
+            "ai_analytics": [
+                "analyze_user_activity_patterns", "enhance_error_context"
+            ],
+            "system_cache": [
+                "search_analytics", "clear_search_cache"
+            ]
+        }
+    
+    @classmethod
+    def is_tool_enabled(cls, tool_name: str) -> bool:
+        """
+        Check if a specific tool is enabled based on category and individual settings.
+        
+        Args:
+            tool_name: Name of the tool to check
+            
+        Returns:
+            True if the tool is enabled, False otherwise
+        """
+        # Check individual tool override first
+        if tool_name in cls.INDIVIDUAL_TOOLS_ENABLED:
+            return cls.INDIVIDUAL_TOOLS_ENABLED[tool_name]
+        
+        # Find which category this tool belongs to
+        tool_categories = cls.get_tool_categories()
+        for category, tools in tool_categories.items():
+            if tool_name in tools:
+                return cls.TOOLS_ENABLED.get(category, True)
+        
+        # Default to enabled if tool not found in any category
+        logger.warning(f"Tool '{tool_name}' not found in any category, defaulting to enabled")
+        return True
+    
+    @classmethod
+    def get_enabled_tools(cls) -> List[str]:
+        """
+        Get a list of all enabled tools based on current configuration.
+        
+        Returns:
+            List of enabled tool names
+        """
+        enabled_tools = []
+        tool_categories = cls.get_tool_categories()
+        
+        for category, tools in tool_categories.items():
+            if cls.TOOLS_ENABLED.get(category, True):
+                for tool in tools:
+                    # Check individual overrides
+                    if tool in cls.INDIVIDUAL_TOOLS_ENABLED:
+                        if cls.INDIVIDUAL_TOOLS_ENABLED[tool]:
+                            enabled_tools.append(tool)
+                    else:
+                        enabled_tools.append(tool)
+            else:
+                # Category disabled, but check for individual overrides that enable tools
+                for tool in tools:
+                    if cls.INDIVIDUAL_TOOLS_ENABLED.get(tool, False):
+                        enabled_tools.append(tool)
+        
+        return enabled_tools
+    
+    @classmethod
+    def get_disabled_tools(cls) -> List[str]:
+        """
+        Get a list of all disabled tools based on current configuration.
+        
+        Returns:
+            List of disabled tool names
+        """
+        all_tools = []
+        tool_categories = cls.get_tool_categories()
+        for tools in tool_categories.values():
+            all_tools.extend(tools)
+        
+        enabled_tools = set(cls.get_enabled_tools())
+        return [tool for tool in all_tools if tool not in enabled_tools]
+    
+    @classmethod
+    def set_tool_enabled(cls, tool_name: str, enabled: bool) -> None:
+        """
+        Enable or disable a specific tool.
+        
+        Args:
+            tool_name: Name of the tool to modify
+            enabled: True to enable, False to disable
+        """
+        cls.INDIVIDUAL_TOOLS_ENABLED[tool_name] = enabled
+        logger.info(f"Tool '{tool_name}' {'enabled' if enabled else 'disabled'}")
+    
+    @classmethod
+    def set_category_enabled(cls, category: str, enabled: bool) -> None:
+        """
+        Enable or disable an entire tool category.
+        
+        Args:
+            category: Name of the category to modify
+            enabled: True to enable, False to disable
+        """
+        if category in cls.TOOLS_ENABLED:
+            cls.TOOLS_ENABLED[category] = enabled
+            logger.info(f"Tool category '{category}' {'enabled' if enabled else 'disabled'}")
+        else:
+            logger.warning(f"Unknown tool category: {category}")
+    
+    @classmethod
+    def load_tool_config_from_env(cls) -> None:
+        """
+        Load individual tool configurations from environment variables.
+        Environment variables should be in format: YOUTRACK_TOOL_{TOOL_NAME}=true/false
+        """
+        import os
+        
+        # Get all environment variables that start with YOUTRACK_TOOL_
+        for key, value in os.environ.items():
+            if key.startswith("YOUTRACK_TOOL_"):
+                tool_name = key[14:].lower()  # Remove YOUTRACK_TOOL_ prefix and lowercase
+                enabled = value.lower() in ("true", "1", "yes")
+                cls.INDIVIDUAL_TOOLS_ENABLED[tool_name] = enabled
+                logger.info(f"Environment override: tool '{tool_name}' {'enabled' if enabled else 'disabled'}")
+    
+    @classmethod 
+    def get_tool_config_summary(cls) -> Dict[str, Any]:
+        """
+        Get a summary of the current tool configuration.
+        
+        Returns:
+            Dictionary with configuration summary
+        """
+        enabled_tools = cls.get_enabled_tools()
+        disabled_tools = cls.get_disabled_tools()
+        
+        return {
+            "categories": cls.TOOLS_ENABLED,
+            "individual_overrides": cls.INDIVIDUAL_TOOLS_ENABLED,
+            "enabled_tools": enabled_tools,
+            "disabled_tools": disabled_tools,
+            "total_tools": len(enabled_tools) + len(disabled_tools),
+            "enabled_count": len(enabled_tools),
+            "disabled_count": len(disabled_tools)
+        }
 
 
 # Create a global config instance and load YAML configuration
@@ -481,4 +687,7 @@ except FileNotFoundError:
     logger.warning("No YAML configuration file found, using environment variables and defaults")
 except Exception as e:
     logger.error(f"Failed to load YAML configuration: {e}")
-    # Continue with environment variables and defaults 
+    # Continue with environment variables and defaults
+
+# Load tool configuration from environment variables
+config.load_tool_config_from_env() 

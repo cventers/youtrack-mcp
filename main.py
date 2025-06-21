@@ -64,25 +64,25 @@ def load_config():
     
     # Load from environment variables
     if os.getenv("YOUTRACK_URL"):
-        config.YOUTRACK_URL = os.getenv("YOUTRACK_URL")
+        Config.YOUTRACK_URL = os.getenv("YOUTRACK_URL")
     
     if os.getenv("YOUTRACK_TOKEN_FILE"):
         token_file = os.getenv("YOUTRACK_TOKEN_FILE")
         if os.path.exists(token_file):
             with open(token_file, 'r') as f:
-                config.YOUTRACK_API_TOKEN = f.read().strip()
+                Config.YOUTRACK_API_TOKEN = f.read().strip()
             logger.info(f"Loaded API token from file: {token_file}")
     elif os.getenv("YOUTRACK_TOKEN"):
-        config.YOUTRACK_API_TOKEN = os.getenv("YOUTRACK_TOKEN")
+        Config.YOUTRACK_API_TOKEN = os.getenv("YOUTRACK_TOKEN")
     
-    config.YOUTRACK_CLOUD = os.getenv("YOUTRACK_CLOUD", "true").lower() == "true"
-    config.VERIFY_SSL = os.getenv("YOUTRACK_VERIFY_SSL", "true").lower() == "true"
+    Config.YOUTRACK_CLOUD = os.getenv("YOUTRACK_CLOUD", "true").lower() == "true"
+    Config.VERIFY_SSL = os.getenv("YOUTRACK_VERIFY_SSL", "true").lower() == "true"
     
     # Validate configuration
-    config.validate()
+    Config.validate()
     
-    logger.info(f"Configured for YouTrack at: {config.YOUTRACK_URL}")
-    logger.info(f"SSL verification: {'Enabled' if config.VERIFY_SSL else 'Disabled'}")
+    logger.info(f"Configured for YouTrack at: {Config.YOUTRACK_URL}")
+    logger.info(f"SSL verification: {'Enabled' if Config.VERIFY_SSL else 'Disabled'}")
 
 
 def initialize_clients():
@@ -99,9 +99,9 @@ def initialize_clients():
     # Initialize LLM client from environment configuration
     llm_client = create_llm_client_from_config()
     
-    # Initialize AI processor with LLM client
-    enable_ai = config.AI_ENABLED
-    max_memory = config.AI_MAX_MEMORY_MB
+    # Initialize AI processor with LLM client  
+    enable_ai = Config.AI_ENABLED
+    max_memory = Config.AI_MAX_MEMORY_MB
     ai_processor = initialize_ai_processor(enable_ai=enable_ai, max_memory_mb=max_memory, llm_client=llm_client)
     
     logger.info("API clients, advanced search engine, LLM client, and AI processor initialized")
@@ -117,6 +117,33 @@ def initialize_clients():
                 logger.info(f"  {i+1}. {config.provider.value}: {model_info}")
     else:
         logger.info("LLM client not configured - using rule-based AI only")
+
+
+def filter_tools_by_config():
+    """Filter and remove disabled tools from the MCP server based on configuration."""
+    enabled_tools = set(Config.get_enabled_tools())
+    disabled_tools = Config.get_disabled_tools()
+    
+    # Get all currently registered tools
+    all_registered_tools = list(mcp._tool_manager._tools.keys())
+    
+    # Remove disabled tools
+    for tool_name in all_registered_tools:
+        if tool_name not in enabled_tools:
+            if tool_name in mcp._tool_manager._tools:
+                del mcp._tool_manager._tools[tool_name]
+                logger.info(f"Disabled tool: {tool_name}")
+    
+    # Log configuration summary
+    tool_summary = Config.get_tool_config_summary()
+    logger.info(f"Tool filtering applied: {tool_summary['enabled_count']} enabled, {tool_summary['disabled_count']} disabled")
+    
+    if disabled_tools:
+        logger.info(f"Disabled tools: {', '.join(disabled_tools)}")
+    
+    # Log enabled categories
+    enabled_categories = [cat for cat, enabled in Config.TOOLS_ENABLED.items() if enabled]
+    logger.info(f"Enabled categories: {', '.join(enabled_categories)}")
 
 
 # Issue Tools
@@ -730,6 +757,197 @@ async def add_comment(issue_id: str, text: str) -> Dict[str, Any]:
         
     except Exception as e:
         logger.exception(f"Error adding comment to issue {issue_id}")
+        return {"error": str(e)}
+
+
+@mcp.tool()
+async def get_comments(project_id: str = None, task_id: str = None, cursor: str = None, limit: int = 50) -> Dict[str, Any]:
+    """
+    Get comments for a task or project.
+    
+    Args:
+        project_id: Project ID to get comments for
+        task_id: Task ID to get comments for
+        cursor: Pagination cursor
+        limit: Max number of comments to return (default 50)
+        
+    Returns:
+        List of comments
+    """
+    try:
+        if task_id:
+            # Get comments for a specific task/issue
+            fields = "id,text,created,author(id,login,name),updated,updater(id,login,name)"
+            params = {"fields": fields}
+            
+            if cursor:
+                params["cursor"] = cursor
+            if limit:
+                params["$top"] = limit
+                
+            result = await youtrack_client.get(f"issues/{task_id}/comments", params=params)
+            return result if isinstance(result, list) else []
+            
+        elif project_id:
+            # Get comments for a project (all issues in the project)
+            # Note: YouTrack doesn't have a direct "project comments" endpoint,
+            # so we'll get recent issues with comments from the project
+            fields = "id,idReadable,summary,comments(id,text,created,author(id,login,name))"
+            params = {
+                "query": f"project: {project_id} has: comments",
+                "fields": fields,
+                "$top": limit or 50
+            }
+            
+            issues = await youtrack_client.get("issues", params=params)
+            
+            # Extract comments from all issues
+            all_comments = []
+            for issue in (issues if isinstance(issues, list) else []):
+                issue_comments = issue.get("comments", [])
+                for comment in issue_comments:
+                    comment["issue_id"] = issue.get("idReadable", issue.get("id"))
+                    comment["issue_summary"] = issue.get("summary", "")
+                    all_comments.append(comment)
+            
+            # Sort by created date (most recent first)
+            all_comments.sort(key=lambda x: x.get("created", 0), reverse=True)
+            
+            return all_comments
+            
+        else:
+            return {"error": "Either project_id or task_id must be provided"}
+            
+    except Exception as e:
+        logger.exception("Error getting comments")
+        return {"error": str(e)}
+
+
+@mcp.tool()
+async def get_task_comments(task_id: str) -> List[Dict[str, Any]]:
+    """
+    Get comments from a task in YouTrack.
+    
+    Args:
+        task_id: Task/issue ID
+        
+    Returns:
+        List of comments for the task
+    """
+    try:
+        fields = "id,text,created,author(id,login,name),updated,updater(id,login,name)"
+        params = {"fields": fields}
+        
+        result = await youtrack_client.get(f"issues/{task_id}/comments", params=params)
+        return result if isinstance(result, list) else []
+        
+    except Exception as e:
+        logger.exception(f"Error getting comments for task {task_id}")
+        return [{"error": str(e)}]
+
+
+@mcp.tool()
+async def get_project_comments(project_id: str) -> List[Dict[str, Any]]:
+    """
+    Get comments from a project in YouTrack.
+    
+    Args:
+        project_id: Project ID
+        
+    Returns:
+        List of comments from all issues in the project
+    """
+    try:
+        # Get recent issues with comments from the project
+        fields = "id,idReadable,summary,comments(id,text,created,author(id,login,name))"
+        params = {
+            "query": f"project: {project_id} has: comments",
+            "fields": fields,
+            "$top": 100  # Get up to 100 issues with comments
+        }
+        
+        issues = await youtrack_client.get("issues", params=params)
+        
+        # Extract comments from all issues
+        all_comments = []
+        for issue in (issues if isinstance(issues, list) else []):
+            issue_comments = issue.get("comments", [])
+            for comment in issue_comments:
+                comment["issue_id"] = issue.get("idReadable", issue.get("id"))
+                comment["issue_summary"] = issue.get("summary", "")
+                all_comments.append(comment)
+        
+        # Sort by created date (most recent first)
+        all_comments.sort(key=lambda x: x.get("created", 0), reverse=True)
+        
+        return all_comments
+        
+    except Exception as e:
+        logger.exception(f"Error getting comments for project {project_id}")
+        return [{"error": str(e)}]
+
+
+@mcp.tool()
+async def get_comment(comment_id: str) -> Dict[str, Any]:
+    """
+    Get a comment from a task or project in YouTrack.
+    
+    Args:
+        comment_id: Comment ID
+        
+    Returns:
+        Comment information
+    """
+    try:
+        # YouTrack doesn't have a direct comment endpoint by ID, so we need to work around this
+        # This would require knowing which issue the comment belongs to
+        return {"error": "Direct comment retrieval by ID is not supported. Use get_task_comments instead."}
+        
+    except Exception as e:
+        logger.exception(f"Error getting comment {comment_id}")
+        return {"error": str(e)}
+
+
+@mcp.tool()
+async def update_comment(comment_id: str, content: str) -> Dict[str, Any]:
+    """
+    Update a comment in YouTrack.
+    
+    Args:
+        comment_id: The ID of the comment to update
+        content: The new content for the comment
+        
+    Returns:
+        Update result
+    """
+    try:
+        # YouTrack API for updating comments requires the issue ID and comment ID
+        # Since we only have comment ID, this is a limitation
+        return {"error": "Comment updates require both issue ID and comment ID. Use issue-specific comment endpoints."}
+        
+    except Exception as e:
+        logger.exception(f"Error updating comment {comment_id}")
+        return {"error": str(e)}
+
+
+@mcp.tool()
+async def delete_comment(comment_id: str) -> Dict[str, Any]:
+    """
+    Delete a comment from a task in YouTrack.
+    
+    Args:
+        comment_id: Comment ID
+        
+    Returns:
+        Deletion result
+    """
+    try:
+        # YouTrack API for deleting comments requires the issue ID and comment ID
+        # Since we only have comment ID, this is a limitation
+        return {"error": "Comment deletion requires both issue ID and comment ID. Use issue-specific comment endpoints."}
+        
+    except Exception as e:
+        logger.exception(f"Error deleting comment {comment_id}")
         return {"error": str(e)}
 
 
@@ -1447,6 +1665,137 @@ async def analyze_user_activity_patterns(user_login: str, days_back: int = 30, a
 
 
 @mcp.tool()
+async def get_tool_configuration() -> Dict[str, Any]:
+    """
+    Get the current tool configuration showing enabled/disabled tools and categories.
+    
+    Returns:
+        Current tool configuration with categories, individual overrides, and summaries
+    """
+    try:
+        return Config.get_tool_config_summary()
+    except Exception as e:
+        logger.exception("Error getting tool configuration")
+        return {"error": str(e)}
+
+
+@mcp.tool()
+async def set_tool_enabled(tool_name: str, enabled: bool) -> Dict[str, Any]:
+    """
+    Enable or disable a specific tool dynamically.
+    
+    Args:
+        tool_name: Name of the tool to enable/disable
+        enabled: True to enable, False to disable
+        
+    Returns:
+        Result of the configuration change
+    """
+    try:
+        # Check if tool exists in any category
+        tool_categories = Config.get_tool_categories()
+        tool_exists = any(tool_name in tools for tools in tool_categories.values())
+        
+        if not tool_exists:
+            return {
+                "error": f"Unknown tool: {tool_name}",
+                "available_tools": [tool for tools in tool_categories.values() for tool in tools]
+            }
+        
+        # Set tool configuration
+        Config.set_tool_enabled(tool_name, enabled)
+        
+        # Apply filtering to MCP server
+        filter_tools_by_config()
+        
+        return {
+            "status": "success",
+            "message": f"Tool '{tool_name}' {'enabled' if enabled else 'disabled'}",
+            "tool_name": tool_name,
+            "enabled": enabled,
+            "current_config": Config.get_tool_config_summary()
+        }
+        
+    except Exception as e:
+        logger.exception(f"Error setting tool enabled: {tool_name}")
+        return {"error": str(e)}
+
+
+@mcp.tool()
+async def set_category_enabled(category: str, enabled: bool) -> Dict[str, Any]:
+    """
+    Enable or disable an entire tool category dynamically.
+    
+    Args:
+        category: Name of the category to enable/disable 
+        enabled: True to enable, False to disable
+        
+    Returns:
+        Result of the configuration change
+    """
+    try:
+        # Check if category exists
+        if category not in Config.TOOLS_ENABLED:
+            return {
+                "error": f"Unknown category: {category}",
+                "available_categories": list(Config.TOOLS_ENABLED.keys())
+            }
+        
+        # Set category configuration
+        Config.set_category_enabled(category, enabled)
+        
+        # Apply filtering to MCP server
+        filter_tools_by_config()
+        
+        tool_categories = Config.get_tool_categories()
+        affected_tools = tool_categories.get(category, [])
+        
+        return {
+            "status": "success",
+            "message": f"Category '{category}' {'enabled' if enabled else 'disabled'}",
+            "category": category,
+            "enabled": enabled,
+            "affected_tools": affected_tools,
+            "current_config": Config.get_tool_config_summary()
+        }
+        
+    except Exception as e:
+        logger.exception(f"Error setting category enabled: {category}")
+        return {"error": str(e)}
+
+
+@mcp.tool()
+async def list_tool_categories() -> Dict[str, Any]:
+    """
+    List all available tool categories and their tools.
+    
+    Returns:
+        Dictionary mapping categories to their tools with current enabled status
+    """
+    try:
+        tool_categories = Config.get_tool_categories()
+        enabled_tools = set(Config.get_enabled_tools())
+        
+        result = {}
+        for category, tools in tool_categories.items():
+            result[category] = {
+                "enabled": Config.TOOLS_ENABLED.get(category, True),
+                "tools": tools,
+                "enabled_tools": [tool for tool in tools if tool in enabled_tools],
+                "disabled_tools": [tool for tool in tools if tool not in enabled_tools]
+            }
+        
+        return {
+            "categories": result,
+            "summary": Config.get_tool_config_summary()
+        }
+        
+    except Exception as e:
+        logger.exception("Error listing tool categories")
+        return {"error": str(e)}
+
+
+@mcp.tool()
 async def enhance_error_context(error_message: str, operation_context: Dict[str, Any] = None) -> Dict[str, Any]:
     """
     Enhance error messages with AI-powered context and suggestions.
@@ -1581,18 +1930,18 @@ def apply_cli_config(args):
     
     # Apply YouTrack configuration from CLI args
     if args.youtrack_url:
-        config.YOUTRACK_URL = args.youtrack_url
+        Config.YOUTRACK_URL = args.youtrack_url
     
     if args.youtrack_token:
-        config.YOUTRACK_API_TOKEN = args.youtrack_token
+        Config.YOUTRACK_API_TOKEN = args.youtrack_token
     
     if args.youtrack_token_file and os.path.exists(args.youtrack_token_file):
         with open(args.youtrack_token_file, 'r') as f:
-            config.YOUTRACK_API_TOKEN = f.read().strip()
+            Config.YOUTRACK_API_TOKEN = f.read().strip()
         logger.info(f"Loaded API token from file: {args.youtrack_token_file}")
     
     if args.verify_ssl is not None:
-        config.VERIFY_SSL = args.verify_ssl
+        Config.VERIFY_SSL = args.verify_ssl
 
 
 def run_http_server(host: str, port: int):
@@ -1672,11 +2021,13 @@ def run_http_server(host: str, port: int):
             tools_response = await mcp.list_tools()
             # Extract tools from the MCP response format
             tools_info = []
-            for tool in tools_response.tools:
+            # Handle both list and object responses
+            tools_list = tools_response.tools if hasattr(tools_response, 'tools') else tools_response
+            for tool in tools_list:
                 tools_info.append({
                     "name": tool.name,
                     "description": tool.description or "No description available",
-                    "input_schema": tool.inputSchema.model_dump() if tool.inputSchema else {}
+                    "input_schema": tool.inputSchema.model_dump() if hasattr(tool.inputSchema, 'model_dump') else (tool.inputSchema or {})
                 })
             return {"tools": tools_info}
         except Exception as e:
@@ -1834,11 +2185,11 @@ def run_http_server(host: str, port: int):
                 if not tool_name:
                     raise HTTPException(status_code=400, detail="Tool name required")
                 
-                if tool_name not in mcp.tools:
+                if tool_name not in mcp._tool_manager._tools:
                     raise HTTPException(status_code=404, detail=f"Tool '{tool_name}' not found")
                 
                 # Call the tool function
-                tool_func = mcp.tools[tool_name]
+                tool_func = mcp._tool_manager._tools[tool_name]
                 try:
                     # Execute the tool
                     result = await tool_func.func(**arguments)
@@ -1967,7 +2318,7 @@ def run_http_server(host: str, port: int):
                 tool_name = params.get("name")
                 arguments = params.get("arguments", {})
                 
-                if not tool_name or tool_name not in mcp.tools:
+                if not tool_name or tool_name not in mcp._tool_manager._tools:
                     await sse_connections[session_id].put({
                         "jsonrpc": "2.0",
                         "id": request_id,
@@ -1980,7 +2331,7 @@ def run_http_server(host: str, port: int):
                     return {"status": "error", "message": "Tool not found"}
                 
                 # Execute tool asynchronously
-                tool_func = mcp.tools[tool_name]
+                tool_func = mcp._tool_manager._tools[tool_name]
                 try:
                     # Send progress update
                     await sse_connections[session_id].put({
@@ -2070,6 +2421,9 @@ def main():
     
     # Initialize API clients
     initialize_clients()
+    
+    # Filter tools based on configuration
+    filter_tools_by_config()
     
     logger.info(f"Starting YouTrack MCP Server (Consolidated) v{APP_VERSION}")
     logger.info("Using standard MCP Python SDK with FastMCP")
