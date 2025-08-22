@@ -4,12 +4,24 @@ python-dotenv>=1.0.0
 mcp>=1.11.0
 nest_asyncio>=1.5.6
 
+# Core dependencies
+fastapi>=0.115.12
+requests>=2.32.3
+
+# OAuth2/Security dependencies
+PyJWT>=2.8.0
+keyring>=24.0.0
+
+# AI/LLM dependencies (optional)
+cachetools>=5.3.0
+
+# Configuration dependencies
+PyYAML>=6.0
+
 # Development dependencies
 pytest>=7.0.0
 black>=22.1.0
 flake8>=4.0.1
 mypy>=0.931
 isort>=5.10.1
-pytest-cov>=3.0.0 
-fastapi>=0.115.12
-requests>=2.32.3
+pytest-cov>=3.0.0

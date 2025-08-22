@@ -8,6 +8,7 @@ This package contains modular issue management tools broken down by functionalit
 - linking: Issue relationships
 - diagnostics: Workflow analysis & help
 - attachments: File & raw data operations
+- comments: Comment retrieval and management
 """
 
 import logging
@@ -26,6 +27,7 @@ from .basic_operations import BasicOperations
 from .linking import Linking
 from .attachments import Attachments
 from .utilities import Utilities
+from .comments import CommentOperations
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +55,7 @@ class IssueTools:
         self.linking = Linking(self.issues_api, self.projects_api)
         self.attachments = Attachments(self.issues_api, self.projects_api)
         self.utilities = Utilities(self.issues_api, self.projects_api)
+        self.comments = CommentOperations(self.issues_api, self.projects_api)
         
         logger.info("IssueTools initialized with modular components")
 
@@ -181,6 +184,33 @@ class IssueTools:
         """Get attachment content as base64."""
         return self.attachments.get_attachment_content(issue_id, attachment_id)
 
+    # === Comment Functions ===
+    
+    def get_comments(self, project_id: Optional[str] = None, task_id: Optional[str] = None, 
+                    cursor: Optional[str] = None, limit: int = 50) -> str:
+        """Get comments for a task or project."""
+        return self.comments.get_comments(project_id, task_id, cursor, limit)
+    
+    def get_task_comments(self, task_id: str, cursor: Optional[str] = None, limit: int = 50) -> str:
+        """Get comments for a specific task/issue."""
+        return self.comments.get_task_comments(task_id, cursor, limit)
+    
+    def get_project_comments(self, project_id: str, cursor: Optional[str] = None, limit: int = 50) -> str:
+        """Get recent comments across a project."""
+        return self.comments.get_project_comments(project_id, cursor, limit)
+    
+    def get_comment(self, issue_id: str, comment_id: str) -> str:
+        """Get a specific comment by ID."""
+        return self.comments.get_comment(issue_id, comment_id)
+    
+    def update_comment(self, issue_id: str, comment_id: str, text: str) -> str:
+        """Update an existing comment (placeholder)."""
+        return self.comments.update_comment(issue_id, comment_id, text)
+    
+    def delete_comment(self, issue_id: str, comment_id: str) -> str:
+        """Delete a comment (placeholder)."""
+        return self.comments.delete_comment(issue_id, comment_id)
+
     # === Utility Functions ===
     
     def close(self) -> None:
@@ -201,4 +231,5 @@ __all__ = [
     "Linking",
     "Attachments",
     "Utilities",
+    "CommentOperations",
 ] 

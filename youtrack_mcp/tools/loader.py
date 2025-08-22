@@ -66,6 +66,14 @@ def load_all_tools() -> Dict[str, Callable]:
     from youtrack_mcp.tools.users import UserTools
     from youtrack_mcp.tools.search import SearchTools
     from youtrack_mcp.tools.resources import ResourcesTools
+    
+    # Try to import AI tools if available
+    try:
+        from youtrack_mcp.tools.ai import AITools
+        ai_tools_available = True
+    except ImportError as e:
+        logger.info(f"AI tools not available: {e}")
+        ai_tools_available = False
 
     # Initialize tool classes
     tool_classes = [
@@ -75,6 +83,10 @@ def load_all_tools() -> Dict[str, Callable]:
         SearchTools(),
         ResourcesTools(),
     ]
+    
+    # Add AI tools if available
+    if ai_tools_available:
+        tool_classes.append(AITools())
 
     # Collect tool definitions from all classes
     all_tool_definitions = {}
