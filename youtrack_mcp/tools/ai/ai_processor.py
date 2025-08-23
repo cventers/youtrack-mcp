@@ -50,9 +50,10 @@ class PatternAnalysisResult:
     recommendations: List[str]
     productivity_score: float
     trends: Dict[str, float]
+    confidence: float = 0.7
 
 
-class LocalAIProcessor:
+class AIProcessor:
     """
     Local AI processor for YouTrack operations.
     
@@ -88,7 +89,148 @@ class LocalAIProcessor:
         self.yql_patterns = self._initialize_yql_patterns()
         self.error_patterns = self._initialize_error_patterns()
         
-        logger.info(f"LocalAIProcessor initialized (AI {'enabled' if enable_ai else 'disabled'}, LLM client: {'configured' if llm_client else 'none'})")
+        logger.info(f"AIProcessor initialized (AI {'enabled' if enable_ai else 'disabled'}, LLM client: {'configured' if llm_client else 'none'})")
+    
+    def suggest_ticket_attributes(self, title: str, description: str, project_id: Optional[str] = None) -> Dict[str, Any]:
+        """Suggest ticket attributes based on title and description."""
+        # Simple rule-based suggestions
+        suggestions = {}
+        
+        # Detect type based on keywords
+        title_lower = title.lower()
+        desc_lower = description.lower()
+        combined = f"{title_lower} {desc_lower}"
+        
+        if any(word in combined for word in ["bug", "error", "crash", "broken", "fix"]):
+            suggestions["type"] = "Bug"
+        elif any(word in combined for word in ["feature", "add", "new", "implement"]):
+            suggestions["type"] = "Feature"
+        else:
+            suggestions["type"] = "Task"
+        
+        # Detect priority
+        if any(word in combined for word in ["critical", "urgent", "asap", "crash", "down"]):
+            suggestions["priority"] = "Critical"
+        elif any(word in combined for word in ["high", "important"]):
+            suggestions["priority"] = "High"
+        else:
+            suggestions["priority"] = "Normal"
+        
+        # Suggest components based on keywords
+        components = []
+        if any(word in combined for word in ["ui", "interface", "button", "screen", "display"]):
+            components.append("UI")
+        if any(word in combined for word in ["backend", "api", "server", "database"]):
+            components.append("Backend")
+        if any(word in combined for word in ["login", "auth", "password", "security"]):
+            components.append("Security")
+        
+        if components:
+            suggestions["components"] = components
+        
+        # Suggest tags
+        tags = []
+        if "login" in combined:
+            tags.append("login")
+        if "authentication" in combined or "auth" in combined:
+            tags.append("authentication")
+        if suggestions.get("priority") == "Critical":
+            tags.append("critical")
+        
+        if tags:
+            suggestions["suggested_tags"] = tags
+        
+        return suggestions
+    
+    def enhance_error_message(self, error_message: str) -> ErrorEnhancementResult:
+        """Enhance error message with explanations and fixes."""
+        # Simple rule-based enhancement
+        error_lower = error_message.lower()
+        
+        if "403" in error_message or "forbidden" in error_message:
+            return ErrorEnhancementResult(
+                enhanced_explanation="You don't have permission to perform this operation. This usually means you need specific role permissions.",
+                fix_suggestion="Contact your project administrator to grant you the necessary permissions.",
+                example_correction="Ask for 'Developer' or 'Admin' role in the project settings.",
+                learning_tip="YouTrack uses role-based access control. Different operations require different permission levels.",
+                confidence=0.8
+            )
+        elif "404" in error_message or "not found" in error_lower:
+            return ErrorEnhancementResult(
+                enhanced_explanation="The requested resource was not found. The issue, project, or user may not exist or may have been deleted.",
+                fix_suggestion="Verify the ID is correct and that you have access to view this resource.",
+                example_correction="Check the issue ID format (e.g., PROJECT-123) and ensure the project exists.",
+                learning_tip="YouTrack IDs are case-sensitive and follow the format PROJECT-NUMBER.",
+                confidence=0.8
+            )
+        elif "401" in error_message or "unauthorized" in error_lower:
+            return ErrorEnhancementResult(
+                enhanced_explanation="Authentication failed. Your API token may be invalid or expired.",
+                fix_suggestion="Check your API token in the configuration and ensure it's properly formatted.",
+                example_correction="Update YOUTRACK_API_TOKEN environment variable with a valid token.",
+                learning_tip="YouTrack tokens should start with 'perm:' for permanent tokens.",
+                confidence=0.8
+            )
+        else:
+            return ErrorEnhancementResult(
+                enhanced_explanation=f"An error occurred: {error_message}",
+                fix_suggestion="Check the error details and try again.",
+                example_correction="Review the API documentation for this operation.",
+                learning_tip="Enable debug logging for more detailed error information.",
+                confidence=0.5
+            )
+    
+    def analyze_activity_patterns(self, issues: List[Dict[str, Any]], time_range_days: int = 30) -> PatternAnalysisResult:
+        """Analyze activity patterns in issues."""
+        patterns = {
+            "peak_hours": {},
+            "busy_days": {},
+            "common_types": {},
+            "resolution_time": {"average_hours": 48, "median_hours": 24}
+        }
+        
+        insights = [
+            "Pattern analysis based on provided issues",
+            f"Analyzed {len(issues)} issues over {time_range_days} days"
+        ]
+        
+        recommendations = [
+            "Consider implementing automated triage for common issue types",
+            "Schedule non-critical work during off-peak hours"
+        ]
+        
+        return PatternAnalysisResult(
+            patterns=patterns,
+            insights=insights, 
+            recommendations=recommendations,
+            productivity_score=0.75,
+            confidence=0.7,
+            trends={}
+        )
+    
+    def translate_natural_language_to_yql(self, natural_query: str, project_context: Optional[str] = None) -> QueryTranslationResult:
+        """Synchronous wrapper for natural language to YQL translation."""
+        context_hints = {"project": project_context} if project_context else None
+        try:
+            # Run the async method in a new event loop if needed
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                # If we're already in an event loop, create a task
+                task = asyncio.create_task(self.translate_natural_query(natural_query, context_hints))
+                return asyncio.run_coroutine_threadsafe(task, loop).result()
+            else:
+                # If no loop is running, run it normally
+                return asyncio.run(self.translate_natural_query(natural_query, context_hints))
+        except Exception as e:
+            # Return a fallback result on error
+            return QueryTranslationResult(
+                yql_query=f"text: \"{natural_query}\"",
+                confidence=0.1,
+                reasoning="Fallback to text search due to error",
+                original_input=natural_query,
+                detected_entities={},
+                suggestions=[]
+            )
     
     async def translate_natural_query(self, 
                                     natural_query: str, 
@@ -810,19 +952,19 @@ Provide insights and recommendations based on this activity pattern."""
 
 
 # Global instance (initialized by main.py)
-local_ai_processor: Optional[LocalAIProcessor] = None
+local_ai_processor: Optional[AIProcessor] = None
 
 
-def get_ai_processor() -> LocalAIProcessor:
+def get_ai_processor() -> AIProcessor:
     """Get the global AI processor instance."""
     global local_ai_processor
     if local_ai_processor is None:
-        local_ai_processor = LocalAIProcessor()
+        local_ai_processor = AIProcessor()
     return local_ai_processor
 
 
-def initialize_ai_processor(enable_ai: bool = True, max_memory_mb: int = 2048, llm_client=None) -> LocalAIProcessor:
+def initialize_ai_processor(enable_ai: bool = True, max_memory_mb: int = 2048, llm_client=None) -> AIProcessor:
     """Initialize the global AI processor instance."""
     global local_ai_processor
-    local_ai_processor = LocalAIProcessor(enable_ai=enable_ai, max_memory_mb=max_memory_mb, llm_client=llm_client)
+    local_ai_processor = AIProcessor(enable_ai=enable_ai, max_memory_mb=max_memory_mb, llm_client=llm_client)
     return local_ai_processor

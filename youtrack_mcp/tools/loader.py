@@ -74,6 +74,14 @@ def load_all_tools() -> Dict[str, Callable]:
     except ImportError as e:
         logger.info(f"AI tools not available: {e}")
         ai_tools_available = False
+    
+    # Try to import advanced search tools if available
+    try:
+        from youtrack_mcp.tools.search_advanced import AdvancedSearchTools
+        advanced_search_available = True
+    except ImportError as e:
+        logger.info(f"Advanced search tools not available: {e}")
+        advanced_search_available = False
 
     # Initialize tool classes
     tool_classes = [
@@ -87,6 +95,10 @@ def load_all_tools() -> Dict[str, Callable]:
     # Add AI tools if available
     if ai_tools_available:
         tool_classes.append(AITools())
+    
+    # Add advanced search tools if available
+    if advanced_search_available:
+        tool_classes.append(AdvancedSearchTools())
 
     # Collect tool definitions from all classes
     all_tool_definitions = {}

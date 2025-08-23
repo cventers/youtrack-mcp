@@ -9,7 +9,7 @@ This module provides MCP tool wrappers for AI functionality:
 
 import json
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, List
 
 from youtrack_mcp.mcp_wrappers import sync_wrapper
 from youtrack_mcp.utils import format_json_response

@@ -67,14 +67,17 @@ class LLMClient:
     3. Rule-based fallback (always available)
     """
     
-    def __init__(self, configs: List[LLMConfig]):
+    def __init__(self, configs: Union[LLMConfig, List[LLMConfig]]):
         """
         Initialize LLM client with provider configurations.
         
         Args:
-            configs: List of LLM configurations in priority order
+            configs: Single LLMConfig or list of LLM configurations in priority order
         """
-        self.configs = configs
+        if isinstance(configs, LLMConfig):
+            self.configs = [configs]
+        else:
+            self.configs = configs if configs else []
         self.http_client = None
         self._initialize_http_client()
         
