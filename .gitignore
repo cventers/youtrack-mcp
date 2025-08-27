@@ -59,3 +59,7 @@ IMPLEMENTATION_STATUS.md
 todo.md
 integration_tests/
 .python-version node_modules/
+
+# Local files (except .keep)
+local/*
+!local/.keep
