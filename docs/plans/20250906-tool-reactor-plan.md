@@ -204,8 +204,8 @@ MCP Server
 **Goal**: Implement core 12 tools with clean interfaces
 
 **Tasks**:
-- [ ] Create `issues.patch` with typed subpath grammar
-- [ ] Implement `issues.get` with expansion support
+- [x] Create `issues.patch` with typed subpath grammar
+- [x] Implement `issues.get` with expansion support
 - [ ] Build `projects.patch` with typed operations
 - [x] Add `search.autosearch` with confidence scoring
 - [ ] Create `ai.plan` as read-only translator
