@@ -187,12 +187,12 @@ MCP Server
 **Goal**: Implement critical safety measures and environment controls
 
 **Tasks**:
-- [ ] Add provider gating for unsupported AI providers
-- [ ] Implement exact-first project resolution (no fuzzy matching)
-- [ ] Remove placeholder text generation (`{PROJECT_NAME}`)
+- [x] Add provider gating for unsupported AI providers
+- [x] Implement exact-first project resolution (no fuzzy matching)
+- [x] Remove placeholder text generation (`{PROJECT_NAME}`)
 - [ ] Add `MCP_PARAM_REPAIR` flag for parameter auto-repair
 - [ ] Create environment variable `YOUTRACK_CAPS` for capability packs
-- [ ] Add structured logging with redaction
+- [x] Add structured logging with redaction
 
 **Success Criteria**:
 - All placeholder text eliminated

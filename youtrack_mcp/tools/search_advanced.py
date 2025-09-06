@@ -451,11 +451,11 @@ class AdvancedSearchTools:
         
         # Parse time ranges
         time_patterns = {
-            r"(last|past) week": "created: {Last week}",
-            r"(last|past) month": "created: {Last month}",
-            r"(last|past) (\d+) days?": lambda m: f"created: {{-{m.group(2)}d}}",
-            r"today": "created: {Today}",
-            r"yesterday": "created: {Yesterday}"
+            r"(last|past) week": "created: -7d .. *",
+            r"(last|past) month": "created: -30d .. *",
+            r"(last|past) (\d+) days?": lambda m: f"created: -{m.group(2)}d .. *",
+            r"today": "created: Today",
+            r"yesterday": "created: Yesterday"
         }
         
         for pattern, replacement in time_patterns.items():

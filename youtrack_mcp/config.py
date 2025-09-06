@@ -51,6 +51,12 @@ class Config:
         "1",
         "yes",
     )
+    MCP_PARAM_REPAIR: bool = os.getenv("MCP_PARAM_REPAIR", "false").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
+    YOUTRACK_CAPS: str = os.getenv("YOUTRACK_CAPS", "")
 
     @classmethod
     def from_dict(cls, config_dict: Dict[str, Any]) -> None:

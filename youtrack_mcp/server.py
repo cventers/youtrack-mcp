@@ -8,6 +8,7 @@ import os
 import sys
 import inspect
 import asyncio
+import re
 from typing import Dict, List, Any, Optional, Callable, Union, AsyncGenerator
 
 try:
@@ -20,6 +21,51 @@ except ImportError:
 from youtrack_mcp.config import config
 
 logger = logging.getLogger(__name__)
+
+
+class StructuredLogger:
+    """Structured JSON logger with PII redaction."""
+
+    def __init__(self):
+        self.redaction_patterns = [
+            (r'("token":\s*)"[^"]*"', r'\1"[REDACTED]"'),
+            (r'("password":\s*)"[^"]*"', r'\1"[REDACTED]"'),
+            (r'("api_key":\s*)"[^"]*"', r'\1"[REDACTED]"'),
+            (r'("auth":\s*)"[^"]*"', r'\1"[REDACTED]"'),
+            (r'(Bearer\s+)[^\s]+', r'\1[REDACTED]'),
+            (r'(perm:)[^\s]+', r'\1[REDACTED]'),
+            (r'(perm-)[^\s]+', r'\1[REDACTED]'),
+        ]
+
+    def redact(self, message: str) -> str:
+        """Redact sensitive information from log messages."""
+        for pattern, replacement in self.redaction_patterns:
+            message = re.sub(pattern, replacement, message, flags=re.IGNORECASE)
+        return message
+
+    def log(self, level: str, message: str, **kwargs):
+        """Log a structured message with redaction."""
+        # Redact sensitive information
+        redacted_message = self.redact(message)
+
+        # Create structured log entry
+        log_entry = {
+            "timestamp": asyncio.get_event_loop().time() if asyncio.get_event_loop() else None,
+            "level": level,
+            "message": redacted_message,
+            "service": "youtrack-mcp",
+            **kwargs
+        }
+
+        # Remove None values
+        log_entry = {k: v for k, v in log_entry.items() if v is not None}
+
+        # Log as JSON
+        logger.log(getattr(logging, level.upper()), json.dumps(log_entry))
+
+
+# Global structured logger instance
+structured_logger = StructuredLogger()
 
 
 class YouTrackMCPServer:

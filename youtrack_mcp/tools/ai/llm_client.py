@@ -445,7 +445,7 @@ class LLMClient:
             elif "assigned to me" in prompt_lower:
                 return "assignee: me"
             else:
-                return "project: {PROJECT_NAME}"
+                return "Please specify a project name for the search query"
         
         # Error enhancement patterns
         elif "enhance" in prompt_lower and "error" in prompt_lower:

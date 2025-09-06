@@ -78,29 +78,24 @@ class ProjectsClient:
 
     def get_project_by_name(self, project_name: str) -> Optional[Project]:
         """
-        Get a project by its name or short name.
+        Get a project by its exact name or short name (no fuzzy matching).
 
         Args:
-            project_name: The project name or short name
+            project_name: The exact project name or short name
 
         Returns:
             The project data or None if not found
         """
         projects = self.get_projects(include_archived=True)
 
-        # First try to match by short name (exact match)
+        # Exact match by short name (case sensitive)
         for project in projects:
-            if project.shortName.lower() == project_name.lower():
+            if project.shortName == project_name:
                 return project
 
-        # Then try to match by full name (case insensitive)
+        # Exact match by full name (case sensitive)
         for project in projects:
-            if project.name.lower() == project_name.lower():
-                return project
-
-        # Finally try to match if project_name is contained in the name
-        for project in projects:
-            if project_name.lower() in project.name.lower():
+            if project.name == project_name:
                 return project
 
         return None

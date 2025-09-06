@@ -33,10 +33,18 @@ class AITools:
     def _create_llm_config(self) -> LLMConfig:
         """Create LLM configuration from environment variables."""
         import os
-        
+
         # Check for AI provider configuration
         provider = os.getenv("YOUTRACK_AI_PROVIDER", "rule_based").lower()
-        
+
+        # Provider gating for unsupported providers
+        if provider == "google":
+            logger.warning("Google AI provider is not supported. Use 'openai' or 'anthropic' instead. Falling back to rule-based")
+            return LLMConfig(provider=AIProvider.RULE_BASED)
+        elif provider not in ["openai", "anthropic", "rule_based"]:
+            logger.warning(f"Unsupported AI provider '{provider}'. Supported: openai, anthropic, rule_based. Falling back to rule-based")
+            return LLMConfig(provider=AIProvider.RULE_BASED)
+
         if provider == "openai":
             return LLMConfig(
                 provider=AIProvider.OPENAI_COMPATIBLE,
@@ -53,10 +61,6 @@ class AITools:
                 model_name=os.getenv("ANTHROPIC_MODEL", "claude-3-haiku-20240307"),
                 enabled=bool(os.getenv("ANTHROPIC_API_KEY"))
             )
-        elif provider == "google":
-            # Google's API is not OpenAI-compatible, would need separate implementation
-            logger.warning("Google AI provider not yet implemented, falling back to rule-based")
-            return LLMConfig(provider=AIProvider.RULE_BASED)
         else:
             # Default to rule-based
             return LLMConfig(provider=AIProvider.RULE_BASED)

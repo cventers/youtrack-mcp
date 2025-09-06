@@ -149,23 +149,10 @@ class ProjectTools:
                     )
                     return format_json_response({"error": str(e)})
 
-            # If that failed, try to find project by name
-            try:
-                project_obj = self.projects_api.get_project_by_name(project_id)
-                if project_obj:
-                    issues = self.projects_api.get_project_issues(
-                        project_obj.id, limit
-                    )
-                    return format_json_response(issues)
-                else:
-                    return format_json_response(
-                        {"error": f"Project not found: {project_id}"}
-                    )
-            except Exception as e:
-                logger.exception(
-                    f"Error getting issues for project {project_id}"
-                )
-                return format_json_response({"error": str(e)})
+            # No fuzzy matching - if direct lookup fails, return error
+            return format_json_response(
+                {"error": f"Project not found: {project_id}"}
+            )
         except Exception as e:
             logger.exception(
                 f"Error processing get_project_issues({project_id}, {limit})"
