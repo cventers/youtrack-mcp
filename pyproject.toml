@@ -1,0 +1,39 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "youtrack-mcp"
+version = "0.1.0"
+description = "YouTrack MCP Server for AI assistants"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "httpx>=0.24.0",
+    "pydantic>=2.0.0",
+    "python-dotenv>=1.0.0",
+    "mcp>=1.11.0",
+    "nest_asyncio>=1.5.6",
+    "fastapi>=0.115.12",
+    "requests>=2.32.3",
+    "PyJWT>=2.8.0",
+    "keyring>=24.0.0",
+    "cachetools>=5.3.0",
+    "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "black>=22.1.0",
+    "flake8>=4.0.1",
+    "mypy>=0.931",
+    "isort>=5.10.1",
+    "pytest-cov>=3.0.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["youtrack_mcp"]
+
+[project.scripts]
+youtrack-mcp = "main:main"

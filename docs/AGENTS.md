@@ -80,6 +80,60 @@ The **`docs/third-party.md`** file serves as an index to all extracted documenta
 2. **Phase 3** (High): LLM-optimized error handling, MCP Resources
 3. **Phase 4** (High): User activity tracking, date/time conversion utilities
 
+## Development Environment Setup
+
+### Python Environment Management with uv
+
+This project uses `uv` for fast Python package management and virtual environment handling.
+
+#### Initial Setup
+```bash
+# Install uv (if not already installed)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Create virtual environment (already done)
+uv venv .venv
+
+# Activate virtual environment
+source .venv/bin/activate
+
+# Install dependencies
+uv pip install -e .
+```
+
+#### Daily Development Workflow
+```bash
+# Activate virtual environment
+source .venv/bin/activate
+
+# Install new dependencies
+uv add package-name
+
+# Run tests
+uv run pytest
+
+# Run the application
+uv run python main.py
+
+# Update dependencies
+uv lock --upgrade
+```
+
+#### uv Commands Reference
+- `uv venv .venv` - Create virtual environment
+- `uv pip install -e .` - Install project in editable mode
+- `uv add package-name` - Add new dependency
+- `uv remove package-name` - Remove dependency
+- `uv run command` - Run command in virtual environment
+- `uv lock` - Update lock file
+- `uv lock --upgrade` - Upgrade all dependencies
+
+#### Virtual Environment Notes
+- **Always activate** `.venv` before working: `source .venv/bin/activate`
+- **Never commit** `.venv/` directory (it's in .gitignore)
+- **Use uv run** for all Python commands to ensure proper environment
+- **Dependencies** are managed via `pyproject.toml` and `uv.lock`
+
 ## Development Guidelines
 
 ### Error Handling Philosophy
