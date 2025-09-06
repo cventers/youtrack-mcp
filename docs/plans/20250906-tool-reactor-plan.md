@@ -207,7 +207,7 @@ MCP Server
 - [ ] Create `issues.patch` with typed subpath grammar
 - [ ] Implement `issues.get` with expansion support
 - [ ] Build `projects.patch` with typed operations
-- [ ] Add `search.autosearch` with confidence scoring
+- [x] Add `search.autosearch` with confidence scoring
 - [ ] Create `ai.plan` as read-only translator
 - [ ] Implement `resources.read` for secured URIs
 - [ ] Add concise tool descriptions (< 100 chars each)
@@ -365,7 +365,7 @@ MCP Server
 - [ ] Open questions resolved
 
 ### Phase Completion
-- [ ] Phase 0: Safety measures implemented
+- [x] Phase 0: Safety measures implemented
 - [ ] Phase 1: Core tools functional
 - [ ] Phase 2: Capability packs working
 - [ ] Phase 3: Tests passing, budgets met
