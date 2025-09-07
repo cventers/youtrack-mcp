@@ -1159,16 +1159,16 @@ class IssuesClient:
         # Return the binary content
         return response.content
 
-    def _get_internal_id(self, issue_id: str) -> str:
+    async def _get_internal_id(self, issue_id: str) -> str:
         """Convert issue ID to internal format if needed."""
         try:
-            internal_id = self.client.get(f"issues/{issue_id}?fields=id")["id"]
+            internal_id = (await self.client.get(f"issues/{issue_id}?fields=id"))["id"]
             return internal_id
         except Exception:
             # If that fails, assume the issue_id is already internal
             return issue_id
 
-    def _get_readable_id(self, issue_id: str) -> str:
+    async def _get_readable_id(self, issue_id: str) -> str:
         """
         Convert an internal issue ID (like 3-37) to readable ID (like DEMO-37).
         If it's already a readable ID, return as-is.
@@ -1185,7 +1185,7 @@ class IssuesClient:
                 return issue_id
 
             # Fetch the issue to get its readable ID
-            issue = self.client.get(f"issues/{issue_id}?fields=idReadable")
+            issue = await self.client.get(f"issues/{issue_id}?fields=idReadable")
             return issue.get("idReadable", issue_id)
         except Exception:
             # If we can't get the readable ID, return the original
@@ -1281,10 +1281,10 @@ class IssuesClient:
         response = await self.client.get(f"issueLinkTypes?fields={fields}")
         return response
 
-    def _validate_custom_field_value(
-        self, 
-        project_id: str, 
-        field_name: str, 
+    async def _validate_custom_field_value(
+        self,
+        project_id: str,
+        field_name: str,
         field_value: Any
     ) -> bool:
         """
@@ -1292,7 +1292,7 @@ class IssuesClient:
 
         Args:
             project_id: The project ID
-            field_name: The custom field name  
+            field_name: The custom field name
             field_value: The value to validate
 
         Returns:
@@ -1300,17 +1300,17 @@ class IssuesClient:
         """
         try:
             # Get field schema from project
-            field_schema = self._get_custom_field_schema(project_id, field_name)
+            field_schema = await self._get_custom_field_schema(project_id, field_name)
             if not field_schema:
                 # If we can't get schema, assume valid (fallback)
                 return True
-            
+
             field_type = field_schema.get("type", "")
-            
+
             # Type-specific validation
             if field_type in ["StateMachineBundle", "StateBundle"]:
                 # State field - validate against available states
-                allowed_values = self._get_custom_field_allowed_values(project_id, field_name)
+                allowed_values = await self._get_custom_field_allowed_values(project_id, field_name)
                 return str(field_value) in [str(v) for v in allowed_values]
             
             elif field_type in ["EnumBundle", "OwnedBundle"]:
@@ -1338,10 +1338,10 @@ class IssuesClient:
             # If validation fails due to API errors, assume valid (fallback)
             return True
 
-    def _get_custom_field_schema(self, project_id: str, field_name: str) -> Optional[Dict[str, Any]]:
+    async def _get_custom_field_schema(self, project_id: str, field_name: str) -> Optional[Dict[str, Any]]:
         """Get custom field schema from project."""
         try:
-            fields = self.client.get(f"admin/projects/{project_id}/customFields")
+            fields = await self.client.get(f"admin/projects/{project_id}/customFields")
             for field in fields:
                 if field.get("field", {}).get("name") == field_name:
                     return field.get("field", {})
@@ -1349,21 +1349,21 @@ class IssuesClient:
         except Exception:
             return None
 
-    def _get_custom_field_allowed_values(self, project_id: str, field_name: str) -> List[Any]:
+    async def _get_custom_field_allowed_values(self, project_id: str, field_name: str) -> List[Any]:
         """Get allowed values for enum/state fields."""
         try:
-            field_schema = self._get_custom_field_schema(project_id, field_name)
+            field_schema = await self._get_custom_field_schema(project_id, field_name)
             if not field_schema:
                 return []
-            
+
             field_type = field_schema.get("fieldType", {}).get("valueType")
             if field_type in ["enum", "state"]:
                 # Get bundle values
                 bundle_id = field_schema.get("fieldType", {}).get("id")
                 if bundle_id:
-                    bundle = self.client.get(f"admin/customFieldSettings/bundles/{field_type}/{bundle_id}")
+                    bundle = await self.client.get(f"admin/customFieldSettings/bundles/{field_type}/{bundle_id}")
                     return [value.get("name", "") for value in bundle.get("values", [])]
-            
+
             return []
         except Exception:
             return []
