@@ -902,32 +902,10 @@ class IssuesClient:
             logger.warning(f"Command-based update failed: {e}")
             raise
 
-    def get_issue_custom_fields(self, issue_id: str) -> Dict[str, Any]:
-        """
-        Get all custom fields for a specific issue.
-
-        Args:
-            issue_id: The issue ID or readable ID
-
-        Returns:
-            Dictionary of custom field name-value pairs
-        """
-        fields = "customFields(id,name,value($type,name,text,id,login))"
-        response = self.client.get(f"issues/{issue_id}?fields={fields}")
-        
-        custom_fields = {}
-        if "customFields" in response:
-            for field in response["customFields"]:
-                field_name = field.get("name", "")
-                field_value = self._extract_custom_field_value(field.get("value"))
-                custom_fields[field_name] = field_value
-        
-        return custom_fields
-
-    def validate_custom_field_value(
-        self, 
-        project_id: str, 
-        field_name: str, 
+    async def validate_custom_field_value(
+        self,
+        project_id: str,
+        field_name: str,
         field_value: Any
     ) -> Dict[str, Any]:
         """
@@ -942,8 +920,8 @@ class IssuesClient:
             Dictionary with validation result and details
         """
         try:
-            is_valid = self._validate_custom_field_value(project_id, field_name, field_value)
-            
+            is_valid = await self._validate_custom_field_value(project_id, field_name, field_value)
+
             if is_valid:
                 return {
                     "valid": True,
@@ -953,9 +931,9 @@ class IssuesClient:
                 }
             else:
                 # Get available values for better error messages
-                available_values = self._get_custom_field_allowed_values(project_id, field_name)
+                available_values = await self._get_custom_field_allowed_values(project_id, field_name)
                 suggestion = f"Available values: {', '.join(map(str, available_values))}" if available_values else "Check field configuration"
-                
+
                 return {
                     "valid": False,
                     "field": field_name,
@@ -972,7 +950,7 @@ class IssuesClient:
                 "suggestion": "Check field name and project configuration"
             }
 
-    def batch_update_custom_fields(
+    async def batch_update_custom_fields(
         self,
         updates: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
@@ -987,11 +965,11 @@ class IssuesClient:
             List of update results with success/error status
         """
         results = []
-        
+
         for update in updates:
             issue_id = update.get("issue_id")
             fields = update.get("fields", {})
-            
+
             if not issue_id:
                 results.append({
                     "issue_id": None,
@@ -999,7 +977,7 @@ class IssuesClient:
                     "error": "Missing issue_id in update"
                 })
                 continue
-            
+
             if not fields:
                 results.append({
                     "issue_id": issue_id,
@@ -1007,21 +985,21 @@ class IssuesClient:
                     "message": "No fields to update"
                 })
                 continue
-            
+
             try:
-                updated_issue = self.update_issue_custom_fields(
+                updated_issue = await self.update_issue_custom_fields(
                     issue_id=issue_id,
                     custom_fields=fields,
                     validate=update.get("validate", True)
                 )
-                
+
                 results.append({
                     "issue_id": issue_id,
                     "status": "success",
                     "updated_fields": list(fields.keys()),
                     "issue_data": updated_issue.model_dump() if hasattr(updated_issue, 'model_dump') else updated_issue
                 })
-                
+
             except Exception as e:
                 results.append({
                     "issue_id": issue_id,
@@ -1032,7 +1010,7 @@ class IssuesClient:
         
         return results
 
-    def search_issues(self, query: str, limit: int = 10) -> List[Issue]:
+    async def search_issues(self, query: str, limit: int = 10) -> List[Issue]:
         """
         Search for issues using YouTrack query language.
 
@@ -1046,7 +1024,7 @@ class IssuesClient:
         # Request additional fields to ensure we get summary
         fields = "id,idReadable,summary,description,created,updated,project,reporter,assignee,customFields"
         params = {"query": query, "$top": limit, "fields": fields}
-        response = self.client.get("issues", params=params)
+        response = await self.client.get("issues", params=params)
 
         issues = []
         if isinstance(response, list):
@@ -1070,7 +1048,7 @@ class IssuesClient:
 
         return issues
 
-    def add_comment(self, issue_id: str, text: str) -> Dict[str, Any]:
+    async def add_comment(self, issue_id: str, text: str) -> Dict[str, Any]:
         """
         Add a comment to an issue.
 
@@ -1082,9 +1060,9 @@ class IssuesClient:
             The created comment data
         """
         data = {"text": text}
-        return self.client.post(f"issues/{issue_id}/comments", data=data)
+        return await self.client.post(f"issues/{issue_id}/comments", data=data)
 
-    def get_attachment_content(
+    async def get_attachment_content(
         self, issue_id: str, attachment_id: str
     ) -> bytes:
         """
@@ -1102,7 +1080,7 @@ class IssuesClient:
             YouTrackAPIError: If API request fails
         """
         # First, get the attachment metadata to get the URL and size
-        issue_response = self.client.get(
+        issue_response = await self.client.get(
             f"issues/{issue_id}?fields=attachments(id,url,size,name,mimeType)"
         )
 
@@ -1213,7 +1191,7 @@ class IssuesClient:
             # If we can't get the readable ID, return the original
             return issue_id
 
-    def link_issues(
+    async def link_issues(
         self, source_issue_id: str, target_issue_id: str, link_type: str
     ) -> dict:
         """
@@ -1240,8 +1218,8 @@ class IssuesClient:
         }
 
         # Get internal IDs for both issues (Commands API requires internal IDs in issues array)
-        source_internal_id = self._get_internal_id(source_issue_id)
-        target_internal_id = self._get_internal_id(target_issue_id)
+        source_internal_id = await self._get_internal_id(source_issue_id)
+        target_internal_id = await self._get_internal_id(target_issue_id)
         
         # Get readable IDs for command text (Commands API expects readable IDs in command)
         target_readable_id = self._get_readable_id(target_issue_id)
@@ -1278,7 +1256,7 @@ class IssuesClient:
 
         return response
 
-    def get_issue_links(self, issue_id: str) -> dict:
+    async def get_issue_links(self, issue_id: str) -> dict:
         """
         Get all links for an issue.
 
@@ -1289,10 +1267,10 @@ class IssuesClient:
             Dictionary containing inward and outward issue links
         """
         fields = "id,summary,linkType(name,localizedName),direction"
-        response = self.client.get(f"issues/{issue_id}/links?fields={fields}")
+        response = await self.client.get(f"issues/{issue_id}/links?fields={fields}")
         return response
 
-    def get_available_link_types(self) -> dict:
+    async def get_available_link_types(self) -> dict:
         """
         Get all available issue link types.
 
@@ -1300,7 +1278,7 @@ class IssuesClient:
             List of available link types with their properties
         """
         fields = "name,localizedName,sourceToTarget,targetToSource"
-        response = self.client.get(f"issueLinkTypes?fields={fields}")
+        response = await self.client.get(f"issueLinkTypes?fields={fields}")
         return response
 
     def _validate_custom_field_value(
