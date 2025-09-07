@@ -14,6 +14,7 @@ from youtrack_mcp.api.client import YouTrackClient
 from youtrack_mcp.api.issues import IssuesClient
 from youtrack_mcp.mcp_wrappers import sync_wrapper
 from youtrack_mcp.utils import format_json_response
+from youtrack_mcp.tools.ai.ai_tools import AITools
 
 logger = logging.getLogger(__name__)
 
@@ -25,43 +26,59 @@ class CoreSearchTools:
         """Initialize core search tools."""
         self.client = YouTrackClient()
         self.issues_api = IssuesClient(self.client)
+        self.ai_tools = AITools()
 
     @sync_wrapper
-    def query(self, query: str, limit: int = 10) -> str:
+    def query(self, query: str, limit: int = 10, sort_by: Optional[str] = None, sort_order: Optional[str] = None) -> str:
         """
         Execute explicit YouTrack Query Language.
 
-        FORMAT: search.query(query="project: DEMO #Unresolved", limit=10)
+        FORMAT: search.query(query="project: DEMO #Unresolved", limit=5, sort_by="created", sort_order="desc")
 
         Args:
-            query: YouTrack Query Language expression
-            limit: Maximum results to return (default: 10)
+            query: YouTrack Query Language string
+            limit: Maximum number of results to return
+            sort_by: Field to sort by (created, updated, priority, etc.)
+            sort_order: Sort order ('asc' or 'desc')
 
         Returns:
             JSON with search results
         """
         try:
-            results = self.issues_api.search_issues(query=query, limit=limit)
-
-            # Convert Issue objects to dicts for JSON response
-            issues_data = []
-            for issue in results:
-                if hasattr(issue, "model_dump"):
-                    issues_data.append(issue.model_dump())
+            # Build sort parameter if provided
+            sort_param = None
+            if sort_by:
+                if sort_order and sort_order.lower() in ["asc", "desc"]:
+                    sort_param = f"{sort_by} {sort_order}"
                 else:
-                    issues_data.append(issue.__dict__ if hasattr(issue, "__dict__") else str(issue))
+                    sort_param = f"{sort_by} desc"  # Default to desc
+
+            # Perform the search
+            issues = self.issues_api.search_issues(query=query, limit=limit)
+
+            # Handle response format
+            if isinstance(issues, dict):
+                result = issues
+            else:
+                # Convert list of issues to JSON
+                result = []
+                for issue in issues:
+                    if hasattr(issue, "model_dump"):
+                        result.append(issue.model_dump())
+                    else:
+                        result.append(issue)
 
             return format_json_response({
                 "query": query,
-                "results": {"issues": issues_data},
-                "metadata": {
-                    "limit": limit,
-                    "result_count": len(issues_data)
-                }
+                "results": result,
+                "count": len(result) if isinstance(result, list) else len(result.get("issues", [])),
+                "limit": limit,
+                "sort_by": sort_by,
+                "sort_order": sort_order
             })
 
         except Exception as e:
-            logger.exception(f"Error executing YQL query: {e}")
+            logger.exception(f"Error in search query: {query}")
             return format_json_response({
                 "error": str(e),
                 "error_type": type(e).__name__,
@@ -71,61 +88,75 @@ class CoreSearchTools:
     @sync_wrapper
     def autosearch(self, natural_language_query: str, project_context: Optional[str] = None) -> str:
         """
-        Natural language to YQL translation with confidence scoring.
+        Natural language to YQL translation.
 
         FORMAT: search.autosearch(natural_language_query="bugs assigned to me this week")
 
         Args:
-            natural_language_query: Natural language search description
-            project_context: Optional project ID for context
+            natural_language_query: Natural language description of the search
+            project_context: Optional project ID for context-aware translation
 
         Returns:
-            JSON with YQL query, confidence, and results
+            JSON with YQL query, confidence, results, notes, degraded?
         """
         try:
-            # Simple rule-based translation (placeholder for AI integration)
-            yql_query = self._simple_nl_to_yql(natural_language_query, project_context)
-            confidence = self._calculate_confidence(natural_language_query)
+            # Use AI to translate natural language to YQL
+            translation_result = self.ai_tools.translate_to_yql(
+                natural_language_query,
+                project_context
+            )
 
-            # Execute the query if confidence is reasonable
-            results = None
-            result_count = 0
-            if confidence >= 0.6:
-                try:
-                    issues = self.issues_api.search_issues(yql_query, limit=10)
-                    # Convert Issue objects to dicts
-                    issues_data = []
-                    for issue in issues:
-                        if hasattr(issue, "model_dump"):
-                            issues_data.append(issue.model_dump())
-                        else:
-                            issues_data.append(issue.__dict__ if hasattr(issue, "__dict__") else str(issue))
-                    results = {"issues": issues_data}
-                    result_count = len(issues_data)
-                except Exception as e:
-                    logger.warning(f"Query execution failed: {e}")
-                    results = None
+            # Parse the AI result
+            ai_response = json.loads(translation_result)
+            yql_query = ai_response.get("yql_query", "")
+            confidence = ai_response.get("confidence", 0.0)
 
-            response = {
+            # If confidence is low, return with degraded flag
+            if confidence < 0.7:
+                return format_json_response({
+                    "yql": yql_query,
+                    "confidence": confidence,
+                    "results": [],
+                    "notes": ai_response.get("reasoning", ""),
+                    "degraded": True,
+                    "suggestions": ai_response.get("suggestions", [])
+                })
+
+            # Execute the translated query
+            search_result = self.query(yql_query, limit=10)
+            search_response = json.loads(search_result)
+
+            return format_json_response({
                 "yql": yql_query,
                 "confidence": confidence,
-                "results": results,
-                "notes": [] if confidence >= 0.6 else ["Low confidence - review query manually"],
-                "degraded": confidence < 0.6
-            }
-
-            if results:
-                response["result_count"] = result_count
-
-            return format_json_response(response)
+                "results": search_response.get("results", []),
+                "notes": ai_response.get("reasoning", ""),
+                "degraded": False,
+                "detected_entities": ai_response.get("detected_entities", [])
+            })
 
         except Exception as e:
-            logger.exception(f"Error in autosearch: {e}")
-            return format_json_response({
-                "error": str(e),
-                "error_type": type(e).__name__,
-                "query": natural_language_query
-            })
+            logger.exception(f"Error in autosearch: {natural_language_query}")
+            # Fallback to simple text search
+            fallback_query = f"text: {natural_language_query}"
+            try:
+                fallback_result = self.query(fallback_query, limit=10)
+                fallback_response = json.loads(fallback_result)
+
+                return format_json_response({
+                    "yql": fallback_query,
+                    "confidence": 0.0,
+                    "results": fallback_response.get("results", []),
+                    "notes": f"Fallback to text search due to error: {str(e)}",
+                    "degraded": True
+                })
+            except Exception as fallback_error:
+                return format_json_response({
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                    "fallback_error": str(fallback_error),
+                    "natural_language_query": natural_language_query
+                })
 
     def _simple_nl_to_yql(self, query: str, project_context: Optional[str] = None) -> str:
         """Simple rule-based natural language to YQL conversion."""
@@ -201,11 +232,11 @@ class CoreSearchTools:
         """Get core search tool definitions."""
         return {
             "search.query": {
-                "description": "Execute explicit YouTrack Query Language",
+                "description": "Execute YouTrack Query Language",
                 "function": self.query
             },
             "search.autosearch": {
-                "description": "Natural language to YQL translation",
+                "description": "Translate natural language to YQL",
                 "function": self.autosearch
             }
         }

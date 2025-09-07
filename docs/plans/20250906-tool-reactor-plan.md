@@ -210,7 +210,7 @@ MCP Server
 - [x] Add `search.autosearch` with confidence scoring
 - [ ] Create `ai.plan` as read-only translator
 - [ ] Implement `resources.read` for secured URIs
-- [ ] Add concise tool descriptions (< 100 chars each)
+- [x] Add concise tool descriptions (< 100 chars each)
 - [ ] Create help resource system (`help://issues.patch`)
 
 **Success Criteria**:

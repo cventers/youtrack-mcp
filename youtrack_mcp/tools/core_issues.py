@@ -189,15 +189,15 @@ class CoreIssuesTools:
         """Get core issues tool definitions."""
         return {
             "issues.get": {
-                "description": "Rich issue read with expansions",
+                "description": "Get issue with optional expansions",
                 "function": self.get
             },
             "issues.create": {
-                "description": "Schema-aware issue creation",
+                "description": "Create new issue in project",
                 "function": self.create
             },
             "issues.patch": {
-                "description": "Primary writer with typed operations",
+                "description": "Update issue fields and properties",
                 "function": self.patch
             }
         }

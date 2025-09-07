@@ -1,155 +1,159 @@
 # YouTrack MCP
 
-A Model Context Protocol (MCP) server that provides access to YouTrack functionality.
+A Model Context Protocol (MCP) server that provides access to YouTrack functionality through a streamlined 12-tool interface, built with a modern modular architecture for enhanced maintainability and scalability.
+
+## 🚀 Core Tool Surface
+
+The YouTrack MCP provides 12 core tools organized into 6 functional areas:
+
+### **🔍 Search Tools**
+```python
+# Execute YouTrack Query Language (YQL)
+search.query(query="project: DEMO #Unresolved", limit=10)
+
+# Natural language to YQL translation with confidence scoring
+search.autosearch(natural_language_query="bugs assigned to me this week")
+```
+
+### **📋 Issues Tools** (Modular Architecture)
+```python
+# Get issue with optional expansions
+issues.get(issue_id="DEMO-123", include=["customFields", "comments"])
+
+# Create new issue
+issues.create(project="DEMO", summary="Bug report", description="Details...")
+
+# Update issue with typed operations
+issues.patch(issue_id="DEMO-123", ops=[{"op": "set", "field": "state", "value": "Fixed"}])
+
+# Modular operations available:
+# - Custom fields management (validation, batch updates)
+# - Dedicated updates (state, priority, assignee, type, estimation)
+# - Issue linking and dependencies
+# - Workflow diagnostics and help
+# - Attachment and comment operations
+```
+
+### **🏗️ Projects Tools**
+```python
+# List accessible projects
+projects.list(include_archived=False)
+
+# Get project details
+projects.get(project_id="DEMO", include=["customFields"])
+
+# Update project properties
+projects.patch(project_id="DEMO", ops=[{"op": "set", "field": "name", "value": "New Name"}])
+
+# Create new project
+projects.create(name="Demo Project", short_name="DEMO", lead_id="admin")
+```
+
+### **👥 Users Tools**
+```python
+# Search users by name or login
+users.search(query="admin", limit=10)
+```
+
+### **🤖 AI Tools**
+```python
+# Plan user intent actions
+ai.plan(intent="Create a bug report for login issues", context={"project": "DEMO"})
+```
+
+### **📁 Resources Tools**
+```python
+# Read YouTrack resources by URI
+resources.read(uri="youtrack://issues/DEMO-123")
+
+# Access help documentation
+resources.read(uri="help://issues.get")
+```
 
 ## 🚀 Quick Reference - Common Operations
 
-### **🎯 State Transitions (Most Common)**
+### **🎯 State Transitions**
 ```python
-# ✅ PROVEN WORKING FORMAT - Use simple strings
-update_issue_state("DEMO-123", "In Progress")
-update_issue_state("PROJECT-456", "Fixed")
-update_issue_state("TASK-789", "Closed")
-
-# ❌ DON'T USE - Complex objects fail
-# update_custom_fields(issue_id, {"State": {"name": "In Progress"}})  # FAILS
-# update_custom_fields(issue_id, {"State": {"id": "154-2"}})         # FAILS
+# Update issue state using typed operations
+issues.patch(issue_id="DEMO-123", ops=[{"op": "set", "field": "State", "value": "In Progress"}])
+issues.patch(issue_id="PROJECT-456", ops=[{"op": "set", "field": "State", "value": "Fixed"}])
 ```
 
-### **🚨 Priority Updates (Very Common)**
+### **🚨 Priority Updates**
 ```python
-# ✅ PROVEN WORKING FORMAT - Use simple strings
-update_issue_priority("DEMO-123", "Critical")
-update_issue_priority("PROJECT-456", "Major") 
-update_issue_priority("TASK-789", "Normal")
-
-# ❌ DON'T USE - Complex objects fail
-# update_custom_fields(issue_id, {"Priority": {"name": "Critical"}})  # FAILS
-# update_custom_fields(issue_id, {"Priority": {"id": "152-1"}})       # FAILS
+# Update priority using typed operations
+issues.patch(issue_id="DEMO-123", ops=[{"op": "set", "field": "Priority", "value": "Critical"}])
+issues.patch(issue_id="PROJECT-456", ops=[{"op": "set", "field": "Priority", "value": "Major"}])
 ```
 
-### **👤 Assignment Updates (Common)**
+### **👤 Assignment Updates**
 ```python
-# ✅ PROVEN WORKING FORMAT - Use login names
-update_issue_assignee("DEMO-123", "admin")
-update_issue_assignee("PROJECT-456", "john.doe")
-update_issue_assignee("TASK-789", "jane.smith")
-
-# ❌ DON'T USE - Complex objects fail
-# update_custom_fields(issue_id, {"Assignee": {"login": "admin"}})    # FAILS
+# Update assignee using typed operations
+issues.patch(issue_id="DEMO-123", ops=[{"op": "set", "field": "Assignee", "value": "admin"}])
+issues.patch(issue_id="PROJECT-456", ops=[{"op": "set", "field": "Assignee", "value": "john.doe"}])
 ```
 
-### **🏷️ Type Updates (Common)**
+### **⏱️ Time Estimation**
 ```python
-# ✅ PROVEN WORKING FORMAT - Use simple strings
-update_issue_type("DEMO-123", "Bug")
-update_issue_type("PROJECT-456", "Feature")
-update_issue_type("TASK-789", "Task")
-
-# ❌ DON'T USE - Complex objects fail
-# update_custom_fields(issue_id, {"Type": {"name": "Bug"}})          # FAILS
+# Update estimation using typed operations
+issues.patch(issue_id="DEMO-123", ops=[{"op": "set", "field": "Estimation", "value": "4h"}])
+issues.patch(issue_id="PROJECT-456", ops=[{"op": "set", "field": "Estimation", "value": "2d"}])
 ```
 
-### **⏱️ Time Estimation (Common)**
+### **⚡ Complete Workflows**
 ```python
-# ✅ PROVEN WORKING FORMAT - Use simple time strings
-update_issue_estimation("DEMO-123", "4h")     # 4 hours
-update_issue_estimation("PROJECT-456", "2d")  # 2 days
-update_issue_estimation("TASK-789", "30m")    # 30 minutes
-update_issue_estimation("TASK-790", "1w")     # 1 week
-update_issue_estimation("TASK-791", "3d 5h")  # 3 days 5 hours
+# Triage workflow
+issues.patch(issue_id="DEMO-123", ops=[
+    {"op": "set", "field": "Type", "value": "Bug"},
+    {"op": "set", "field": "Priority", "value": "Critical"},
+    {"op": "set", "field": "Assignee", "value": "admin"},
+    {"op": "set", "field": "Estimation", "value": "4h"},
+    {"op": "set", "field": "State", "value": "In Progress"}
+])
 
-# ❌ DON'T USE - ISO duration or complex formats fail
-# update_custom_fields(issue_id, {"Estimation": "PT4H"})             # FAILS
-```
-
-### **⚡ Complete Issue Workflows**
-```python
-# 🎯 Complete Triage Workflow
-update_issue_type("DEMO-123", "Bug")           # Classify as bug
-update_issue_priority("DEMO-123", "Critical")  # Set priority  
-update_issue_assignee("DEMO-123", "admin")     # Assign to admin
-update_issue_estimation("DEMO-123", "4h")      # Estimate 4 hours
-update_issue_state("DEMO-123", "In Progress")  # Start work
-add_comment("DEMO-123", "Critical bug triaged and assigned")
-
-# 🚀 Feature Development Workflow  
-update_issue_type("PROJ-456", "Feature")       # Classify as feature
-update_issue_priority("PROJ-456", "Normal")    # Standard priority
-update_issue_assignee("PROJ-456", "jane.doe")  # Assign to developer
-update_issue_estimation("PROJ-456", "2d")      # Estimate 2 days
-add_comment("PROJ-456", "Feature ready for development")
-
-# ✅ Task Completion Workflow
-update_issue_state("TASK-789", "Fixed")        # Mark as fixed
-add_comment("TASK-789", "Implementation completed and tested")
-
-# 📊 Quick Updates (Most Common)
-update_issue_state("DEMO-123", "In Progress")       # Start work
-update_issue_priority("DEMO-123", "Critical")       # Escalate
-update_issue_assignee("DEMO-123", "admin")          # Reassign
-update_issue_type("DEMO-123", "Bug")                # Reclassify
-update_issue_estimation("DEMO-123", "6h")           # Re-estimate
-```
-
-### **📝 Other Custom Fields**
-```python
-# ✅ Working formats for different field types:
-
-# Priority (enum field)
-update_custom_fields("DEMO-123", {"Priority": "Critical"})
-
-# Assignee (user field) 
-update_custom_fields("DEMO-123", {"Assignee": "admin"})
-
-# Estimation (period field)
-update_custom_fields("DEMO-123", {"Estimation": "4h"})
-
-# Type (enum field)
-update_custom_fields("DEMO-123", {"Type": "Bug"})
-
-# Multiple fields at once
-update_custom_fields("DEMO-123", {
-    "Priority": "Critical",
-    "Assignee": "admin", 
-    "Type": "Bug"
-})
+# Feature development workflow
+projects.create(name="New Feature Project", short_name="FEATURE", lead_id="admin")
+issues.create(project="FEATURE", summary="Implement dark mode", description="Add dark theme support")
+issues.patch(issue_id="FEATURE-1", ops=[
+    {"op": "set", "field": "Priority", "value": "Normal"},
+    {"op": "set", "field": "Assignee", "value": "developer"}
+])
 ```
 
 ### **🔍 Finding Issues**
 ```python
-# Search by text
-search_issues("bug in login")
+# YQL search
+search.query(query="project: DEMO #Unresolved")
 
-# Search by project
-get_project_issues("DEMO")
+# Natural language search
+search.autosearch(natural_language_query="bugs assigned to me this week")
 
-# Get specific issue
-get_issue("DEMO-123")
+# Get specific issue with expansions
+issues.get(issue_id="DEMO-123", include=["customFields", "comments", "attachments"])
 ```
 
 ### **📋 Creating Issues**
 ```python
-create_issue(
-    project_id="DEMO",
+issues.create(
+    project="DEMO",
     summary="Bug in login system",
     description="Users cannot log in with special characters"
 )
 ```
 
-### **🔗 Linking Issues**
+### **📁 Resource Access**
 ```python
-# Create dependency
-add_dependency("DEMO-123", "DEMO-124")
+# Access issues
+resources.read(uri="youtrack://issues/DEMO-123")
 
-# Create relates link
-add_relates_link("DEMO-123", "DEMO-125")
-```
+# Access projects
+resources.read(uri="youtrack://projects/DEMO")
 
-### **💬 Comments**
-```python
-add_comment("DEMO-123", "Fixed the login bug")
-get_issue_comments("DEMO-123")
+# Access users
+resources.read(uri="youtrack://users/admin")
+
+# Get help documentation
+resources.read(uri="help://issues.get")
 ```
 
 ---
@@ -242,15 +246,27 @@ npx @tonyzorin/youtrack-mcp
 - **Multi-Platform Support**: ARM64/Apple Silicon and AMD64 architecture support
 - **Comprehensive API**: Full YouTrack REST API integration
 
+## 🏗️ Architecture
+
+The YouTrack MCP server features a modern, modular architecture designed for enhanced maintainability and scalability. See **[Architecture Documentation](docs/ARCHITECTURE.md)** for comprehensive details about the modular design, testing coverage, and development benefits.
+
 ## Development
 
-This project maintains high code quality with comprehensive testing:
+This project maintains high code quality with comprehensive testing and CI/CD automation:
 
-- **Test Coverage**: 41% (continuously improving)
+### Code Quality Metrics
+- **Test Coverage**: 41% overall (continuously improving)
+- **Modular Architecture**: 8 focused modules with 120+ unit tests
 - **CI/CD Pipeline**: Automated testing and Docker builds
 - **Quality Assurance**: Automated testing on every commit
 
-For development instructions, see the [Automation Scripts Guide](automations/README.md) and [Release Process](automations/RELEASE_INSTRUCTIONS.md).
+### Development Resources
+
+- **[Architecture Documentation](docs/ARCHITECTURE.md)**: Comprehensive modular architecture overview
+- **[Automation Scripts Guide](automations/README.md)**: Build, test, and deployment automation
+- **[Release Process](automations/RELEASE_INSTRUCTIONS.md)**: Version management and publishing
+- **[Testing Guide](tests/README.md)**: Comprehensive testing documentation
+- **[Refactoring Tracker](REFACTORING_TRACKER.md)**: Details of the modular architecture refactoring
 
 ## Configuration
 
@@ -270,10 +286,19 @@ export YOUTRACK_VERIFY_SSL="true"
 
 ## Documentation
 
+### Architecture & Development
+- [Architecture Documentation](docs/ARCHITECTURE.md) - Comprehensive modular architecture overview
+- [Refactoring Tracker](REFACTORING_TRACKER.md) - Modular architecture implementation details
 - [Development Workflow & Release Process](automations/RELEASE_INSTRUCTIONS.md)
 - [Docker Tagging Strategy](automations/DOCKER_TAGGING.md)
 - [Testing Guide](tests/README.md)
 - [Automation Scripts](automations/README.md)
+
+### API Integration
+- [YouTrack API Concepts](docs/third-party/youtrack-api-concepts.md)
+- [Authentication Guide](docs/third-party/youtrack-authentication.md)
+- [Query Language Reference](docs/third-party/youtrack-query-language.md)
+- [Custom Fields Guide](docs/third-party/youtrack-custom-fields.md)
 
 ## Support
 
@@ -285,11 +310,29 @@ For issues and questions:
 
 ---
 
-*Latest update: Comprehensive custom fields management with 567 test coverage and clean project organization.*
+*Latest update: Modular architecture refactoring with 120+ unit tests and enhanced maintainability.*
 
 ## Version 1.11.1 Released
 
-🎉 **MAJOR FEATURE** - Custom Fields Management Support
+🎉 **MAJOR ARCHITECTURAL IMPROVEMENT** - Modular Refactoring Complete
+- ✅ **Modular Architecture**: Refactored monolithic 1,797-line file into 8 focused modules
+- ✅ **Enhanced Maintainability**: Clear separation of concerns with single-responsibility modules
+- ✅ **Comprehensive Testing**: 120+ unit tests across all modules with extensive coverage
+- ✅ **Backward Compatibility**: Existing API interfaces remain unchanged
+- ✅ **Improved Error Handling**: Enhanced workflow restriction detection and user guidance
+- ✅ **Clean Organization**: Logical module structure with comprehensive documentation
+
+### Module Breakdown
+- **basic_operations**: Core CRUD operations (get, create, update, search)
+- **custom_fields**: Custom field management and validation
+- **dedicated_updates**: Specialized updates with enhanced error handling
+- **linking**: Issue relationships and dependency management
+- **diagnostics**: Workflow analysis and interactive help
+- **attachments**: File operations and raw data access
+- **comments**: Comment retrieval and management
+- **utilities**: Infrastructure and tool consolidation
+
+### Previous Features (Still Available)
 - ✅ Complete custom fields CRUD operations (create, read, update, delete)
 - ✅ Field validation against project schema (all field types supported)
 - ✅ Batch update capabilities for performance

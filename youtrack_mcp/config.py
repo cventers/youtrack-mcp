@@ -74,7 +74,7 @@ class Config:
     @classmethod
     def get_api_token(cls) -> str:
         """
-        Get the API token from environment variable or token file.
+        Get the API token from environment variable or token file with lazy loading.
 
         Returns:
             str: The API token
@@ -82,20 +82,22 @@ class Config:
         Raises:
             ValueError: If no token is found
         """
-        # First try environment variable
-        if cls.YOUTRACK_API_TOKEN:
-            return cls.YOUTRACK_API_TOKEN
+        # First try environment variable (lazy loaded)
+        token = os.getenv("YOUTRACK_API_TOKEN", "")
+        if token:
+            return token
 
-        # Then try token file
-        if cls.YOUTRACK_TOKEN_FILE:
+        # Then try token file (lazy loaded)
+        token_file = os.getenv("YOUTRACK_TOKEN_FILE", "")
+        if token_file:
             try:
-                with open(cls.YOUTRACK_TOKEN_FILE, "r") as f:
+                with open(token_file, "r") as f:
                     token = f.read().strip()
                     if token:
                         return token
             except (FileNotFoundError, IOError) as e:
                 raise ValueError(
-                    f"Could not read token file {cls.YOUTRACK_TOKEN_FILE}: {e}"
+                    f"Could not read token file {token_file}: {e}"
                 )
 
         raise ValueError(

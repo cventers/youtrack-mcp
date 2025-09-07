@@ -52,9 +52,9 @@ class OAuth2Config(YouTrackModel):
     
     @field_validator('token_endpoint', 'authorization_endpoint', 'userinfo_endpoint', 'jwks_uri')
     @classmethod
-    def validate_urls(cls, v):
+    def validate_urls(cls, v, _info):
         """Validate that URLs are properly formatted."""
-        if v and not v.startswith(('http://', 'https://')):
+        if v is not None and not v.startswith(('http://', 'https://')):
             raise ValueError("URLs must start with http:// or https://")
         return v
 

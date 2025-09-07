@@ -7,7 +7,7 @@ import json
 import logging
 import re
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 from youtrack_mcp.api.client import YouTrackClient, YouTrackAPIError
 
@@ -28,12 +28,12 @@ class Issue(BaseModel):
     custom_fields: Optional[List[Dict[str, Any]]] = Field(default_factory=list)
     attachments: Optional[List[Dict[str, Any]]] = Field(default_factory=list)
 
-    model_config = {
-        "extra": "allow",  # Allow extra fields from the API
-        "populate_by_name": True,  # Allow population by field name (helps with aliases)
-        "validate_assignment": False,  # Less strict validation for attribute assignment
-        "protected_namespaces": (),  # Don't protect any namespaces
-    }
+    model_config = ConfigDict(
+        extra="allow",  # Allow extra fields from the API
+        populate_by_name=True,  # Allow population by field name (helps with aliases)
+        validate_assignment=False,  # Less strict validation for attribute assignment
+        protected_namespaces=(),  # Don't protect any namespaces
+    )
 
     @classmethod
     def model_validate(cls, obj, *args, **kwargs):

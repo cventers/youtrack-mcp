@@ -12,6 +12,20 @@ This document provides guidance for AI agents working on the YouTrack MCP (Model
     - `issues.py` - Issue operations (CRUD, search, linking)
     - `projects.py` - Project management operations
     - `users.py` - User management operations
+  - **`tools/`** - MCP tool implementations (modular architecture)
+    - **`issues/`** - Modular issue management (8 focused modules)
+      - `basic_operations.py` - Core CRUD operations
+      - `custom_fields.py` - Custom field management
+      - `dedicated_updates.py` - Specialized updates
+      - `linking.py` - Issue relationships
+      - `diagnostics.py` - Workflow analysis
+      - `attachments.py` - File operations
+      - `comments.py` - Comment management
+      - `utilities.py` - Infrastructure functions
+    - `core_issues.py` - Core issue operations
+    - `core_projects.py` - Project management
+    - `core_search.py` - Search functionality
+    - `core_users.py` - User management
   - **`config.py`** - Configuration management
   - **`utils.py`** - Utility functions (date conversion, field resolution)
 
@@ -26,6 +40,10 @@ Contains comprehensive project documentation:
   - Phase 3: Exception handling and MCP Resources
   - Phase 4: Custom fields and activity tracking
   - Phase 5: Performance optimization and testing
+- **`REFACTORING_TRACKER.md`** - Complete documentation of the modular architecture refactoring
+  - 8 focused modules replacing monolithic 1,797-line file
+  - 120+ unit tests with comprehensive coverage
+  - Backward compatibility maintained
 
 #### `docs/third-party/` Directory  
 Contains extracted official documentation from YouTrack APIs:
@@ -207,13 +225,29 @@ query = f"{{Priority}}: High {{Component}}: Backend"
 - Study `youtrack_mcp/api/` modules for API interaction patterns
 - Check `TODO.md` for upcoming implementation requirements
 
+## ✅ **COMPLETED: Modular Architecture Refactoring**
+
+### Refactoring Results
+- **Status:** 100% complete - monolithic 1,797-line file transformed into 8 focused modules
+- **Modules Created:** basic_operations, custom_fields, dedicated_updates, linking, diagnostics, attachments, comments, utilities
+- **Test Coverage:** 120+ unit tests with comprehensive validation across all modules
+- **Code Reduction:** 90% smaller main interface file through modular delegation
+- **Backward Compatibility:** Fully maintained - existing code continues to work unchanged
+
+### Architecture Benefits
+- **Maintainability:** Clear separation of concerns with single-responsibility modules
+- **Testability:** Focused modules enable comprehensive unit testing
+- **Scalability:** Independent module development and deployment
+- **Documentation:** Improved code organization with comprehensive docstrings
+
 ## Agent-Specific Notes
 
 When working on this codebase:
-1. **Consult TODO.md first** - It contains detailed implementation guidance
-2. **Use extracted documentation** - `docs/third-party/` has comprehensive API reference
-3. **Follow existing patterns** - Study current implementations before adding new features
-4. **Test MCP compliance** - Ensure tools work with Claude Code CLI
-5. **Focus on LLM usability** - Error messages should help LLMs learn and improve
+1. **Consult REFACTORING_TRACKER.md** - Complete documentation of the modular architecture
+2. **Consult TODO.md first** - It contains detailed implementation guidance
+3. **Use extracted documentation** - `docs/third-party/` has comprehensive API reference
+4. **Follow existing patterns** - Study current implementations before adding new features
+5. **Test MCP compliance** - Ensure tools work with Claude Code CLI
+6. **Focus on LLM usability** - Error messages should help LLMs learn and improve
 
-The project prioritizes practical YouTrack integration over theoretical MCP protocol details, with emphasis on error handling that helps LLMs provide better user experiences.
+The project prioritizes practical YouTrack integration over theoretical MCP protocol details, with emphasis on error handling that helps LLMs provide better user experiences. The modular architecture enhances maintainability while preserving all existing functionality.

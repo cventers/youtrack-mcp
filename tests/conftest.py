@@ -30,10 +30,11 @@ def mock_youtrack_client():
     with patch.object(YouTrackClient, "__init__", return_value=None):
         with patch.object(YouTrackClient, "get") as mock_get:
             with patch.object(YouTrackClient, "post") as mock_post:
-                with patch.object(YouTrackClient, "close") as mock_close:
+                with patch.object(YouTrackClient, "aclose") as mock_close:
                     client = YouTrackClient()
                     client.base_url = TEST_YOUTRACK_URL
-                    client.token = TEST_API_TOKEN
+                    client._api_token = TEST_API_TOKEN
+                    client._token_loaded = True
                     client.verify_ssl = True
 
                     # Set up default mock responses

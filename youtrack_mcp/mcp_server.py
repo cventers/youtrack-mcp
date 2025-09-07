@@ -1,106 +1,88 @@
-from youtrack_mcp.tools.issues import IssueTools
-from youtrack_mcp.tools.projects import ProjectTools
-from youtrack_mcp.tools.users import UserTools
-from youtrack_mcp.tools.search import SearchTools
-from youtrack_mcp.tools.resources import ResourcesTools
+from youtrack_mcp.tools.core_issues import CoreIssuesTools
+from youtrack_mcp.tools.core_projects import CoreProjectsTools
+from youtrack_mcp.tools.core_users import CoreUsersTools
+from youtrack_mcp.tools.core_search import CoreSearchTools
+from youtrack_mcp.tools.core_resources import CoreResourcesTools
+from youtrack_mcp.tools.core_ai import CoreAITools
 from typing import Dict, Any
 
 
 class MCPServer:
-    """YouTrack MCP Server tool collection."""
+    """YouTrack MCP Server - Minimal Core Tools."""
 
     def __init__(self):
-        """Initialize the MCP server tool collection."""
-        self.issue_tools = IssueTools()
-        self.project_tools = ProjectTools()
-        self.user_tools = UserTools()
-        self.search_tools = SearchTools()
-        self.resources_tools = ResourcesTools()
+        """Initialize the MCP server with core tools."""
+        self.issues_tools = CoreIssuesTools()
+        self.projects_tools = CoreProjectsTools()
+        self.users_tools = CoreUsersTools()
+        self.search_tools = CoreSearchTools()
+        self.resources_tools = CoreResourcesTools()
+        self.ai_tools = CoreAITools()
 
     def get_all_tool_definitions(self) -> Dict[str, Dict[str, Any]]:
-        """Get all tool definitions from the improved tools."""
+        """Get all core tool definitions."""
 
         all_tools = {}
 
-        # Add issue tools (now LLM-optimized)
-        issue_tool_definitions = self.issue_tools.get_tool_definitions()
-        for tool_name, tool_config in issue_tool_definitions.items():
-            # Use function from tool definition if provided, otherwise get from class
-            function = tool_config.get("function") or getattr(
-                self.issue_tools, tool_name, None
-            )
+        # Add core issues tools
+        issues_tool_definitions = self.issues_tools.get_tool_definitions()
+        for tool_name, tool_config in issues_tool_definitions.items():
+            function = tool_config.get("function")
             if function:
                 all_tools[tool_name] = {
                     "description": tool_config["description"],
                     "function": function,
-                    "parameter_descriptions": tool_config.get(
-                        "parameter_descriptions", {}
-                    ),
+                    "parameter_descriptions": tool_config.get("parameter_descriptions", {}),
                 }
 
-        # Add project tools
-        project_tool_definitions = self.project_tools.get_tool_definitions()
-        for tool_name, tool_config in project_tool_definitions.items():
-            function = tool_config.get("function") or getattr(
-                self.project_tools, tool_name, None
-            )
+        # Add core projects tools
+        projects_tool_definitions = self.projects_tools.get_tool_definitions()
+        for tool_name, tool_config in projects_tool_definitions.items():
+            function = tool_config.get("function")
             if function:
                 all_tools[tool_name] = {
                     "description": tool_config["description"],
                     "function": function,
-                    "parameter_descriptions": tool_config.get(
-                        "parameter_descriptions", {}
-                    ),
                 }
 
-        # Add user tools
-        user_tool_definitions = self.user_tools.get_tool_definitions()
-        for tool_name, tool_config in user_tool_definitions.items():
-            function = tool_config.get("function") or getattr(
-                self.user_tools, tool_name, None
-            )
+        # Add core users tools
+        users_tool_definitions = self.users_tools.get_tool_definitions()
+        for tool_name, tool_config in users_tool_definitions.items():
+            function = tool_config.get("function")
             if function:
                 all_tools[tool_name] = {
                     "description": tool_config["description"],
                     "function": function,
-                    "parameter_descriptions": tool_config.get(
-                        "parameter_descriptions", {}
-                    ),
                 }
 
-        # Add search tools
+        # Add core search tools
         search_tool_definitions = self.search_tools.get_tool_definitions()
         for tool_name, tool_config in search_tool_definitions.items():
-            function = tool_config.get("function") or getattr(
-                self.search_tools, tool_name, None
-            )
+            function = tool_config.get("function")
             if function:
                 all_tools[tool_name] = {
                     "description": tool_config["description"],
                     "function": function,
-                    "parameter_descriptions": tool_config.get(
-                        "parameter_descriptions", {}
-                    ),
                 }
 
-        # Add resource tools (with conflict resolution)
-        resource_tool_definitions = self.resources_tools.get_tool_definitions()
-        for tool_name, tool_config in resource_tool_definitions.items():
-            function = tool_config.get("function") or getattr(
-                self.resources_tools, tool_name, None
-            )
+        # Add core resources tools
+        resources_tool_definitions = self.resources_tools.get_tool_definitions()
+        for tool_name, tool_config in resources_tool_definitions.items():
+            function = tool_config.get("function")
             if function:
-                # Handle naming conflicts by prefixing resource tools
-                final_tool_name = tool_name
-                if tool_name in all_tools:
-                    final_tool_name = f"resource_{tool_name}"
-
-                all_tools[final_tool_name] = {
+                all_tools[tool_name] = {
                     "description": tool_config["description"],
                     "function": function,
-                    "parameter_descriptions": tool_config.get(
-                        "parameter_descriptions", {}
-                    ),
+                }
+
+        # Add core AI tools
+        ai_tool_definitions = self.ai_tools.get_tool_definitions()
+        for tool_name, tool_config in ai_tool_definitions.items():
+            function = tool_config.get("function")
+            if function:
+                all_tools[tool_name] = {
+                    "description": tool_config["description"],
+                    "function": function,
                 }
 
         return all_tools

@@ -17,11 +17,12 @@ class TestMCPServer:
         mcp_server = MCPServer()
 
         # Check that all tool instances are created
-        assert hasattr(mcp_server, "issue_tools")
-        assert hasattr(mcp_server, "project_tools")
-        assert hasattr(mcp_server, "user_tools")
+        assert hasattr(mcp_server, "issues_tools")
+        assert hasattr(mcp_server, "projects_tools")
+        assert hasattr(mcp_server, "users_tools")
         assert hasattr(mcp_server, "search_tools")
         assert hasattr(mcp_server, "resources_tools")
+        assert hasattr(mcp_server, "ai_tools")
 
     @pytest.mark.unit
     def test_get_all_tool_definitions_basic(self, mock_youtrack_client):
@@ -59,19 +60,23 @@ class TestMCPServer:
 
         # Patch the get_tool_definitions methods
         with patch.object(
-            mcp_server.issue_tools,
+            mcp_server.issues_tools,
             "get_tool_definitions",
             return_value=mock_issue_definitions,
         ), patch.object(
-            mcp_server.project_tools,
+            mcp_server.projects_tools,
             "get_tool_definitions",
             return_value=mock_project_definitions,
         ), patch.object(
-            mcp_server.user_tools, "get_tool_definitions", return_value={}
+            mcp_server.users_tools, "get_tool_definitions", return_value={}
         ), patch.object(
             mcp_server.search_tools, "get_tool_definitions", return_value={}
         ), patch.object(
-            mcp_server.resources_tools, "get_tool_definitions", return_value={}
+            mcp_server.resources_tools,
+            "get_tool_definitions",
+            return_value={},
+        ), patch.object(
+            mcp_server.ai_tools, "get_tool_definitions", return_value={}
         ):
 
             all_tools = mcp_server.get_all_tool_definitions()
@@ -98,7 +103,15 @@ class TestMCPServer:
             "get_issue": {
                 "description": "Get issue details",
                 "function": Mock(),
-                "parameter_descriptions": {},
+                "parameter_descriptions": {"issue_id": "Issue identifier"},
+            }
+        }
+
+        mock_project_definitions = {
+            "get_project": {
+                "description": "Get project details",
+                "function": Mock(),
+                "parameter_descriptions": {"project_id": "Project identifier"},
             }
         }
 
@@ -112,19 +125,23 @@ class TestMCPServer:
         }
 
         with patch.object(
-            mcp_server.issue_tools,
+            mcp_server.issues_tools,
             "get_tool_definitions",
             return_value=mock_issue_definitions,
         ), patch.object(
-            mcp_server.project_tools, "get_tool_definitions", return_value={}
+            mcp_server.projects_tools,
+            "get_tool_definitions",
+            return_value=mock_project_definitions,
         ), patch.object(
-            mcp_server.user_tools, "get_tool_definitions", return_value={}
+            mcp_server.users_tools, "get_tool_definitions", return_value={}
         ), patch.object(
             mcp_server.search_tools, "get_tool_definitions", return_value={}
         ), patch.object(
             mcp_server.resources_tools,
             "get_tool_definitions",
-            return_value=mock_resource_definitions,
+            return_value={},
+        ), patch.object(
+            mcp_server.ai_tools, "get_tool_definitions", return_value={}
         ):
 
             all_tools = mcp_server.get_all_tool_definitions()
@@ -147,11 +164,11 @@ class TestMCPServer:
 
         # Mock all tools to return empty definitions
         with patch.object(
-            mcp_server.issue_tools, "get_tool_definitions", return_value={}
+            mcp_server.issues_tools, "get_tool_definitions", return_value={}
         ), patch.object(
-            mcp_server.project_tools, "get_tool_definitions", return_value={}
+            mcp_server.projects_tools, "get_tool_definitions", return_value={}
         ), patch.object(
-            mcp_server.user_tools, "get_tool_definitions", return_value={}
+            mcp_server.users_tools, "get_tool_definitions", return_value={}
         ), patch.object(
             mcp_server.search_tools, "get_tool_definitions", return_value={}
         ), patch.object(

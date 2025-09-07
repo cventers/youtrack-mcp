@@ -44,199 +44,58 @@ def load_all_tools() -> Dict[str, Callable]:
     """
     Load all tools from the youtrack_mcp.tools package.
 
-    This function loads tools from all tool classes and registers them with their
-    short names (without namespaces). If the same tool name exists in multiple classes,
-    the tool from the class with higher priority will be used.
+    This function loads the 12 core tools for the minimal tool surface refactor.
+    The core tools provide a lossless but much more efficient interface.
 
-    Available tools:
-    - get_projects, get_project, get_project_by_name, get_project_issues, get_custom_fields,
-      create_project, update_project (from ProjectTools)
-    - get_issue, get_issue_raw, search_issues, create_issue, add_comment (from IssueTools)
-    - get_user, get_user_by_login, get_user_groups, search_users, get_current_user (from UserTools)
-    - advanced_search, filter_issues, search_with_custom_fields (from SearchTools)
+    Available core tools:
+    - issues.get, issues.create, issues.patch (from CoreIssuesTools)
+    - projects.list, projects.get, projects.patch, projects.create (from CoreProjectsTools)
+    - users.search (from CoreUsersTools)
+    - search.query, search.autosearch (from CoreSearchTools)
+    - ai.plan (from CoreAITools)
+    - resources.read (from CoreResourcesTools)
 
     Returns:
         Dict[str, Callable]: Dictionary mapping tool names to their functions
     """
     tools = {}
 
-    # Import tool modules
-    from youtrack_mcp.tools.issues import IssueTools
-    from youtrack_mcp.tools.projects import ProjectTools
-    from youtrack_mcp.tools.users import UserTools
-    from youtrack_mcp.tools.search import SearchTools
-    from youtrack_mcp.tools.resources import ResourcesTools
-    
-    # Try to import AI tools if available
-    try:
-        from youtrack_mcp.tools.ai import AITools
-        ai_tools_available = True
-    except ImportError as e:
-        logger.info(f"AI tools not available: {e}")
-        ai_tools_available = False
-    
-    # Try to import advanced search tools if available
-    try:
-        from youtrack_mcp.tools.search_advanced import AdvancedSearchTools
-        advanced_search_available = True
-    except ImportError as e:
-        logger.info(f"Advanced search tools not available: {e}")
-        advanced_search_available = False
+    # Import core tool modules for minimal surface
+    from youtrack_mcp.tools.core_issues import CoreIssuesTools
+    from youtrack_mcp.tools.core_projects import CoreProjectsTools
+    from youtrack_mcp.tools.core_users import CoreUsersTools
+    from youtrack_mcp.tools.core_search import CoreSearchTools
+    from youtrack_mcp.tools.core_resources import CoreResourcesTools
+    from youtrack_mcp.tools.core_ai import CoreAITools
 
-    # Initialize tool classes
+    # Initialize core tool classes
     tool_classes = [
-        IssueTools(),
-        ProjectTools(),
-        UserTools(),
-        SearchTools(),
-        ResourcesTools(),
+        CoreIssuesTools(),
+        CoreProjectsTools(),
+        CoreUsersTools(),
+        CoreSearchTools(),
+        CoreResourcesTools(),
+        CoreAITools(),
     ]
-    
-    # Add AI tools if available
-    if ai_tools_available:
-        tool_classes.append(AITools())
-    
-    # Add advanced search tools if available
-    if advanced_search_available:
-        tool_classes.append(AdvancedSearchTools())
 
-    # Collect tool definitions from all classes
-    all_tool_definitions = {}
+    # Load tools from core classes - simplified for minimal surface
     for tool_class in tool_classes:
         class_name = tool_class.__class__.__name__
 
-        # Get tool definitions if the class has the method
-        if hasattr(tool_class, "get_tool_definitions") and callable(
-            getattr(tool_class, "get_tool_definitions")
-        ):
-            class_tool_defs = tool_class.get_tool_definitions()
-            for tool_name, definition in class_tool_defs.items():
-                if tool_name not in all_tool_definitions:
-                    all_tool_definitions[tool_name] = definition
-                else:
-                    # If tool already has a definition, keep higher priority one
-                    current_class = all_tool_definitions[tool_name].get(
-                        "source_class", ""
-                    )
-                    current_priority = TOOL_PRIORITY.get(
-                        current_class, {}
-                    ).get(tool_name, 10)
-                    new_priority = TOOL_PRIORITY.get(class_name, {}).get(
-                        tool_name, 10
-                    )
+        # Get tool definitions from core classes
+        if hasattr(tool_class, "get_tool_definitions"):
+            tool_definitions = tool_class.get_tool_definitions()
 
-                    if new_priority > current_priority:
-                        definition["source_class"] = class_name
-                        all_tool_definitions[tool_name] = definition
-                        logger.debug(
-                            f"Using tool definition for '{tool_name}' from {class_name} (higher priority)"
-                        )
+            for tool_name, definition in tool_definitions.items():
+                # Create bound tool
+                bound_tool = create_bound_tool(tool_class, tool_name)
 
-    # Track tool names, their sources, and priorities
-    tool_sources = {}
-    tool_priorities = {}
+                # Register with full name (e.g., "issues.get")
+                tools[tool_name] = bound_tool
+                logger.debug(f"Registered core tool '{tool_name}' from {class_name}")
 
-    # First pass: collect all tools, their class sources, and priorities
-    for tool_class in tool_classes:
-        class_name = tool_class.__class__.__name__
-        class_tools = _get_tools_from_class(tool_class)
-
-        for name, method in class_tools.items():
-            # Skip internal methods
-            if name in ["close", "get_tool_definitions"]:
-                continue
-
-            # Track where the tool came from
-            if name in tool_sources:
-                tool_sources[name].append(class_name)
-            else:
-                tool_sources[name] = [class_name]
-
-            # Set priority for this tool from this class
-            priority = TOOL_PRIORITY.get(class_name, {}).get(
-                name, 10
-            )  # Default priority is 10
-
-            # Store the priority - higher number means higher priority
-            if name in tool_priorities:
-                tool_priorities[name].append((class_name, priority))
-            else:
-                tool_priorities[name] = [(class_name, priority)]
-
-    # Log duplicate tools
-    for name, sources in tool_sources.items():
-        if len(sources) > 1:
-            logger.warning(
-                f"Tool {name} exists in multiple classes: {', '.join(sources)}"
-            )
-            # Get the highest priority source
-            highest_priority_source = max(
-                tool_priorities[name], key=lambda x: x[1]
-            )
-            logger.info(
-                f"Will use {name} from {highest_priority_source[0]} (priority {highest_priority_source[1]})"
-            )
-
-    # Second pass: register tools based on priority
-    registered_tools = set()
-
-    # Process tools with duplicates first, using the highest priority version
-    for name, priorities in tool_priorities.items():
-        if len(priorities) > 1:
-            # Sort by priority (highest first)
-            sorted_priorities = sorted(
-                priorities, key=lambda x: x[1], reverse=True
-            )
-            highest_class_name = sorted_priorities[0][0]
-
-            # Find the class instance with this name
-            for tool_class in tool_classes:
-                if tool_class.__class__.__name__ == highest_class_name:
-                    # Get the method from this class and create a properly bound wrapper
-                    bound_tool = create_bound_tool(tool_class, name)
-
-                    # Add tool definition if available
-                    if name in all_tool_definitions:
-                        definition = all_tool_definitions[name]
-                        bound_tool.tool_definition = definition
-
-                    # Register the tool with its short name
-                    tools[name] = bound_tool
-                    registered_tools.add(name)
-                    logger.info(
-                        f"Registered tool '{name}' from {highest_class_name} (priority choice)"
-                    )
-                    break
-
-    # Now register all remaining tools without duplicates
-    for tool_class in tool_classes:
-        class_name = tool_class.__class__.__name__
-        class_tools = _get_tools_from_class(tool_class)
-
-        for name, method in class_tools.items():
-            # Skip internal methods or already registered tools
-            if (
-                name in ["close", "get_tool_definitions"]
-                or name in registered_tools
-            ):
-                continue
-
-            # Create a properly bound wrapper for the method
-            bound_tool = create_bound_tool(tool_class, name)
-
-            # Add tool definition if available
-            if name in all_tool_definitions:
-                definition = all_tool_definitions[name]
-                bound_tool.tool_definition = definition
-
-            # Register the tool with its short name
-            tools[name] = bound_tool
-            registered_tools.add(name)
-            # Log in debug level only to reduce verbosity
-            logger.debug(f"Registered tool '{name}' from {class_name}")
-
-    # Log total number of tools loaded
-    logger.info(f"Loader registered {len(tools)} tools from all tool classes")
+    # Log total number of core tools loaded
+    logger.info(f"Loader registered {len(tools)} core tools (minimal surface)")
 
     return tools
 

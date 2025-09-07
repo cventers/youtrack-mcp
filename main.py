@@ -34,13 +34,47 @@ from youtrack_mcp.config import Config, config
 from youtrack_mcp.server import YouTrackMCPServer
 from youtrack_mcp.tools.loader import load_all_tools
 
-# Set up logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[logging.StreamHandler()]
-)
-logger = logging.getLogger(__name__)
+# Set up structured JSON logging
+try:
+    import structlog
+    # Configure structlog for JSON output
+    structlog.configure(
+        processors=[
+            structlog.stdlib.filter_by_level,
+            structlog.stdlib.add_logger_name,
+            structlog.stdlib.add_log_level,
+            structlog.stdlib.PositionalArgumentsFormatter(),
+            structlog.processors.TimeStamper(fmt="iso"),
+            structlog.processors.StackInfoRenderer(),
+            structlog.processors.format_exc_info,
+            structlog.processors.UnicodeDecoder(),
+            structlog.processors.JSONRenderer()
+        ],
+        context_class=dict,
+        logger_factory=structlog.stdlib.LoggerFactory(),
+        wrapper_class=structlog.stdlib.BoundLogger,
+        cache_logger_on_first_use=True,
+    )
+
+    # Replace standard logging with structlog
+    logging.basicConfig(
+        format="%(message)s",
+        level=logging.INFO,
+        handlers=[logging.StreamHandler()]
+    )
+
+    logger = structlog.get_logger(__name__)
+    logger.info("Structured JSON logging enabled")
+
+except ImportError:
+    # Fallback to standard logging if structlog is not available
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        handlers=[logging.StreamHandler()]
+    )
+    logger = logging.getLogger(__name__)
+    logger.warning("structlog not available, using standard logging")
 
 # Global server and tools instances
 server = None
@@ -50,26 +84,32 @@ tools = {}
 async def lifespan(app: FastAPI):
     """Lifespan event handler for FastAPI application."""
     global tools, server
-    
+
     # Load configuration
     load_config()
-    
-    # Initialize MCP server with HTTP transport
-    server = YouTrackMCPServer(transport="http")
-    
-    # Load all tools
-    all_tools = load_all_tools()
-    tools = all_tools
-    
-    # Register the tools with the server
-    server.register_loaded_tools(all_tools)
-    
-    logger.info(f"HTTP server started with {len(all_tools)} tools")
-    
-    yield
-    
-    # Cleanup when the application is shutting down
-    logger.info("Shutting down HTTP server")
+
+    # Initialize httpx client for the application
+    import httpx
+    async with httpx.AsyncClient() as http_client:
+        # Store client in app state for use by tools
+        app.state.http_client = http_client
+
+        # Initialize MCP server with HTTP transport
+        server = YouTrackMCPServer(transport="http")
+
+        # Load all tools
+        all_tools = load_all_tools()
+        tools = all_tools
+
+        # Register the tools with the server
+        server.register_loaded_tools(all_tools)
+
+        logger.info(f"HTTP server started with {len(all_tools)} tools")
+
+        yield
+
+        # Cleanup when the application is shutting down
+        logger.info("Shutting down HTTP server")
 
 # FastAPI app for HTTP mode
 app = FastAPI(
@@ -144,8 +184,9 @@ async def list_tools():
     
     for name, tool_func in tools.items():
         # Get tool metadata if available
-        if hasattr(tool_func, "tool_definition"):
-            tool_definitions[name] = tool_func.tool_definition
+        tool_def = getattr(tool_func, "tool_definition", None)
+        if tool_def:
+            tool_definitions[name] = tool_def
         else:
             # Basic definition if metadata not available
             tool_definitions[name] = {
@@ -196,9 +237,10 @@ def load_config():
     config.validate()
     
     # Use environment variable for URL if specified instead of auto-detection
-    if os.getenv("YOUTRACK_URL") and not config.YOUTRACK_URL:
-        logger.info(f"Using URL from environment: {os.getenv('YOUTRACK_URL')}")
-        config.YOUTRACK_URL = os.getenv("YOUTRACK_URL")
+    env_url = os.getenv("YOUTRACK_URL")
+    if env_url and not config.YOUTRACK_URL:
+        logger.info(f"Using URL from environment: {env_url}")
+        config.YOUTRACK_URL = env_url
     
     # Log configuration status
     if config.YOUTRACK_URL:

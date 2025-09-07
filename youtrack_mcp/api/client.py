@@ -8,7 +8,7 @@ from typing import Any, Dict, Optional
 import json
 import random
 
-import requests
+import httpx
 from pydantic import BaseModel, ConfigDict
 
 from youtrack_mcp.config import config
@@ -23,7 +23,7 @@ class YouTrackAPIError(Exception):
         self,
         message: str,
         status_code: Optional[int] = None,
-        response: Optional[requests.Response] = None,
+        response: Optional[httpx.Response] = None,
     ):
         self.status_code = status_code
         self.response = response
@@ -99,42 +99,47 @@ class YouTrackClient:
             retry_delay: Initial delay between retries in seconds (increases exponentially)
         """
         self.base_url = base_url or config.get_base_url()
-        self.api_token = api_token if api_token else config.get_api_token()
+        self._api_token = api_token  # Store provided token or None
+        self._token_loaded = api_token is not None  # Track if token was provided
         self.verify_ssl = (
             verify_ssl if verify_ssl is not None else config.VERIFY_SSL
         )
         self.max_retries = max_retries
         self.retry_delay = retry_delay
 
-        # Validate required configuration
-        if not self.api_token:
+        # Initialize httpx client - will be created lazily
+        self.client: Optional[httpx.AsyncClient] = None
+
+    @property
+    def api_token(self) -> str:
+        """Get API token with lazy loading for security."""
+        if not self._token_loaded:
+            self._api_token = config.get_api_token()
+            self._token_loaded = True
+        if self._api_token is None:
             raise ValueError("API token is required")
+        return self._api_token
 
-        # Session for connection pooling and header reuse
-        self.session = requests.Session()
-        self.session.headers.update(
-            {
-                "Authorization": f"Bearer {self.api_token}",
-                "Accept": "application/json",
-                "Content-Type": "application/json",
-            }
-        )
-
-        # Set SSL verification options
-        self.session.verify = self.verify_ssl
-        if not self.verify_ssl:
-            # Use the custom SSL context
-            self.session.verify = False
-            # Suppress insecure request warnings
-            from requests.packages.urllib3.exceptions import (
-                InsecureRequestWarning,
-            )
-
-            requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
+        # Initialize httpx client - will be set in async context
+        self.client = None
 
         logger.debug(
             f"YouTrack client initialized for {'YouTrack Cloud' if config.is_cloud_instance() else self.base_url}"
         )
+
+    def _get_httpx_client(self) -> httpx.AsyncClient:
+        """Get or create httpx async client."""
+        if self.client is None:
+            self.client = httpx.AsyncClient(
+                headers={
+                    "Authorization": f"Bearer {self.api_token}",
+                    "Accept": "application/json",
+                    "Content-Type": "application/json",
+                },
+                verify=self.verify_ssl,
+                timeout=30.0,  # Default timeout
+            )
+        return self.client
 
     def _get_api_url(self, endpoint: str) -> str:
         """
@@ -154,7 +159,7 @@ class YouTrackClient:
         else:
             return f"{base}/api/{endpoint}"
 
-    def _handle_response(self, response: requests.Response) -> Dict[str, Any]:
+    def _handle_response(self, response: httpx.Response) -> Dict[str, Any]:
         """
         Handle API response, raising appropriate exceptions for errors.
 
@@ -216,7 +221,7 @@ class YouTrackClient:
         else:
             raise YouTrackAPIError(error_message, status_code, response)
 
-    def _make_request(
+    async def _make_request(
         self, method: str, endpoint: str, **kwargs
     ) -> Dict[str, Any]:
         """
@@ -225,7 +230,7 @@ class YouTrackClient:
         Args:
             method: HTTP method (GET, POST, PUT, DELETE)
             endpoint: API endpoint
-            **kwargs: Additional arguments to pass to requests
+            **kwargs: Additional arguments to pass to httpx
 
         Returns:
             Parsed JSON response
@@ -233,6 +238,8 @@ class YouTrackClient:
         Raises:
             YouTrackAPIError: For non-transient errors or if all retries fail
         """
+        import asyncio
+
         url = self._get_api_url(endpoint)
         retries = 0
         delay = self.retry_delay
@@ -250,7 +257,8 @@ class YouTrackClient:
 
         while retries <= self.max_retries:
             try:
-                response = self.session.request(method, url, **kwargs)
+                client = self._get_httpx_client()
+                response = await client.request(method, url, **kwargs)
                 return self._handle_response(response)
             except (ServerError, RateLimitError) as e:
                 # These are potentially transient, so we retry
@@ -266,7 +274,7 @@ class YouTrackClient:
                 logger.warning(
                     f"Transient error, retrying in {backoff:.2f}s: {str(e)}"
                 )
-                time.sleep(backoff)
+                await asyncio.sleep(backoff)
             except YouTrackAPIError as e:
                 # Non-transient errors
                 logger.error(f"API error for {method} {url}: {str(e)}")
@@ -293,7 +301,7 @@ class YouTrackClient:
         # This should never happen, but just in case
         raise YouTrackAPIError(f"Maximum retries exceeded for {method} {url}")
 
-    def get(
+    async def get(
         self, endpoint: str, params: Optional[Dict[str, Any]] = None, **kwargs
     ) -> Dict[str, Any]:
         """
@@ -302,14 +310,14 @@ class YouTrackClient:
         Args:
             endpoint: API endpoint
             params: Query parameters
-            **kwargs: Additional arguments to pass to requests
+            **kwargs: Additional arguments to pass to httpx
 
         Returns:
             Parsed JSON response
         """
-        return self._make_request("GET", endpoint, params=params, **kwargs)
+        return await self._make_request("GET", endpoint, params=params, **kwargs)
 
-    def post(
+    async def post(
         self,
         endpoint: str,
         data: Optional[Dict[str, Any]] = None,
@@ -323,7 +331,7 @@ class YouTrackClient:
             endpoint: API endpoint
             data: Form data
             json_data: JSON data
-            **kwargs: Additional arguments to pass to requests
+            **kwargs: Additional arguments to pass to httpx
 
         Returns:
             Parsed JSON response
@@ -335,13 +343,13 @@ class YouTrackClient:
 
             # Some endpoints expect parameters in different formats
             # YouTrack API usually expects data as JSON
-            return self._make_request("POST", endpoint, json=data, **kwargs)
+            return await self._make_request("POST", endpoint, json=data, **kwargs)
 
-        return self._make_request(
+        return await self._make_request(
             "POST", endpoint, data=data, json=json_data, **kwargs
         )
 
-    def put(
+    async def put(
         self,
         endpoint: str,
         data: Optional[Dict[str, Any]] = None,
@@ -355,36 +363,38 @@ class YouTrackClient:
             endpoint: API endpoint
             data: Form data
             json_data: JSON data
-            **kwargs: Additional arguments to pass to requests
+            **kwargs: Additional arguments to pass to httpx
 
         Returns:
             Parsed JSON response
         """
-        return self._make_request(
+        return await self._make_request(
             "PUT", endpoint, data=data, json=json_data, **kwargs
         )
 
-    def delete(self, endpoint: str, **kwargs) -> Dict[str, Any]:
+    async def delete(self, endpoint: str, **kwargs) -> Dict[str, Any]:
         """
         Make DELETE request to API.
 
         Args:
             endpoint: API endpoint
-            **kwargs: Additional arguments to pass to requests
+            **kwargs: Additional arguments to pass to httpx
 
         Returns:
             Parsed JSON response
         """
-        return self._make_request("DELETE", endpoint, **kwargs)
+        return await self._make_request("DELETE", endpoint, **kwargs)
 
-    def close(self) -> None:
-        """Close the API client session."""
-        self.session.close()
+    async def aclose(self) -> None:
+        """Close the API client."""
+        if self.client:
+            await self.client.aclose()
+            self.client = None
 
-    def __enter__(self):
-        """Enter context manager."""
+    async def __aenter__(self):
+        """Enter async context manager."""
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        """Exit context manager, closing session."""
-        self.close()
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Exit async context manager, closing client."""
+        await self.aclose()
