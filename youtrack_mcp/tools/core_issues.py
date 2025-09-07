@@ -27,8 +27,7 @@ class CoreIssuesTools:
         self.client = YouTrackClient()
         self.issues_api = IssuesClient(self.client)
 
-    @sync_wrapper
-    def get(self, issue_id: str, include: Optional[List[str]] = None) -> str:
+    async def get(self, issue_id: str, include: Optional[List[str]] = None) -> str:
         """
         Rich issue read with expansions.
 
@@ -56,7 +55,7 @@ class CoreIssuesTools:
                     base_fields += ",links"
 
             # Get the issue
-            issue = self.issues_api.get_issue(issue_id)
+            issue = await self.issues_api.get_issue(issue_id)
 
             # Convert to dict for JSON response
             if hasattr(issue, "model_dump"):
@@ -78,8 +77,7 @@ class CoreIssuesTools:
                 "issue_id": issue_id
             })
 
-    @sync_wrapper
-    def create(self, project: str, summary: str, description: Optional[str] = None) -> str:
+    async def create(self, project: str, summary: str, description: Optional[str] = None) -> str:
         """
         Schema-aware issue creation.
 
@@ -95,7 +93,7 @@ class CoreIssuesTools:
         """
         try:
             # Create the issue
-            issue = self.issues_api.create_issue(
+            issue = await self.issues_api.create_issue(
                 project_id=project,
                 summary=summary,
                 description=description
@@ -121,8 +119,7 @@ class CoreIssuesTools:
                 "summary": summary
             })
 
-    @sync_wrapper
-    def patch(self, issue_id: str, fields: Optional[Dict[str, Any]] = None, ops: Optional[List[Dict[str, Any]]] = None) -> str:
+    async def patch(self, issue_id: str, fields: Optional[Dict[str, Any]] = None, ops: Optional[List[Dict[str, Any]]] = None) -> str:
         """
         Primary writer with typed operations.
 
@@ -140,7 +137,7 @@ class CoreIssuesTools:
         try:
             if fields:
                 # Simple field updates
-                updated_issue = self.issues_api.update_issue(
+                updated_issue = await self.issues_api.update_issue(
                     issue_id=issue_id,
                     summary=fields.get("summary"),
                     description=fields.get("description")
@@ -155,7 +152,7 @@ class CoreIssuesTools:
                         summary = op.get("value")
                         break
 
-                updated_issue = self.issues_api.update_issue(
+                updated_issue = await self.issues_api.update_issue(
                     issue_id=issue_id,
                     summary=summary
                 )

@@ -296,29 +296,52 @@ def create_bound_tool(instance: Any, method_name: str) -> Callable:
     # Get the method from the instance
     method = getattr(instance, method_name)
 
-    # Create a function that maintains the binding
-    @wraps(method)
-    def bound_wrapper(*args, **kwargs):
-        # Process the parameters to get the correct format
-        processed_args, processed_kwargs = process_parameters(
-            method_name, args, kwargs
-        )
+    # Check if the method is async
+    is_async = inspect.iscoroutinefunction(method)
 
-        # Call the method with the processed parameters
-        try:
-            return method(**processed_kwargs)
-        except Exception as e:
-            logger.exception(f"Error calling {method_name}: {str(e)}")
-            return json.dumps(
-                {
-                    "error": f"Error calling {method_name}: {str(e)}",
-                    "status": "error",
-                }
+    if is_async:
+        # Create an async wrapper
+        @wraps(method)
+        async def async_bound_wrapper(*args, **kwargs):
+            # Process the parameters to get the correct format
+            processed_args, processed_kwargs = process_parameters(
+                method_name, args, kwargs
             )
 
-    # Mark this as a bound method
-    bound_wrapper.is_bound_method = True
-    bound_wrapper.original_func = method
-    bound_wrapper.instance = instance
+            # Call the method with the processed parameters
+            try:
+                return await method(**processed_kwargs)
+            except Exception as e:
+                logger.exception(f"Error calling {method_name}: {str(e)}")
+                return json.dumps(
+                    {
+                        "error": f"Error calling {method_name}: {str(e)}",
+                        "status": "error",
+                    }
+                )
+        return async_bound_wrapper
+    else:
+        # Create a sync wrapper (original behavior)
+        @wraps(method)
+        def bound_wrapper(*args, **kwargs):
+            # Process the parameters to get the correct format
+            processed_args, processed_kwargs = process_parameters(
+                method_name, args, kwargs
+            )
 
-    return bound_wrapper
+            # Call the method with the processed parameters
+            try:
+                return method(**processed_kwargs)
+            except Exception as e:
+                logger.exception(f"Error calling {method_name}: {str(e)}")
+                return json.dumps(
+                    {
+                        "error": f"Error calling {method_name}: {str(e)}",
+                        "status": "error",
+                    }
+                )
+
+        # Mark this as a bound method
+        bound_wrapper.is_bound_method = True
+        bound_wrapper.original_func = method
+        return bound_wrapper

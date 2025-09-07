@@ -20,7 +20,7 @@ class SearchClient:
         """
         self.client = client
 
-    def search_issues(
+    async def search_issues(
         self,
         query: str,
         fields: Optional[List[str]] = None,
@@ -95,9 +95,9 @@ class SearchClient:
                 params["$sortOrder"] = sort_order.lower()
 
         # Make the API request
-        return self.client.get("issues", params=params)
+        return await self.client.get("issues", params=params)
 
-    def search_with_custom_field_values(
+    async def search_with_custom_field_values(
         self, query: str, custom_field_values: Dict[str, Any], limit: int = 10
     ) -> List[Dict[str, Any]]:
         """
@@ -134,9 +134,9 @@ class SearchClient:
                 enhanced_query += f" {field_name}: {value_str}"
 
         # Call the search_issues method with the enhanced query
-        return self.search_issues(enhanced_query, limit=limit)
+        return await self.search_issues(enhanced_query, limit=limit)
 
-    def search_with_filter(
+    async def search_with_filter(
         self,
         project: Optional[str] = None,
         author: Optional[str] = None,
@@ -213,13 +213,13 @@ class SearchClient:
 
         # If custom fields are provided, use the specialized method
         if custom_fields:
-            return self.search_with_custom_field_values(
+            return await self.search_with_custom_field_values(
                 base_query, custom_fields, limit
             )
         else:
-            return self.search_issues(base_query, limit=limit)
+            return await self.search_issues(base_query, limit=limit)
 
-    def get_available_custom_fields(
+    async def get_available_custom_fields(
         self, project_id: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """
@@ -241,4 +241,4 @@ class SearchClient:
         fields = "id,name,localizedName,fieldType(id,name),isPrivate,isPublic,aliases"
         params = {"fields": fields}
 
-        return self.client.get(endpoint, params=params)
+        return await self.client.get(endpoint, params=params)

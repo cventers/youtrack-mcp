@@ -93,10 +93,7 @@ The **`docs/third-party.md`** file serves as an index to all extracted documenta
 - Commands API integration for bulk operations
 - Custom field handling with value resolution
 
-### 🔄 TODO Implementation Priorities
-1. **Phase 1** (Critical): httpx.AsyncClient migration, MCP compliance tests
-2. **Phase 3** (High): LLM-optimized error handling, MCP Resources
-3. **Phase 4** (High): User activity tracking, date/time conversion utilities
+
 
 ## Development Environment Setup
 

@@ -140,11 +140,11 @@ class ToolResponse(BaseModel):
 async def execute_tool(tool_name: str, request: Request):
     """
     Execute a specific tool by name.
-    
+
     Args:
         tool_name: Name of the tool to execute
         request: The request object containing tool arguments
-        
+
     Returns:
         Tool execution result
     """
@@ -155,15 +155,15 @@ async def execute_tool(tool_name: str, request: Request):
                 status_code=404,
                 content={"error": f"Tool '{tool_name}' not found"}
             )
-        
+
         # Parse request body
         body = await request.json()
         arguments = body.get("arguments", {})
-        
-        # Execute tool
+
+        # Execute tool (now async)
         logger.info(f"Executing tool: {tool_name} with arguments: {arguments}")
-        result = tools[tool_name](**arguments)
-        
+        result = await tools[tool_name](**arguments)
+
         return {"result": result}
     except Exception as e:
         logger.exception(f"Error executing tool {tool_name}")
