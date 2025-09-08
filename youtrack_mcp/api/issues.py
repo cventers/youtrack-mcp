@@ -550,7 +550,7 @@ class IssuesClient:
             logger.warning(f"Direct state update failed for issue {issue_id}: {e}")
             return False
     
-    def _update_other_custom_fields(self, issue_id: str, custom_fields: Dict[str, Any], validate: bool, use_commands: bool) -> None:
+    async def _update_other_custom_fields(self, issue_id: str, custom_fields: Dict[str, Any], validate: bool, use_commands: bool) -> None:
         """
         Update non-state custom fields, prioritizing direct field updates.
         
@@ -567,7 +567,7 @@ class IssuesClient:
         # Method 1: Direct field update approach (primary method)
         try:
             # Always get issue data to extract project ID for schema lookups
-            issue_data = self.get_issue(issue_id)
+            issue_data = await self.get_issue(issue_id)
             
             # Validate fields if requested
             if validate:
@@ -580,7 +580,7 @@ class IssuesClient:
                 
                 if project_id:
                     for field_name, field_value in custom_fields.items():
-                        is_valid = self._validate_custom_field_value(project_id, field_name, field_value)
+                        is_valid = await self._validate_custom_field_value(project_id, field_name, field_value)
                         if not is_valid:
                             raise YouTrackAPIError(f"Custom field validation failed for '{field_name}': '{field_value}' is not a valid value")
                 else:
@@ -607,7 +607,7 @@ class IssuesClient:
             
             for field_name, raw_field_value in custom_fields.items():
                 # Normalize complex object formats to simple strings first
-                field_value = self._normalize_field_value(raw_field_value)
+                field_value = await self._normalize_field_value(raw_field_value)
                 
                 # Determine field type and construct proper object with actual ID
                 if use_simple_approach:
@@ -633,25 +633,25 @@ class IssuesClient:
                     # Handle Estimation with proper PeriodValue format
                     if field_name.lower() in ['estimation']:
                         # Estimation REQUIRES PeriodValue format, not simple strings
-                        field_data = self._create_period_field_object(field_name, field_value)
+                        field_data = await self._create_period_field_object(field_name, field_value)
                     elif field_name.lower() in ['state']:
-                        field_data = self._create_state_field_object(project_id, field_name, field_value)
+                        field_data = await self._create_state_field_object(project_id, field_name, field_value)
                     elif field_name.lower() in ['priority', 'type']:
-                        field_data = self._create_enum_field_object(project_id, field_name, field_value)
+                        field_data = await self._create_enum_field_object(project_id, field_name, field_value)
                     elif field_name.lower() in ['assignee', 'reporter']:
-                        field_data = self._create_user_field_object(field_name, field_value)
+                        field_data = await self._create_user_field_object(field_name, field_value)
                     elif field_name.lower() in ['spent time']:
-                        field_data = self._create_period_field_object(field_name, field_value)
+                        field_data = await self._create_period_field_object(field_name, field_value)
                     else:
                         # Default to enum for unknown fields
-                        field_data = self._create_enum_field_object(project_id, field_name, field_value)
+                        field_data = await self._create_enum_field_object(project_id, field_name, field_value)
                 
                 if field_data:
                     update_data["customFields"].append(field_data)
             
             logger.info(f"Updating custom fields for issue {issue_id} using proper YouTrack objects")
             logger.info(f"Update payload: {json.dumps(update_data, indent=2)}")
-            self.client.post(f"issues/{issue_id}", data=update_data)
+            await self.client.post(f"issues/{issue_id}", data=update_data)
             logger.info(f"Direct field update succeeded for issue {issue_id}")
             
         except Exception as direct_error:
@@ -661,7 +661,7 @@ class IssuesClient:
             if use_commands:
                 logger.info(f"Trying command-based approach as fallback for issue {issue_id}")
                 try:
-                    self._apply_commands_update(issue_id, custom_fields)
+                    await self._apply_commands_update(issue_id, custom_fields)
                     logger.info(f"Command-based update succeeded for issue {issue_id}")
                     return
                 except Exception as cmd_error:
@@ -685,16 +685,16 @@ class IssuesClient:
             
             raise YouTrackAPIError(error_msg)
 
-    def _create_enum_field_object(self, project_id: str, field_name: str, field_value: Any) -> Dict[str, Any]:
+    async def _create_enum_field_object(self, project_id: str, field_name: str, field_value: Any) -> Dict[str, Any]:
         """Create proper EnumBundleElement object with actual ID."""
         try:
             # Normalize field value first
-            normalized_value = self._normalize_field_value(field_value)
+            normalized_value = await self._normalize_field_value(field_value)
             
             # Get allowed values to find the actual ID
             from youtrack_mcp.api.projects import ProjectsClient
             projects_client = ProjectsClient(self.client)
-            allowed_values = projects_client.get_custom_field_allowed_values(project_id, field_name)
+            allowed_values = await projects_client.get_custom_field_allowed_values(project_id, field_name)
             
             # Find the matching value by name (case-insensitive)
             value_id = None
@@ -736,16 +736,16 @@ class IssuesClient:
                 }
             }
 
-    def _create_state_field_object(self, project_id: str, field_name: str, field_value: Any) -> Dict[str, Any]:
+    async def _create_state_field_object(self, project_id: str, field_name: str, field_value: Any) -> Dict[str, Any]:
         """Create proper StateBundleElement object with actual ID."""
         try:
             # Normalize field value first
-            normalized_value = self._normalize_field_value(field_value)
+            normalized_value = await self._normalize_field_value(field_value)
             
             # Get allowed values to find the actual ID
             from youtrack_mcp.api.projects import ProjectsClient
             projects_client = ProjectsClient(self.client)
-            allowed_values = projects_client.get_custom_field_allowed_values(project_id, field_name)
+            allowed_values = await projects_client.get_custom_field_allowed_values(project_id, field_name)
             
             # Find the matching state by name (case-insensitive)
             state_id = None
@@ -779,16 +779,16 @@ class IssuesClient:
                 "value": field_value
             }
 
-    def _create_user_field_object(self, field_name: str, field_value: Any) -> Dict[str, Any]:
+    async def _create_user_field_object(self, field_name: str, field_value: Any) -> Dict[str, Any]:
         """Create proper User object with actual ID."""
         try:
             # Normalize field value first
-            normalized_value = self._normalize_field_value(field_value)
+            normalized_value = await self._normalize_field_value(field_value)
             
             # Get user ID by login
             from youtrack_mcp.api.users import UsersClient
             users_client = UsersClient(self.client)
-            user_data = users_client.get_user(normalized_value)
+            user_data = await users_client.get_user(normalized_value)
             
             if user_data and hasattr(user_data, 'id') and user_data.id:
                 return {
@@ -815,16 +815,16 @@ class IssuesClient:
                 "value": field_value
             }
 
-    def _create_period_field_object(self, field_name: str, field_value: Any) -> Dict[str, Any]:
+    async def _create_period_field_object(self, field_name: str, field_value: Any) -> Dict[str, Any]:
         """Create proper period field object with PeriodValue format."""
         try:
             # Normalize field value first
-            normalized_value = self._normalize_field_value(field_value)
+            normalized_value = await self._normalize_field_value(field_value)
             
             # Convert simple time strings to proper PeriodValue format
             # Examples: "4h" -> 240 minutes, "30m" -> 30 minutes, "2h 30m" -> 150 minutes
             
-            minutes = self._parse_time_to_minutes(normalized_value)
+            minutes = await self._parse_time_to_minutes(normalized_value)
             
             if minutes is not None:
                 return {
@@ -851,7 +851,7 @@ class IssuesClient:
                 "value": field_value
             }
     
-    def _parse_time_to_minutes(self, time_str: str) -> Optional[int]:
+    async def _parse_time_to_minutes(self, time_str: str) -> Optional[int]:
         """Parse time string to minutes for PeriodValue."""
         try:
             time_str = time_str.strip().lower()
@@ -883,7 +883,7 @@ class IssuesClient:
             logger.debug(f"Failed to parse time string '{time_str}': {e}")
             return None
 
-    def _apply_commands_update(self, issue_id: str, custom_fields: Dict[str, Any]) -> None:
+    async def _apply_commands_update(self, issue_id: str, custom_fields: Dict[str, Any]) -> None:
         """
         Apply custom field updates using the command-based approach.
         This method is a fallback and might not be as reliable as direct field updates.
@@ -896,7 +896,7 @@ class IssuesClient:
             command_data["issues"] = [{"id": issue_id}]
             
             logger.info(f"Applying command-based update for issue {issue_id} with query: {command_data['query']}")
-            self.client.post("commands", data=command_data)
+            await self.client.post("commands", data=command_data)
             logger.info(f"Command-based update succeeded for issue {issue_id}")
         except Exception as e:
             logger.warning(f"Command-based update failed: {e}")
@@ -2712,16 +2712,16 @@ class IssuesClient:
             logger.warning(f"Error getting custom field allowed values: {e}")
             return []
 
-    def _validate_user_exists(self, user_value: str) -> bool:
+    async def _validate_user_exists(self, user_value: str) -> bool:
         """Validate that a user exists."""
         try:
             # Try to get user by login or ID
-            self.client.get(f"users/{user_value}")
+            await self.client.get(f"users/{user_value}")
             return True
         except Exception:
             return False
 
-    def _validate_date_format(self, date_value: Any) -> bool:
+    async def _validate_date_format(self, date_value: Any) -> bool:
         """Validate date format."""
         if isinstance(date_value, int):
             # Unix timestamp
@@ -2736,7 +2736,7 @@ class IssuesClient:
                 return False
         return False
 
-    def _validate_numeric_value(self, value: Any, field_type: str) -> bool:
+    async def _validate_numeric_value(self, value: Any, field_type: str) -> bool:
         """Validate numeric value."""
         try:
             if field_type == "IntegerBundle":
@@ -2749,7 +2749,7 @@ class IssuesClient:
             return False
         return False
 
-    def _format_custom_field_value(self, field_name: str, field_value: Any) -> Dict[str, Any]:
+    async def _format_custom_field_value(self, field_name: str, field_value: Any) -> Dict[str, Any]:
         """Format custom field value for YouTrack API."""
         # YouTrack API expects different formats for different field types
         # The key issue: we need to use field ID, not name, and proper value format
@@ -2803,12 +2803,12 @@ class IssuesClient:
                 "value": {"name": str(field_value)}
             }
 
-    def _get_custom_field_id(self, project_id: str, field_name: str) -> Optional[str]:
+    async def _get_custom_field_id(self, project_id: str, field_name: str) -> Optional[str]:
         """Get the field ID for a custom field by name."""
         try:
             # Use detailed fields query to get complete field information
             fields_query = "field(id,name,fieldType($type,valueType,id)),canBeEmpty,autoAttached"
-            fields = self.client.get(f"admin/projects/{project_id}/customFields?fields={fields_query}")
+            fields = await self.client.get(f"admin/projects/{project_id}/customFields?fields={fields_query}")
             for field in fields:
                 if field.get("field", {}).get("name") == field_name:
                     return field.get("field", {}).get("id")
@@ -2817,11 +2817,11 @@ class IssuesClient:
             logger.warning(f"Error getting field ID for '{field_name}': {str(e)}")
             return None
 
-    def _get_field_type_info(self, project_id: str, field_id: str) -> Dict[str, Any]:
+    async def _get_field_type_info(self, project_id: str, field_id: str) -> Dict[str, Any]:
         """Get field type information for proper $type formatting."""
         try:
             fields_query = "field(id,name,fieldType($type,valueType,id)),canBeEmpty,autoAttached"
-            fields = self.client.get(f"admin/projects/{project_id}/customFields?fields={fields_query}")
+            fields = await self.client.get(f"admin/projects/{project_id}/customFields?fields={fields_query}")
             
             for field in fields:
                 if field.get("field", {}).get("id") == field_id:
@@ -2836,7 +2836,7 @@ class IssuesClient:
             logger.warning(f"Error getting field type info for field ID '{field_id}': {str(e)}")
             return {}
 
-    def _format_custom_field_value_with_id(self, field_id: str, field_value: Any, project_id: str = None) -> Dict[str, Any]:
+    async def _format_custom_field_value_with_id(self, field_id: str, field_value: Any, project_id: str = None) -> Dict[str, Any]:
         """Format custom field value with field ID for YouTrack API."""
         # YouTrack API format: Complete IssueCustomField object with proper $type
         
@@ -2857,7 +2857,7 @@ class IssuesClient:
             "$type": issue_field_type
         }
     
-    def _get_issue_custom_field_type(self, bundle_type: str, value_type: str, field_id: str) -> str:
+    async def _get_issue_custom_field_type(self, bundle_type: str, value_type: str, field_id: str) -> str:
         """Determine the correct IssueCustomField $type based on field information."""
         
         # Check for user fields first (special case)
@@ -2894,7 +2894,7 @@ class IssuesClient:
             else:
                 return "SingleEnumIssueCustomField"  # Most common type
     
-    def _format_field_value(self, field_value: Any, bundle_type: str, value_type: str, field_id: str) -> Any:
+    async def _format_field_value(self, field_value: Any, bundle_type: str, value_type: str, field_id: str) -> Any:
         """Format the field value based on type information."""
         
         if field_value is None:
@@ -2953,7 +2953,7 @@ class IssuesClient:
                 "$type": "EnumBundleElement"
             }
 
-    def _extract_custom_field_value(self, field_value_data: Any) -> Any:
+    async def _extract_custom_field_value(self, field_value_data: Any) -> Any:
         """Extract readable value from YouTrack custom field value data."""
         if not field_value_data:
             return None
@@ -2989,7 +2989,7 @@ class IssuesClient:
             logger.warning(f"Error getting user by login '{login}': {e}")
             return None
 
-    def _determine_field_type(self, field_name: str, value_type: str, bundle_type: str) -> str:
+    async def _determine_field_type(self, field_name: str, value_type: str, bundle_type: str) -> str:
         """
         Determine the correct $type field for YouTrack custom field updates.
         
