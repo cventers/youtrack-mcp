@@ -20,13 +20,26 @@ except ImportError:
 
 from youtrack_mcp.config import config
 
-logger = logging.getLogger(__name__)
+# Use structlog if available, otherwise fall back to standard logging
+try:
+    import structlog
+    logger = structlog.get_logger(__name__)
+except ImportError:
+    logger = logging.getLogger(__name__)
 
 
 class StructuredLogger:
-    """Structured JSON logger with PII redaction."""
+    """Structured JSON logger with PII redaction using structlog."""
 
     def __init__(self):
+        try:
+            import structlog
+            self.use_structlog = True
+            self.logger = structlog.get_logger("youtrack-mcp.structured")
+        except ImportError:
+            self.use_structlog = False
+            self.logger = logging.getLogger("youtrack-mcp.structured")
+
         self.redaction_patterns = [
             (r'("token":\s*)"[^"]*"', r'\1"[REDACTED]"'),
             (r'("password":\s*)"[^"]*"', r'\1"[REDACTED]"'),
@@ -48,20 +61,27 @@ class StructuredLogger:
         # Redact sensitive information
         redacted_message = self.redact(message)
 
-        # Create structured log entry
-        log_entry = {
-            "timestamp": asyncio.get_event_loop().time() if asyncio.get_event_loop() else None,
-            "level": level,
-            "message": redacted_message,
-            "service": "youtrack-mcp",
-            **kwargs
-        }
-
-        # Remove None values
-        log_entry = {k: v for k, v in log_entry.items() if v is not None}
-
-        # Log as JSON
-        logger.log(getattr(logging, level.upper()), json.dumps(log_entry))
+        if self.use_structlog:
+            # Use structlog for structured logging
+            log_method = getattr(self.logger, level, self.logger.info)
+            log_method(
+                redacted_message,
+                service="youtrack-mcp",
+                **kwargs
+            )
+        else:
+            # Fallback to standard logging with JSON
+            log_entry = {
+                "timestamp": asyncio.get_event_loop().time() if asyncio.get_event_loop() else None,
+                "level": level,
+                "message": redacted_message,
+                "service": "youtrack-mcp",
+                **kwargs
+            }
+            # Remove None values
+            log_entry = {k: v for k, v in log_entry.items() if v is not None}
+            # Log as JSON
+            self.logger.log(getattr(logging, level.upper()), json.dumps(log_entry))
 
 
 # Global structured logger instance
@@ -94,10 +114,10 @@ class YouTrackMCPServer:
         self.transport_mode = transport
 
         # Initialize server with ToolServerBase
+        # FastMCP doesn't accept transport parameter - it's handled by run_stdio()
         self.server = ToolServerBase(
             name=config.MCP_SERVER_NAME,
             instructions=config.MCP_SERVER_DESCRIPTION,
-            transport=transport,  # ToolServerBase expects 'transport' parameter
         )
 
         # Initialize tool registry
@@ -918,7 +938,15 @@ class YouTrackMCPServer:
         logger.info(
             f"Starting YouTrack MCP server ({config.MCP_SERVER_NAME}) with {self.transport_mode} transport"
         )
-        self.server.run()
+        
+        # FastMCP has different run methods for different transports
+        if self.transport_mode == "stdio":
+            # For stdio, use run_stdio_async
+            import asyncio
+            asyncio.run(self.server.run_stdio_async())
+        else:
+            # For HTTP/SSE transport
+            self.server.run()
 
     def register_loaded_tools(self, loaded_tools: Dict[str, Callable]) -> None:
         """

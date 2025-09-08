@@ -7,7 +7,7 @@ focusing on easily testable components without complex mocking.
 
 import unittest
 import pytest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, patch, AsyncMock
 
 # Mark all tests in this module as unit tests
 pytestmark = pytest.mark.unit
@@ -128,10 +128,11 @@ class TestIssuesClientInitialization:
 class TestIssuesClientBasicMethods:
     """Test basic IssuesClient methods."""
 
-    def test_search_issues_basic(self):
+    @pytest.mark.asyncio
+    async def test_search_issues_basic(self):
         """Test getting basic issues list via search."""
         mock_client = Mock(spec=YouTrackClient)
-        mock_client.get.return_value = [
+        mock_client.get = AsyncMock(return_value=[
             {
                 "id": "DEMO-123",
                 "summary": "First issue",
@@ -142,16 +143,16 @@ class TestIssuesClientBasicMethods:
                 "summary": "Second issue",
                 "project": {"shortName": "DEMO"}
             }
-        ]
+        ])
 
         issues_client = IssuesClient(mock_client)
-        issues = issues_client.search_issues("")
+        issues = await issues_client.search_issues("")
 
         assert len(issues) == 2
         assert all(isinstance(issue, Issue) for issue in issues)
         assert issues[0].id == "DEMO-123"
         assert issues[1].id == "DEMO-124"
-        mock_client.get.assert_called_once()
+        mock_client.get.assert_called_once_with("issues", params={"query": "", "$top": 10, "fields": "id,idReadable,summary,description,created,updated,project(id,name,shortName),reporter(id,login,name),assignee(id,login,name),priority(name),state(name),customFields(id,name,value)"})
 
     def test_search_issues_with_query(self):
         """Test getting issues with search query."""

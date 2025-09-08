@@ -87,8 +87,15 @@ def load_all_tools() -> Dict[str, Callable]:
             tool_definitions = tool_class.get_tool_definitions()
 
             for tool_name, definition in tool_definitions.items():
-                # Create bound tool
-                bound_tool = create_bound_tool(tool_class, tool_name)
+                # Get the actual function from the definition
+                if "function" in definition:
+                    # Use the function directly from the definition
+                    bound_tool = definition["function"]
+                else:
+                    # Fallback to old behavior (shouldn't happen with proper definitions)
+                    # Replace dots with underscores for method lookup
+                    method_name = tool_name.replace(".", "_")
+                    bound_tool = create_bound_tool(tool_class, method_name)
 
                 # Register with full name (e.g., "issues.get")
                 tools[tool_name] = bound_tool

@@ -3,17 +3,22 @@ Base client for YouTrack REST API.
 """
 
 import logging
-import time
-from typing import Any, Dict, Optional
+from typing import Dict, Any, Optional
+import os
 import json
 import random
-
 import httpx
+from urllib.parse import urljoin
 from pydantic import BaseModel, ConfigDict
 
 from youtrack_mcp.config import config
 
-logger = logging.getLogger(__name__)
+# Use structlog if available, otherwise fall back to standard logging
+try:
+    import structlog
+    logger = structlog.get_logger(__name__)
+except ImportError:
+    logger = logging.getLogger(__name__)
 
 
 class YouTrackAPIError(Exception):
