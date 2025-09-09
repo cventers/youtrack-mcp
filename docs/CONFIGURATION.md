@@ -290,7 +290,7 @@ youtrack_cloud: true
 ### Full Configuration
 ```yaml
 youtrack_url: "https://exceleron.myjetbrains.com"
-youtrack_api_token: "perm-Y3ZlbnRlcnM=.ODAtMzA=.rMtVyjC6FSRgSyWXYZoojZLbfXSEFK"
+youtrack_api_token: ""your-youtrack-api-token""
 youtrack_cloud: true
 verify_ssl: true
 max_retries: 3
