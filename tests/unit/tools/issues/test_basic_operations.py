@@ -526,7 +526,8 @@ class TestBasicOperations:
         mock_exception = Exception("API Error")
         mock_response = Mock()
         mock_response.content = b'{"error": "Detailed error message"}'
-        mock_exception.response = mock_response
+        # Add response attribute to the exception
+        setattr(mock_exception, 'response', mock_response)
         
         self.mock_issues_api.create_issue.side_effect = mock_exception
         
