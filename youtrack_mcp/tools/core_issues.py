@@ -13,7 +13,7 @@ from typing import Any, Dict, Optional, List
 
 from youtrack_mcp.api.client import YouTrackClient
 from youtrack_mcp.api.issues import IssuesClient
-from youtrack_mcp.mcp_wrappers import sync_wrapper
+from youtrack_mcp.mcp_wrappers import sync_wrapper, async_wrapper
 from youtrack_mcp.utils import format_json_response
 
 logger = logging.getLogger(__name__)
@@ -27,6 +27,7 @@ class CoreIssuesTools:
         self.client = YouTrackClient()
         self.issues_api = IssuesClient(self.client)
 
+    @async_wrapper
     async def get(self, issue_id: str, include: Optional[List[str]] = None) -> str:
         """
         Rich issue read with expansions.
@@ -77,6 +78,7 @@ class CoreIssuesTools:
                 "issue_id": issue_id
             })
 
+    @async_wrapper
     async def create(self, project: str, summary: str, description: Optional[str] = None) -> str:
         """
         Schema-aware issue creation.
@@ -119,6 +121,7 @@ class CoreIssuesTools:
                 "summary": summary
             })
 
+    @async_wrapper
     async def patch(self, issue_id: str, fields: Optional[Dict[str, Any]] = None, ops: Optional[List[Dict[str, Any]]] = None) -> str:
         """
         Primary writer with typed operations.

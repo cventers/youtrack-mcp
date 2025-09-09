@@ -8,6 +8,7 @@ for YouTrack MCP tools to ensure they work correctly with various parameter form
 import json
 import logging
 import inspect
+import ast
 from functools import wraps, partial
 from typing import Any, Callable, Dict, Optional, Tuple, Union
 
@@ -74,6 +75,72 @@ def sync_wrapper(func: Callable) -> Callable:
     return wrapper
 
 
+def async_wrapper(func: Callable) -> Callable:
+    """
+    Wrapper for asynchronous functions to ensure proper parameter handling.
+    
+    This wrapper properly extracts parameters from various formats that might be
+    passed by MCP tools, including:
+    - Named parameters (issue_id="ABC-123")
+    - Args string as JSON or raw value
+    - Kwargs dictionary or string
+    
+    Args:
+        func: The original async function to wrap
+    
+    Returns:
+        Wrapped async function that handles parameter extraction
+    """
+    
+    @wraps(func)
+    async def wrapper(*args, **kwargs):
+        # Log the original parameters for debugging
+        logger.debug(
+            f"Original parameters for {func.__name__}: args={args}, kwargs={kwargs}"
+        )
+        
+        # Process the parameters to get the correct format
+        processed_args, processed_kwargs = process_parameters(
+            func.__name__, args, kwargs
+        )
+        
+        # Get the original bound instance if this is a method
+        instance = getattr(func, "__self__", None)
+        
+        # Log the processed parameters for debugging
+        logger.debug(
+            f"Processed parameters for {func.__name__}: args={processed_args}, kwargs={processed_kwargs}"
+        )
+        
+        # Call the original function with processed parameters
+        try:
+            # If this is a bound method, we already have the instance
+            if instance:
+                result = await func(*processed_args, **processed_kwargs)
+            else:
+                result = await func(*processed_args, **processed_kwargs)
+            
+            # Convert result to JSON string if it's not already
+            if not isinstance(result, str):
+                result = json.dumps(result)
+            
+            return result
+        except Exception as e:
+            logger.exception(f"Error calling {func.__name__}: {str(e)}")
+            return json.dumps(
+                {
+                    "error": f"Error calling {func.__name__}: {str(e)}",
+                    "status": "error",
+                }
+            )
+    
+    # Store whether this is a bound method for later reference
+    wrapper.is_bound_method = hasattr(func, "__self__")
+    wrapper.original_func = func
+    
+    return wrapper
+
+
 def process_parameters(
     func_name: str, args: Tuple, kwargs: Dict[str, Any]
 ) -> Tuple[Tuple, Dict[str, Any]]:
@@ -116,7 +183,7 @@ def process_parameters(
                         # Remove extra } from the end
                         while cleaned_json.endswith('}}') and cleaned_json.count('}') > cleaned_json.count('{'):
                             cleaned_json = cleaned_json[:-1]
-                    
+
                     args_dict = json.loads(cleaned_json)
                     if isinstance(args_dict, dict):
                         # Add each key-value pair to kwargs
@@ -129,13 +196,36 @@ def process_parameters(
                     logger.warning(
                         f"Failed to parse args as JSON: {args_value}. Error: {str(e)}"
                     )
-                    # Not valid JSON, use as first positional argument only if not empty
+                    # Try to parse as Python literal (tuple, list, etc.)
+                    try:
+                        parsed_args = ast.literal_eval(args_value)
+                        if isinstance(parsed_args, (tuple, list)):
+                            # Extend processed_args with the parsed values
+                            processed_args.extend(parsed_args)
+                        else:
+                            # Single value, insert as first positional argument
+                            processed_args.insert(0, parsed_args)
+                    except (ValueError, SyntaxError) as e2:
+                        logger.warning(
+                            f"Failed to parse args as Python literal: {args_value}. Error: {str(e2)}"
+                        )
+                        # Not valid JSON or Python literal, use as first positional argument only if not empty
+                        if args_value.strip():
+                            processed_args.insert(0, args_value)
+            else:
+                # Try to parse as Python literal first (for cases like '("test",)')
+                try:
+                    parsed_args = ast.literal_eval(args_value)
+                    if isinstance(parsed_args, (tuple, list)):
+                        # Extend processed_args with the parsed values
+                        processed_args.extend(parsed_args)
+                    else:
+                        # Single value, insert as first positional argument
+                        processed_args.insert(0, parsed_args)
+                except (ValueError, SyntaxError):
+                    # Not a Python literal, use as first positional argument only if not empty
                     if args_value.strip():
                         processed_args.insert(0, args_value)
-            else:
-                # Not JSON-like, use as first positional argument only if not empty
-                if args_value.strip():
-                    processed_args.insert(0, args_value)
 
     # Handle 'kwargs' parameter specially
     if "kwargs" in processed_kwargs:
