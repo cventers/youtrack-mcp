@@ -13,7 +13,7 @@ from typing import Any, Dict, Optional
 
 from youtrack_mcp.api.client import YouTrackClient
 from youtrack_mcp.api.users import UsersClient
-from youtrack_mcp.mcp_wrappers import sync_wrapper
+from youtrack_mcp.mcp_wrappers import async_wrapper
 from youtrack_mcp.utils import format_json_response
 
 logger = logging.getLogger(__name__)
@@ -27,19 +27,19 @@ class CoreUsersAdminTools:
         self.client = YouTrackClient()
         self.users_api = UsersClient(self.client)
 
-    def _check_admin_permissions(self) -> bool:
+    async def _check_admin_permissions(self) -> bool:
         """Check if user has admin permissions for user operations."""
         try:
             # Check if user can access admin user endpoints
             # This is a basic check - in production you'd want more sophisticated permission checking
-            response = self.client.get("admin/users", params={"$top": 1})
+            response = await self.client.get("admin/users", params={"$top": 1})
             return response is not None
         except Exception as e:
             logger.warning(f"Admin permission check failed: {e}")
             return False
 
-    @sync_wrapper
-    def create(self, login: str, name: str, email: Optional[str] = None) -> str:
+    @async_wrapper
+    async def create(self, login: str, name: str, email: Optional[str] = None) -> str:
         """
         Create a new user (admin only).
 
@@ -55,7 +55,7 @@ class CoreUsersAdminTools:
         """
         try:
             # Check admin permissions
-            if not self._check_admin_permissions():
+            if not await self._check_admin_permissions():
                 return format_json_response({
                     "error": "Admin permissions required for user creation",
                     "login": login
@@ -69,7 +69,7 @@ class CoreUsersAdminTools:
             if email:
                 user_data["email"] = email
 
-            result = self.client.post("admin/users", json=user_data)
+            result = await self.client.post("admin/users", json=user_data)
 
             return format_json_response({
                 "success": True,
@@ -87,8 +87,8 @@ class CoreUsersAdminTools:
                 "login": login
             })
 
-    @sync_wrapper
-    def patch(self, user_id: str, updates: Dict[str, Any]) -> str:
+    @async_wrapper
+    async def patch(self, user_id: str, updates: Dict[str, Any]) -> str:
         """
         Update user properties (admin only).
 
@@ -103,14 +103,14 @@ class CoreUsersAdminTools:
         """
         try:
             # Check admin permissions
-            if not self._check_admin_permissions():
+            if not await self._check_admin_permissions():
                 return format_json_response({
                     "error": "Admin permissions required for user updates",
                     "user_id": user_id
                 })
 
             # Update the user
-            result = self.client.put(f"admin/users/{user_id}", json_data=updates)
+            result = await self.client.put(f"admin/users/{user_id}", json_data=updates)
 
             return format_json_response({
                 "success": True,
@@ -127,8 +127,8 @@ class CoreUsersAdminTools:
                 "user_id": user_id
             })
 
-    @sync_wrapper
-    def deactivate(self, user_id: str, deactivate: bool = True) -> str:
+    @async_wrapper
+    async def deactivate(self, user_id: str, deactivate: bool = True) -> str:
         """
         Deactivate or reactivate a user (admin only).
 
@@ -143,7 +143,7 @@ class CoreUsersAdminTools:
         """
         try:
             # Check admin permissions
-            if not self._check_admin_permissions():
+            if not await self._check_admin_permissions():
                 return format_json_response({
                     "error": "Admin permissions required for user deactivation",
                     "user_id": user_id
@@ -151,7 +151,7 @@ class CoreUsersAdminTools:
 
             # Deactivate/reactivate the user
             action = "deactivate" if deactivate else "reactivate"
-            result = self.client.post(f"admin/users/{user_id}/{action}")
+            result = await self.client.post(f"admin/users/{user_id}/{action}")
 
             return format_json_response({
                 "success": True,

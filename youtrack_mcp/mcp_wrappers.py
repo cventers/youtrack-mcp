@@ -9,7 +9,8 @@ import json
 import logging
 import inspect
 import ast
-from functools import wraps, partial
+import asyncio
+from functools import wraps
 from typing import Any, Callable, Dict, Optional, Tuple, Union
 
 logger = logging.getLogger(__name__)
@@ -56,9 +57,15 @@ def sync_wrapper(func: Callable) -> Callable:
         try:
             if instance:
                 # For bound methods, we need to ensure the instance is used
-                return func(**processed_kwargs)
+                result = func(**processed_kwargs)
             else:
-                return func(*processed_args, **processed_kwargs)
+                result = func(*processed_args, **processed_kwargs)
+            
+            # Ensure JSON string output
+            if not isinstance(result, str):
+                result = json.dumps(result)
+            
+            return result
         except Exception as e:
             logger.exception(f"Error calling {func.__name__}: {str(e)}")
             return json.dumps(

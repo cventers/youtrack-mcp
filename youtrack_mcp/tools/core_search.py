@@ -12,7 +12,7 @@ from typing import Any, Dict, Optional
 
 from youtrack_mcp.api.client import YouTrackClient
 from youtrack_mcp.api.issues import IssuesClient
-from youtrack_mcp.mcp_wrappers import sync_wrapper
+from youtrack_mcp.mcp_wrappers import async_wrapper
 from youtrack_mcp.utils import format_json_response
 from youtrack_mcp.tools.ai.ai_tools import AITools
 
@@ -28,8 +28,8 @@ class CoreSearchTools:
         self.issues_api = IssuesClient(self.client)
         self.ai_tools = AITools()
 
-    @sync_wrapper
-    def query(self, query: str, limit: int = 10, sort_by: Optional[str] = None, sort_order: Optional[str] = None) -> str:
+    @async_wrapper
+    async def query(self, query: str, limit: int = 10, sort_by: Optional[str] = None, sort_order: Optional[str] = None) -> str:
         """
         Execute explicit YouTrack Query Language.
 
@@ -54,7 +54,7 @@ class CoreSearchTools:
                     sort_param = f"{sort_by} desc"  # Default to desc
 
             # Perform the search
-            issues = self.issues_api.search_issues(query=query, limit=limit)
+            issues = await self.issues_api.search_issues(query=query, limit=limit)
 
             # Handle response format
             if isinstance(issues, dict):
@@ -85,8 +85,8 @@ class CoreSearchTools:
                 "query": query
             })
 
-    @sync_wrapper
-    def autosearch(self, natural_language_query: str, project_context: Optional[str] = None) -> str:
+    @async_wrapper
+    async def autosearch(self, natural_language_query: str, project_context: Optional[str] = None) -> str:
         """
         Natural language to YQL translation.
 
@@ -123,7 +123,7 @@ class CoreSearchTools:
                 })
 
             # Execute the translated query
-            search_result = self.query(yql_query, limit=10)
+            search_result = await self.query(yql_query, limit=10)
             search_response = json.loads(search_result)
 
             return format_json_response({
@@ -140,7 +140,7 @@ class CoreSearchTools:
             # Fallback to simple text search
             fallback_query = f"text: {natural_language_query}"
             try:
-                fallback_result = self.query(fallback_query, limit=10)
+                fallback_result = await self.query(fallback_query, limit=10)
                 fallback_response = json.loads(fallback_result)
 
                 return format_json_response({

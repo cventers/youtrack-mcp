@@ -13,7 +13,7 @@ from typing import Any, Dict, Optional
 
 from youtrack_mcp.api.client import YouTrackClient
 from youtrack_mcp.api.projects import ProjectsClient
-from youtrack_mcp.mcp_wrappers import sync_wrapper
+from youtrack_mcp.mcp_wrappers import async_wrapper
 from youtrack_mcp.utils import format_json_response
 
 logger = logging.getLogger(__name__)
@@ -27,19 +27,19 @@ class CoreProjectsAdminTools:
         self.client = YouTrackClient()
         self.projects_api = ProjectsClient(self.client)
 
-    def _check_admin_permissions(self) -> bool:
+    async def _check_admin_permissions(self) -> bool:
         """Check if user has admin permissions for project operations."""
         try:
             # Check if user can access admin endpoints
             # This is a basic check - in production you'd want more sophisticated permission checking
-            response = self.client.get("admin/projects", params={"$top": 1})
+            response = await self.client.get("admin/projects", params={"$top": 1})
             return response is not None
         except Exception as e:
             logger.warning(f"Admin permission check failed: {e}")
             return False
 
-    @sync_wrapper
-    def delete(self, project_id: str, permanent: bool = False) -> str:
+    @async_wrapper
+    async def delete(self, project_id: str, permanent: bool = False) -> str:
         """
         Delete a project (admin only).
 
@@ -54,7 +54,7 @@ class CoreProjectsAdminTools:
         """
         try:
             # Check admin permissions
-            if not self._check_admin_permissions():
+            if not await self._check_admin_permissions():
                 return format_json_response({
                     "error": "Admin permissions required for project deletion",
                     "project_id": project_id
@@ -63,10 +63,10 @@ class CoreProjectsAdminTools:
             # Delete the project
             if permanent:
                 # Permanent deletion
-                result = self.client.delete(f"admin/projects/{project_id}")
+                result = await self.client.delete(f"admin/projects/{project_id}")
             else:
                 # Move to trash (soft delete)
-                result = self.client.post(f"admin/projects/{project_id}/trash")
+                result = await self.client.post(f"admin/projects/{project_id}/trash")
 
             return format_json_response({
                 "success": True,
@@ -83,8 +83,8 @@ class CoreProjectsAdminTools:
                 "project_id": project_id
             })
 
-    @sync_wrapper
-    def archive(self, project_id: str, archive: bool = True) -> str:
+    @async_wrapper
+    async def archive(self, project_id: str, archive: bool = True) -> str:
         """
         Archive or unarchive a project (admin only).
 
@@ -99,7 +99,7 @@ class CoreProjectsAdminTools:
         """
         try:
             # Check admin permissions
-            if not self._check_admin_permissions():
+            if not await self._check_admin_permissions():
                 return format_json_response({
                     "error": "Admin permissions required for project archiving",
                     "project_id": project_id
@@ -107,7 +107,7 @@ class CoreProjectsAdminTools:
 
             # Archive/unarchive the project
             action = "archive" if archive else "unarchive"
-            result = self.client.post(f"admin/projects/{project_id}/{action}")
+            result = await self.client.post(f"admin/projects/{project_id}/{action}")
 
             return format_json_response({
                 "success": True,
@@ -125,8 +125,8 @@ class CoreProjectsAdminTools:
                 "project_id": project_id
             })
 
-    @sync_wrapper
-    def restore(self, project_id: str) -> str:
+    @async_wrapper
+    async def restore(self, project_id: str) -> str:
         """
         Restore a deleted project from trash (admin only).
 
@@ -140,14 +140,14 @@ class CoreProjectsAdminTools:
         """
         try:
             # Check admin permissions
-            if not self._check_admin_permissions():
+            if not await self._check_admin_permissions():
                 return format_json_response({
                     "error": "Admin permissions required for project restoration",
                     "project_id": project_id
                 })
 
             # Restore the project from trash
-            result = self.client.post(f"admin/projects/{project_id}/restore")
+            result = await self.client.post(f"admin/projects/{project_id}/restore")
 
             return format_json_response({
                 "success": True,

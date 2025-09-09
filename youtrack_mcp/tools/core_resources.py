@@ -11,7 +11,7 @@ from typing import Any, Dict
 from urllib.parse import urlparse
 
 from youtrack_mcp.api.client import YouTrackClient
-from youtrack_mcp.mcp_wrappers import sync_wrapper
+from youtrack_mcp.mcp_wrappers import async_wrapper
 from youtrack_mcp.utils import format_json_response
 from youtrack_mcp.tools.help_resources import get_help_resource
 
@@ -36,8 +36,8 @@ class CoreResourcesTools:
             self._client = YouTrackClient()
         return self._client
 
-    @sync_wrapper
-    def read(self, uri: str) -> str:
+    @async_wrapper
+    async def read(self, uri: str) -> str:
         """
         Proxy read for secured URIs.
 
@@ -83,7 +83,7 @@ class CoreResourcesTools:
 
                 if resource_type == "issues":
                     # Get issue data
-                    issue_data = self.client.get(f"issues/{resource_id}")
+                    issue_data = await self.client.get(f"issues/{resource_id}")
                     return format_json_response({
                         "uri": uri,
                         "resource_type": "issue",
@@ -92,7 +92,7 @@ class CoreResourcesTools:
 
                 elif resource_type == "projects":
                     # Get project data
-                    project_data = self.client.get(f"admin/projects/{resource_id}")
+                    project_data = await self.client.get(f"admin/projects/{resource_id}")
                     return format_json_response({
                         "uri": uri,
                         "resource_type": "project",
@@ -101,7 +101,7 @@ class CoreResourcesTools:
 
                 elif resource_type == "users":
                     # Get user data
-                    user_data = self.client.get(f"users/{resource_id}")
+                    user_data = await self.client.get(f"users/{resource_id}")
                     return format_json_response({
                         "uri": uri,
                         "resource_type": "user",
@@ -113,7 +113,7 @@ class CoreResourcesTools:
 
                 if resource_type == "projects":
                     # List all projects
-                    projects_data = self.client.get("admin/projects")
+                    projects_data = await self.client.get("admin/projects")
                     return format_json_response({
                         "uri": uri,
                         "resource_type": "projects_list",
@@ -122,7 +122,7 @@ class CoreResourcesTools:
 
                 elif resource_type == "issues":
                     # List recent issues
-                    issues_data = self.client.get("issues", params={"$top": 50})
+                    issues_data = await self.client.get("issues", params={"$top": 50})
                     return format_json_response({
                         "uri": uri,
                         "resource_type": "issues_list",
@@ -131,7 +131,7 @@ class CoreResourcesTools:
 
                 elif resource_type == "users":
                     # List users
-                    users_data = self.client.get("users")
+                    users_data = await self.client.get("users")
                     return format_json_response({
                         "uri": uri,
                         "resource_type": "users_list",

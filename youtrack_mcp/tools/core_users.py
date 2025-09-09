@@ -10,7 +10,7 @@ from typing import Any, Dict, Optional
 
 from youtrack_mcp.api.client import YouTrackClient
 from youtrack_mcp.api.users import UsersClient
-from youtrack_mcp.mcp_wrappers import sync_wrapper
+from youtrack_mcp.mcp_wrappers import async_wrapper
 from youtrack_mcp.utils import format_json_response
 
 logger = logging.getLogger(__name__)
@@ -24,8 +24,8 @@ class CoreUsersTools:
         self.client = YouTrackClient()
         self.users_api = UsersClient(self.client)
 
-    @sync_wrapper
-    def search(self, query: str, limit: int = 10) -> str:
+    @async_wrapper
+    async def search(self, query: str, limit: int = 10) -> str:
         """
         Resolve users by name/login.
 
@@ -39,7 +39,7 @@ class CoreUsersTools:
             JSON with list of matching users
         """
         try:
-            users = self.users_api.search_users(query, limit)
+            users = await self.users_api.search_users(query, limit)
 
             # Convert to dicts for JSON response
             result = []

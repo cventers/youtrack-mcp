@@ -13,7 +13,7 @@ from typing import Any, Dict, Optional, List
 
 from youtrack_mcp.api.client import YouTrackClient
 from youtrack_mcp.api.projects import ProjectsClient
-from youtrack_mcp.mcp_wrappers import sync_wrapper
+from youtrack_mcp.mcp_wrappers import async_wrapper
 from youtrack_mcp.utils import format_json_response
 
 logger = logging.getLogger(__name__)
@@ -27,8 +27,8 @@ class CoreProjectsTools:
         self.client = YouTrackClient()
         self.projects_api = ProjectsClient(self.client)
 
-    @sync_wrapper
-    def list(self, include_archived: bool = False) -> str:
+    @async_wrapper
+    async def list(self, include_archived: bool = False) -> str:
         """
         Discover accessible projects.
 
@@ -41,7 +41,7 @@ class CoreProjectsTools:
             JSON with list of projects
         """
         try:
-            projects = self.projects_api.get_projects(include_archived=include_archived)
+            projects = await self.projects_api.get_projects(include_archived=include_archived)
 
             # Convert to dicts for JSON response
             result = []
@@ -65,8 +65,8 @@ class CoreProjectsTools:
                 "include_archived": include_archived
             })
 
-    @sync_wrapper
-    def get(self, project_id: str, include: Optional[List[str]] = None) -> str:
+    @async_wrapper
+    async def get(self, project_id: str, include: Optional[List[str]] = None) -> str:
         """
         Project details with expansions.
 
@@ -80,7 +80,7 @@ class CoreProjectsTools:
             JSON with full project data and requested expansions
         """
         try:
-            project = self.projects_api.get_project(project_id)
+            project = await self.projects_api.get_project(project_id)
 
             # Convert to dict for JSON response
             if hasattr(project, "model_dump"):
@@ -93,7 +93,7 @@ class CoreProjectsTools:
             if include:
                 if "customFields" in include:
                     try:
-                        fields = self.projects_api.get_custom_fields(project_id)
+                        fields = await self.projects_api.get_custom_fields(project_id)
                         expansions["customFields"] = fields
                     except Exception as e:
                         logger.warning(f"Failed to get custom fields: {e}")
@@ -101,7 +101,7 @@ class CoreProjectsTools:
 
                 if "issues" in include:
                     try:
-                        issues = self.projects_api.get_project_issues(project_id, limit=10)
+                        issues = await self.projects_api.get_project_issues(project_id, limit=10)
                         expansions["issues"] = issues
                     except Exception as e:
                         logger.warning(f"Failed to get project issues: {e}")
@@ -121,8 +121,8 @@ class CoreProjectsTools:
                 "project_id": project_id
             })
 
-    @sync_wrapper
-    def patch(self, project_id: str, ops: Optional[List[Dict[str, Any]]] = None) -> str:
+    @async_wrapper
+    async def patch(self, project_id: str, ops: Optional[List[Dict[str, Any]]] = None) -> str:
         """
         Project mutations with typed operations.
 
@@ -142,7 +142,7 @@ class CoreProjectsTools:
                 })
 
             # Get current project data
-            current_project = self.projects_api.get_project(project_id)
+            current_project = await self.projects_api.get_project(project_id)
 
             # Apply operations
             updates = {}
@@ -175,10 +175,10 @@ class CoreProjectsTools:
                 })
 
             # Apply updates via direct API call
-            self.client.post(f"admin/projects/{project_id}", data=updates)
+            await self.client.post(f"admin/projects/{project_id}", data=updates)
 
             # Get updated project
-            updated_project = self.projects_api.get_project(project_id)
+            updated_project = await self.projects_api.get_project(project_id)
 
             # Convert to dict for JSON response
             if hasattr(updated_project, "model_dump"):
@@ -201,8 +201,8 @@ class CoreProjectsTools:
                 "operations_requested": len(ops) if ops else 0
             })
 
-    @sync_wrapper
-    def create(self, name: str, short_name: str, lead_id: str) -> str:
+    @async_wrapper
+    async def create(self, name: str, short_name: str, lead_id: str) -> str:
         """
         Create new projects.
 
@@ -217,7 +217,7 @@ class CoreProjectsTools:
             JSON with created project data
         """
         try:
-            project = self.projects_api.create_project(
+            project = await self.projects_api.create_project(
                 name=name,
                 short_name=short_name,
                 lead_id=lead_id

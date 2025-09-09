@@ -81,6 +81,11 @@ def load_all_tools() -> Dict[str, Callable]:
     # Load tools from core classes - simplified for minimal surface
     for tool_class in tool_classes:
         class_name = tool_class.__class__.__name__
+        
+        # Drop "Core" prefix from class names for cleaner naming
+        display_name = class_name.replace("Core", "").replace("Tools", "Tools")
+        if display_name.endswith("ToolsTools"):
+            display_name = display_name[:-5]  # Remove duplicate "Tools"
 
         # Get tool definitions from core classes
         if hasattr(tool_class, "get_tool_definitions"):
@@ -99,7 +104,7 @@ def load_all_tools() -> Dict[str, Callable]:
 
                 # Register with full name (e.g., "issues.get")
                 tools[tool_name] = bound_tool
-                logger.debug(f"Registered core tool '{tool_name}' from {class_name}")
+                logger.debug(f"Registered tool '{tool_name}' from {display_name}")
 
     # Log total number of core tools loaded
     logger.info(f"Loader registered {len(tools)} core tools (minimal surface)")

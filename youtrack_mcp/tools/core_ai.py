@@ -8,7 +8,7 @@ Implements the 1 core AI tool:
 import logging
 from typing import Any, Dict, Optional
 
-from youtrack_mcp.mcp_wrappers import sync_wrapper
+from youtrack_mcp.mcp_wrappers import async_wrapper
 from youtrack_mcp.utils import format_json_response
 from youtrack_mcp.tools.ai.ai_tools import AITools
 
@@ -22,8 +22,8 @@ class CoreAITools:
         """Initialize core AI tools."""
         self.ai_tools = AITools()
 
-    @sync_wrapper
-    def plan(self, intent: str, context: Optional[Dict[str, Any]] = None) -> str:
+    @async_wrapper
+    async def plan(self, intent: str, context: Optional[Dict[str, Any]] = None) -> str:
         """
         Plan-only intent translator.
 
