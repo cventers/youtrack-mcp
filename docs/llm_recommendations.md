@@ -1,5 +1,25 @@
 # Small LLM & Embedding Model Recommendations for YouTrack MCP
 
+## Notice: Hugging Face Transformers Support Removed
+
+**As of 2025-09-08, support for Hugging Face Transformers has been removed from YouTrack MCP** due to complexity and maintenance overhead.
+
+### Previous Recommendations
+This document previously contained recommendations for various small LLMs and embedding models (Llama 3.2, BGE-M3, DistilBERT, etc.) for enhancing YouTrack MCP functionality. These recommendations are no longer applicable since HuggingFace support has been removed.
+
+### Current AI Support
+YouTrack MCP now supports:
+- **OpenAI-compatible APIs** (OpenAI, Anthropic, local servers)
+- **Rule-based processing** (always available fallback)
+- **Local model support** (future implementation)
+
+### Migration Path
+For AI enhancements previously planned with HuggingFace models:
+1. **Switch to OpenAI-compatible API providers** for LLM capabilities
+2. **Use cloud-based embedding services** for semantic search
+3. **Implement rule-based alternatives** for classification tasks
+4. **Consider third-party AI services** for advanced features
+
 ## 🎯 Enhancement Areas & Model Recommendations
 
 ### 1. **Intelligent Issue Classification & Suggestion Enhancement**

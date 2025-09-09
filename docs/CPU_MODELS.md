@@ -1,8 +1,25 @@
 # CPU Model Recommendations for YouTrack MCP
 
-## Overview
+## Notice: Hugging Face Transformers Support Removed
 
-The YouTrack MCP supports local CPU inference for AI-powered features, providing privacy-preserving intelligence without requiring GPU hardware or external API calls. This guide covers the best CPU models for YouTrack tasks and hardware requirements.
+**As of 2025-09-08, support for Hugging Face Transformers has been removed from YouTrack MCP** due to complexity and maintenance overhead.
+
+### Previous CPU Inference Support
+This document previously covered local CPU inference using Hugging Face Transformers models for AI-powered features. This functionality has been removed to simplify the codebase and reduce dependencies.
+
+### Current AI Support
+YouTrack MCP now supports:
+- **OpenAI-compatible APIs** (OpenAI, Anthropic, local servers)
+- **Rule-based processing** (always available fallback)
+- **Local model support** (future implementation)
+
+### Migration
+If you were using Hugging Face Transformers:
+1. Switch to OpenAI-compatible API providers
+2. Use rule-based processing as fallback
+3. Consider cloud-based AI services for enhanced functionality
+
+For configuration examples, see `docs/YAML_CONFIGURATION.md` and `docs/LLM_INTEGRATION.md`.
 
 ## Quick Answer: Do You Need GPU?
 

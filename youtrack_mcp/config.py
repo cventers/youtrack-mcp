@@ -20,6 +20,9 @@ except ImportError:
 class Config:
     """Configuration settings for YouTrack MCP server."""
 
+    # Configuration file
+    CONFIG_FILE: str = os.getenv("YOUTRACK_CONFIG_FILE", "")
+
     # YouTrack API configuration
     YOUTRACK_URL: str = os.getenv("YOUTRACK_URL", "")
     YOUTRACK_API_TOKEN: str = os.getenv("YOUTRACK_API_TOKEN", "")
@@ -56,7 +59,130 @@ class Config:
         "1",
         "yes",
     )
+    MCP_TRANSPORT: str = os.getenv("MCP_TRANSPORT", "stdio")
     YOUTRACK_CAPS: str = os.getenv("YOUTRACK_CAPS", "")
+
+    # OpenAI Configuration
+    OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
+    OPENAI_API_BASE: str = os.getenv("OPENAI_API_BASE", "")
+    OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "")
+    OPENAI_MAX_TOKENS: int = int(os.getenv("OPENAI_MAX_TOKENS", "1000"))
+    OPENAI_TEMPERATURE: float = float(os.getenv("OPENAI_TEMPERATURE", "0.3"))
+    OPENAI_TIMEOUT: int = int(os.getenv("OPENAI_TIMEOUT", "30"))
+    LLM_ENABLED: bool = os.getenv("LLM_ENABLED", "false").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
+
+    # Hugging Face Configuration
+    HF_MODEL: str = os.getenv("HF_MODEL", "")
+    HF_DEVICE: str = os.getenv("HF_DEVICE", "cpu")
+    HF_MAX_TOKENS: int = int(os.getenv("HF_MAX_TOKENS", "500"))
+    HF_TEMPERATURE: float = float(os.getenv("HF_TEMPERATURE", "0.3"))
+    HF_TORCH_DTYPE: str = os.getenv("HF_TORCH_DTYPE", "auto")
+    HF_4BIT: bool = os.getenv("HF_4BIT", "false").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
+    HF_8BIT: bool = os.getenv("HF_8BIT", "false").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
+    HF_TRUST_REMOTE_CODE: bool = os.getenv("HF_TRUST_REMOTE_CODE", "false").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
+    HF_ENABLED: bool = os.getenv("HF_ENABLED", "false").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
+
+    # Cache Configuration
+    CACHE_ENABLED: bool = os.getenv("CACHE_ENABLED", "true").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
+    CACHE_TTL: int = int(os.getenv("CACHE_TTL", "300"))
+    CACHE_MAX_SIZE: int = int(os.getenv("CACHE_MAX_SIZE", "100"))
+
+    # Logging Configuration
+    LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
+    LOG_FILE: Optional[str] = os.getenv("LOG_FILE")
+
+    # Connection Configuration
+    CONNECTION_POOL_SIZE: int = int(os.getenv("CONNECTION_POOL_SIZE", "10"))
+    CONNECTION_TIMEOUT: int = int(os.getenv("CONNECTION_TIMEOUT", "30"))
+    READ_TIMEOUT: int = int(os.getenv("READ_TIMEOUT", "60"))
+
+    # Rate Limiting
+    RATE_LIMIT_ENABLED: bool = os.getenv("RATE_LIMIT_ENABLED", "true").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
+    RATE_LIMIT_REQUESTS: int = int(os.getenv("RATE_LIMIT_REQUESTS", "100"))
+    RATE_LIMIT_PERIOD: int = int(os.getenv("RATE_LIMIT_PERIOD", "60"))
+
+    # User Preferences
+    DATE_FORMAT: str = os.getenv("DATE_FORMAT", "%Y-%m-%d")
+    DATETIME_FORMAT: str = os.getenv("DATETIME_FORMAT", "%Y-%m-%d %H:%M:%S")
+    TIMEZONE: str = os.getenv("TIMEZONE", "America/Chicago")
+    MAX_DESCRIPTION_LENGTH: int = int(os.getenv("MAX_DESCRIPTION_LENGTH", "500"))
+    TRUNCATE_LONG_TEXT: bool = os.getenv("TRUNCATE_LONG_TEXT", "true").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
+    SHOW_ISSUE_URL: bool = os.getenv("SHOW_ISSUE_URL", "false").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
+    DEFAULT_QUERY_CONTEXT: str = os.getenv("DEFAULT_QUERY_CONTEXT", "me")
+    DEFAULT_STATE_FILTER: str = os.getenv("DEFAULT_STATE_FILTER", "Open")
+
+    # Feature Flags
+    NATURAL_LANGUAGE_SEARCH: bool = os.getenv("NATURAL_LANGUAGE_SEARCH", "false").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
+    SMART_SUGGESTIONS: bool = os.getenv("SMART_SUGGESTIONS", "false").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
+    ACTIVITY_ANALYSIS: bool = os.getenv("ACTIVITY_ANALYSIS", "false").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
+    AUTO_FIELD_DETECTION: bool = os.getenv("AUTO_FIELD_DETECTION", "false").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
+    BATCH_OPERATIONS: bool = os.getenv("BATCH_OPERATIONS", "false").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
+    ASYNC_PROCESSING: bool = os.getenv("ASYNC_PROCESSING", "false").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
+    CACHING_LAYER: bool = os.getenv("CACHING_LAYER", "false").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
 
     @classmethod
     def from_dict(cls, config_dict: Dict[str, Any]) -> None:
