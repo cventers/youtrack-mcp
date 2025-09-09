@@ -299,7 +299,7 @@ retry_delay: 1.0
 mcp_server_name: "youtrack-mcp"
 mcp_debug: false
 
-openai_api_key: "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"
+openai_api_key: "your-groq-api-key"
 openai_api_base: "https://api.groq.com/openai/v1"
 openai_model: "openai/gpt-oss-120b"
 llm_enabled: true

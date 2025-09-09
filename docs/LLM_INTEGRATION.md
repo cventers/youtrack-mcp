@@ -46,17 +46,7 @@ ai:
     timeout: 30
     enabled: true
   
-  # Hugging Face Transformers (local CPU)
-  huggingface:
-    model: "Qwen/Qwen1.5-0.5B-Chat"
-    device: "cpu"
-    max_tokens: 1000
-    temperature: 0.3
-    torch_dtype: "auto"
-    quantization_4bit: false
-    quantization_8bit: false
-    trust_remote_code: false
-    enabled: false
+
 ```
 
 See the following documentation for detailed configuration guidance:

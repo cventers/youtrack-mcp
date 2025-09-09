@@ -22,7 +22,6 @@ logger = logging.getLogger(__name__)
 class AIProvider(Enum):
     """Supported AI providers."""
     OPENAI_COMPATIBLE = "openai_compatible"  # OpenAI, Anthropic, local servers
-    HUGGINGFACE = "huggingface"              # Hugging Face Transformers models
     LOCAL_MODEL = "local_model"              # Local quantized models (future)
     RULE_BASED = "rule_based"                # Fallback rule-based processing
 
@@ -38,12 +37,6 @@ class LLMConfig:
     temperature: float = 0.3
     timeout_seconds: int = 30
     enabled: bool = True
-    # Hugging Face specific options
-    device: str = "cpu"                        # cpu, cuda, mps
-    torch_dtype: Optional[str] = None          # auto, float16, bfloat16
-    load_in_8bit: bool = False                 # Use 8-bit quantization
-    load_in_4bit: bool = False                 # Use 4-bit quantization
-    trust_remote_code: bool = False            # Allow custom model code
 
 
 @dataclass
@@ -80,11 +73,7 @@ class LLMClient:
             self.configs = configs if configs else []
         self.http_client = None
         self._initialize_http_client()
-        
-        # Hugging Face models cache
-        self._hf_models = {}
-        self._hf_tokenizers = {}
-        
+
         # Sort configs by priority (enabled first, then by provider preference)
         self.configs.sort(key=lambda c: (
             not c.enabled,  # Enabled configs first
@@ -140,10 +129,6 @@ class LLMClient:
                 
                 if config.provider == AIProvider.OPENAI_COMPATIBLE:
                     response = await self._call_openai_compatible(
-                        config, prompt, system_prompt, max_tokens, temperature
-                    )
-                elif config.provider == AIProvider.HUGGINGFACE:
-                    response = await self._call_huggingface(
                         config, prompt, system_prompt, max_tokens, temperature
                     )
                 elif config.provider == AIProvider.LOCAL_MODEL:
@@ -252,150 +237,7 @@ class LLMClient:
                 confidence=0.0
             )
     
-    async def _call_huggingface(self,
-                              config: LLMConfig,
-                              prompt: str,
-                              system_prompt: Optional[str] = None,
-                              max_tokens: Optional[int] = None,
-                              temperature: Optional[float] = None) -> LLMResponse:
-        """Call Hugging Face Transformers model."""
-        try:
-            # Import here to make it optional
-            import torch
-            from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
-            import transformers
-            
-        except ImportError:
-            return LLMResponse(
-                content="",
-                provider_used=AIProvider.HUGGINGFACE,
-                success=False,
-                error="transformers library not installed. Run: pip install transformers torch",
-                confidence=0.0
-            )
-        
-        if not config.model_name:
-            return LLMResponse(
-                content="",
-                provider_used=AIProvider.HUGGINGFACE,
-                success=False,
-                error="model_name required for Hugging Face provider",
-                confidence=0.0
-            )
-        
-        try:
-            # Load model and tokenizer (cached)
-            model_key = f"{config.model_name}_{config.device}"
-            
-            if model_key not in self._hf_models:
-                logger.info(f"Loading Hugging Face model: {config.model_name}")
-                
-                # Prepare model loading arguments
-                model_kwargs = {
-                    "trust_remote_code": config.trust_remote_code,
-                    "device_map": "auto" if config.device != "cpu" else None,
-                }
-                
-                # Add quantization if specified
-                if config.load_in_4bit:
-                    from transformers import BitsAndBytesConfig
-                    model_kwargs["quantization_config"] = BitsAndBytesConfig(
-                        load_in_4bit=True,
-                        bnb_4bit_compute_dtype=torch.float16,
-                        bnb_4bit_use_double_quant=True,
-                        bnb_4bit_quant_type="nf4"
-                    )
-                elif config.load_in_8bit:
-                    model_kwargs["load_in_8bit"] = True
-                
-                # Set torch dtype
-                if config.torch_dtype:
-                    if config.torch_dtype == "auto":
-                        model_kwargs["torch_dtype"] = "auto"
-                    elif config.torch_dtype == "float16":
-                        model_kwargs["torch_dtype"] = torch.float16
-                    elif config.torch_dtype == "bfloat16":
-                        model_kwargs["torch_dtype"] = torch.bfloat16
-                
-                # Load tokenizer and model
-                tokenizer = AutoTokenizer.from_pretrained(
-                    config.model_name,
-                    trust_remote_code=config.trust_remote_code
-                )
-                
-                # Add pad token if missing
-                if tokenizer.pad_token is None:
-                    tokenizer.pad_token = tokenizer.eos_token
-                
-                model = AutoModelForCausalLM.from_pretrained(
-                    config.model_name,
-                    **model_kwargs
-                )
-                
-                # Move to device if CPU
-                if config.device == "cpu":
-                    model = model.to("cpu")
-                
-                self._hf_tokenizers[model_key] = tokenizer
-                self._hf_models[model_key] = model
-                
-                logger.info(f"Model {config.model_name} loaded successfully on {config.device}")
-            
-            tokenizer = self._hf_tokenizers[model_key]
-            model = self._hf_models[model_key]
-            
-            # Prepare full prompt
-            full_prompt = prompt
-            if system_prompt:
-                # Format depends on model, this is a generic approach
-                full_prompt = f"System: {system_prompt}\n\nUser: {prompt}\n\nAssistant:"
-            
-            # Tokenize input
-            inputs = tokenizer.encode(full_prompt, return_tensors="pt")
-            if config.device == "cuda" and torch.cuda.is_available():
-                inputs = inputs.to("cuda")
-            elif config.device == "cpu":
-                inputs = inputs.to("cpu")
-            
-            # Generate response
-            max_new_tokens = max_tokens or config.max_tokens
-            temp = temperature or config.temperature
-            
-            with torch.no_grad():
-                outputs = model.generate(
-                    inputs,
-                    max_new_tokens=max_new_tokens,
-                    temperature=temp,
-                    do_sample=temp > 0.0,
-                    pad_token_id=tokenizer.eos_token_id,
-                    eos_token_id=tokenizer.eos_token_id,
-                    attention_mask=torch.ones_like(inputs)
-                )
-            
-            # Decode response
-            response_tokens = outputs[0][inputs.shape[-1]:]
-            response_text = tokenizer.decode(response_tokens, skip_special_tokens=True)
-            
-            # Clean up response
-            response_text = response_text.strip()
-            
-            return LLMResponse(
-                content=response_text,
-                provider_used=AIProvider.HUGGINGFACE,
-                success=True,
-                tokens_used=len(outputs[0]),
-                confidence=0.8
-            )
-            
-        except Exception as e:
-            logger.error(f"Error with Hugging Face model {config.model_name}: {e}")
-            return LLMResponse(
-                content="",
-                provider_used=AIProvider.HUGGINGFACE,
-                success=False,
-                error=f"Model execution failed: {str(e)}",
-                confidence=0.0
-            )
+
     
     async def _call_local_model(self,
                                config: LLMConfig,
@@ -487,20 +329,7 @@ def create_llm_client_from_config() -> LLMClient:
             enabled=config.LLM_ENABLED
         ))
     
-    # 2. Hugging Face Transformers model (second priority if configured)
-    if config.HF_MODEL:
-        configs.append(LLMConfig(
-            provider=AIProvider.HUGGINGFACE,
-            model_name=config.HF_MODEL,
-            max_tokens=config.HF_MAX_TOKENS,
-            temperature=config.HF_TEMPERATURE,
-            device=config.HF_DEVICE,
-            torch_dtype=config.HF_TORCH_DTYPE if config.HF_TORCH_DTYPE else None,
-            load_in_4bit=config.HF_4BIT,
-            load_in_8bit=config.HF_8BIT,
-            trust_remote_code=config.HF_TRUST_REMOTE_CODE,
-            enabled=config.HF_ENABLED
-        ))
+
     
     # 3. Local model (future implementation)
     if config.LOCAL_MODEL_PATH:
@@ -542,28 +371,7 @@ def create_local_config(model_path: str) -> LLMConfig:
     )
 
 
-def create_huggingface_config(model_name: str, 
-                            device: str = "cpu",
-                            quantization: str = None,
-                            torch_dtype: str = None) -> LLMConfig:
-    """
-    Create Hugging Face Transformers configuration.
-    
-    Args:
-        model_name: Hugging Face model name (e.g., "microsoft/DialoGPT-medium")
-        device: Device to run on ("cpu", "cuda", "mps")
-        quantization: Quantization type ("4bit", "8bit", None)
-        torch_dtype: Torch data type ("auto", "float16", "bfloat16", None)
-    """
-    return LLMConfig(
-        provider=AIProvider.HUGGINGFACE,
-        model_name=model_name,
-        device=device,
-        torch_dtype=torch_dtype,
-        load_in_4bit=quantization == "4bit",
-        load_in_8bit=quantization == "8bit",
-        enabled=True
-    )
+
 
 
 # Example configurations for common providers
@@ -586,165 +394,19 @@ COMMON_PROVIDERS = {
     }
 }
 
-# Recommended Hugging Face models for CPU inference on modest hardware
-RECOMMENDED_CPU_MODELS = {
-    # Small, fast models (good for basic tasks)
-    "lightweight": {
-        "microsoft/DialoGPT-small": {
-            "size": "117M parameters",
-            "ram_usage": "~500MB",
-            "use_case": "Basic query translation and error enhancement",
-            "performance": "Fast inference, good for simple patterns"
-        },
-        "distilgpt2": {
-            "size": "82M parameters", 
-            "ram_usage": "~400MB",
-            "use_case": "Very fast responses for simple tasks",
-            "performance": "Excellent CPU performance, limited capability"
-        },
-        "TinyLlama/TinyLlama-1.1B-Chat-v1.0": {
-            "size": "1.1B parameters",
-            "ram_usage": "~2GB",
-            "use_case": "Chat-oriented tasks with better understanding",
-            "performance": "Good balance of speed and capability"
-        }
-    },
-    
-    # Medium models (balanced performance and capability)
-    "balanced": {
-        "microsoft/DialoGPT-medium": {
-            "size": "345M parameters",
-            "ram_usage": "~1.5GB", 
-            "use_case": "Query translation with good context understanding",
-            "performance": "Good CPU performance with better responses"
-        },
-        "Qwen/Qwen1.5-0.5B-Chat": {
-            "size": "500M parameters",
-            "ram_usage": "~2GB",
-            "use_case": "General purpose with good instruction following",
-            "performance": "Excellent for technical tasks like YouTrack queries"
-        },
-        "stabilityai/stablelm-2-zephyr-1_6b": {
-            "size": "1.6B parameters",
-            "ram_usage": "~3GB",
-            "use_case": "Strong instruction following for complex tasks",
-            "performance": "Good CPU performance, excellent quality"
-        }
-    },
-    
-    # Larger models (better capability, higher resource usage)
-    "capable": {
-        "microsoft/DialoGPT-large": {
-            "size": "762M parameters",
-            "ram_usage": "~3GB",
-            "use_case": "High-quality query translation and analysis",
-            "performance": "Slower but more accurate responses"
-        },
-        "Qwen/Qwen1.5-1.8B-Chat": {
-            "size": "1.8B parameters", 
-            "ram_usage": "~4GB",
-            "use_case": "Complex reasoning for activity pattern analysis",
-            "performance": "Best quality for technical tasks on CPU"
-        },
-        "microsoft/Phi-3-mini-4k-instruct": {
-            "size": "3.8B parameters",
-            "ram_usage": "~8GB with 4-bit quantization",
-            "use_case": "High-quality instruction following and reasoning",
-            "performance": "Excellent quality, requires quantization for CPU"
-        }
-    }
-}
-
-# Specific model recommendations for YouTrack MCP tasks
-YOUTRACK_TASK_MODELS = {
-    "query_translation": [
-        "Qwen/Qwen1.5-0.5B-Chat",           # Best balance for query tasks
-        "microsoft/DialoGPT-medium",        # Good fallback
-        "TinyLlama/TinyLlama-1.1B-Chat-v1.0"  # Fast option
-    ],
-    "error_enhancement": [
-        "stabilityai/stablelm-2-zephyr-1_6b",  # Excellent instruction following
-        "Qwen/Qwen1.5-1.8B-Chat",             # Good reasoning
-        "microsoft/DialoGPT-large"             # Detailed responses
-    ],
-    "pattern_analysis": [
-        "Qwen/Qwen1.5-1.8B-Chat",             # Best reasoning for patterns
-        "microsoft/Phi-3-mini-4k-instruct",   # High quality (needs 4-bit)
-        "stabilityai/stablelm-2-zephyr-1_6b"  # Good analysis capability
-    ]
-}
 
 
-def get_recommended_model(task: str = "query_translation", 
-                         hardware: str = "modest",
-                         quantization: bool = True) -> str:
-    """
-    Get recommended model for specific YouTrack tasks.
-    
-    Args:
-        task: Task type ("query_translation", "error_enhancement", "pattern_analysis")
-        hardware: Hardware capability ("modest", "good", "powerful")  
-        quantization: Whether to use quantization for larger models
-        
-    Returns:
-        Recommended model name
-    """
-    models = YOUTRACK_TASK_MODELS.get(task, YOUTRACK_TASK_MODELS["query_translation"])
-    
-    if hardware == "modest":
-        # Prefer smallest, fastest models
-        return models[-1] if len(models) > 2 else models[0]
-    elif hardware == "good":
-        # Prefer balanced models
-        return models[0] if len(models) > 1 else models[0]
-    else:  # powerful
-        # Prefer most capable models
-        return models[0]
 
 
-def create_recommended_config(task: str = "query_translation",
-                            hardware: str = "modest") -> LLMConfig:
-    """
-    Create a recommended Hugging Face configuration for YouTrack tasks.
-    
-    Args:
-        task: YouTrack task type
-        hardware: Hardware capability level
-        
-    Returns:
-        Optimized LLMConfig for the task and hardware
-    """
-    model_name = get_recommended_model(task, hardware)
-    
-    # Configure based on hardware capability
-    if hardware == "modest":
-        return create_huggingface_config(
-            model_name=model_name,
-            device="cpu",
-            quantization="4bit" if "Phi-3" in model_name else None,
-            torch_dtype="auto"
-        )
-    elif hardware == "good":
-        return create_huggingface_config(
-            model_name=model_name,
-            device="cpu",
-            quantization="4bit" if any(x in model_name for x in ["Phi-3", "1.8B"]) else None,
-            torch_dtype="auto"
-        )
-    else:  # powerful
-        return create_huggingface_config(
-            model_name=model_name,
-            device="cuda" if torch.cuda.is_available() else "cpu",
-            quantization=None,
-            torch_dtype="auto"
-        )
+
+
+
+
+
 
 
 # Example usage configurations
 EXAMPLE_CONFIGS = {
-    "cpu_lightweight": create_huggingface_config("TinyLlama/TinyLlama-1.1B-Chat-v1.0"),
-    "cpu_balanced": create_huggingface_config("Qwen/Qwen1.5-0.5B-Chat"),
-    "cpu_capable": create_huggingface_config("Qwen/Qwen1.5-1.8B-Chat", quantization="4bit"),
     "openai": create_openai_config("https://api.openai.com/v1", "your-api-key"),
     "ollama": create_openai_config("http://localhost:11434/v1", "ollama", "llama2")
 }
