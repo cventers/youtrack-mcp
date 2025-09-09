@@ -3,6 +3,13 @@
 .env.backup
 .env.local
 .env.*.local
+.env.example
+*.token
+*token*
+*-token*
+youtrack-token*
+*.key
+*key*
 .cursorrules
 .cursor/
 
