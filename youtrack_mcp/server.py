@@ -150,42 +150,35 @@ class YouTrackMCPServer:
                 handle_users_directory_resource
             )
 
-            # Register resources with FastMCP
-            # Note: FastMCP may use different method names, checking common patterns
-            if hasattr(self.server, 'add_resource'):
-                # Standard MCP resource registration
-                self.server.add_resource(
-                    uri="youtrack://query-syntax",
-                    name="YouTrack Query Syntax Guide",
-                    description="Complete reference for YouTrack Query Language (YQL) syntax",
-                    handler=handle_query_syntax_resource
-                )
+            # Register resources with FastMCP using decorators
+            # Note: FastMCP uses @resource decorator pattern, not add_resource method
 
-                self.server.add_resource(
-                    uri="youtrack://projects",
-                    name="YouTrack Projects List",
-                    description="List of all available projects with metadata",
-                    handler=handle_projects_list_resource
-                )
+            # Register resource handlers using the resource decorator
+            @self.server.resource("youtrack://query-syntax",
+                                name="YouTrack Query Syntax Guide",
+                                description="Complete reference for YouTrack Query Language (YQL) syntax")
+            async def query_syntax_handler():
+                return await handle_query_syntax_resource()
 
-                self.server.add_resource(
-                    uri="youtrack://users",
-                    name="YouTrack Users Directory",
-                    description="Directory of all users with login names and metadata",
-                    handler=handle_users_directory_resource
-                )
+            @self.server.resource("youtrack://projects",
+                                name="YouTrack Projects List",
+                                description="List of all available projects with metadata")
+            async def projects_list_handler():
+                return await handle_projects_list_resource()
 
-                # Dynamic resource for project fields
-                self.server.add_resource(
-                    uri="youtrack://project/{project_id}/fields",
-                    name="Project Custom Fields",
-                    description="Available custom fields for a specific project",
-                    handler=handle_project_fields_resource
-                )
+            @self.server.resource("youtrack://users",
+                                name="YouTrack Users Directory",
+                                description="Directory of all users with login names and metadata")
+            async def users_directory_handler():
+                return await handle_users_directory_resource()
 
-                logger.info("Registered 4 MCP Resources with server")
-            else:
-                logger.warning("FastMCP server does not support add_resource method - resources not registered")
+            @self.server.resource("youtrack://project/{project_id}/fields",
+                                name="Project Custom Fields",
+                                description="Available custom fields for a specific project")
+            async def project_fields_handler(project_id: str):
+                return await handle_project_fields_resource(project_id)
+
+            logger.info("Registered 4 MCP Resources with server")
 
         except Exception as e:
             logger.warning(f"Failed to register MCP Resources: {e}")
@@ -621,7 +614,7 @@ class YouTrackMCPServer:
                 # Return formatted error
                 return {"status": "error", "error": error_message}
 
-        # For non-async functions, we need a wrapper to call the async wrapper
+        # For non-async functions, we need a wrapper to call the async wrapper in an event loop.
         def sync_wrapper(*args, **kwargs):
             """Sync wrapper that calls the async wrapper in an event loop."""
             try:
