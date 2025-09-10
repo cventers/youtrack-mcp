@@ -21,8 +21,7 @@ logger = logging.getLogger(__name__)
 
 class AIProvider(Enum):
     """Supported AI providers."""
-    OPENAI_COMPATIBLE = "openai_compatible"  # OpenAI, Anthropic, local servers
-    LOCAL_MODEL = "local_model"              # Local quantized models (future)
+    OPENAI_COMPATIBLE = "openai_compatible"  # OpenAI and OpenAI-compatible APIs
     RULE_BASED = "rule_based"                # Fallback rule-based processing
 
 
@@ -52,12 +51,11 @@ class LLMResponse:
 
 class LLMClient:
     """
-    Unified LLM client with multiple provider support and fallback hierarchy.
-    
+    Unified LLM client with OpenAI-compatible API support and fallback hierarchy.
+
     Provider hierarchy:
     1. OpenAI-compatible API (if configured)
-    2. Local model (if available)
-    3. Rule-based fallback (always available)
+    2. Rule-based fallback (always available)
     """
     
     def __init__(self, configs: Union[LLMConfig, List[LLMConfig]]):
@@ -72,7 +70,6 @@ class LLMClient:
         else:
             self.configs = configs if configs else []
         self.http_client = None
-        self._initialize_http_client()
 
         # Sort configs by priority (enabled first, then by provider preference)
         self.configs.sort(key=lambda c: (
@@ -129,10 +126,6 @@ class LLMClient:
                 
                 if config.provider == AIProvider.OPENAI_COMPATIBLE:
                     response = await self._call_openai_compatible(
-                        config, prompt, system_prompt, max_tokens, temperature
-                    )
-                elif config.provider == AIProvider.LOCAL_MODEL:
-                    response = await self._call_local_model(
                         config, prompt, system_prompt, max_tokens, temperature
                     )
                 elif config.provider == AIProvider.RULE_BASED:
@@ -197,7 +190,21 @@ class LLMClient:
             "Authorization": f"Bearer {config.api_key}",
             "Content-Type": "application/json"
         }
-        
+
+        # Lazy initialization of HTTP client
+        if self.http_client is None:
+            self._initialize_http_client()
+
+        # Ensure http_client is initialized
+        if self.http_client is None:
+            return LLMResponse(
+                content="",
+                provider_used=AIProvider.OPENAI_COMPATIBLE,
+                success=False,
+                error="Failed to initialize HTTP client",
+                confidence=0.0
+            )
+
         try:
             response = await self.http_client.post(
                 f"{config.api_url.rstrip('/')}/chat/completions",
@@ -239,21 +246,7 @@ class LLMClient:
     
 
     
-    async def _call_local_model(self,
-                               config: LLMConfig,
-                               prompt: str,
-                               system_prompt: Optional[str] = None,
-                               max_tokens: Optional[int] = None,
-                               temperature: Optional[float] = None) -> LLMResponse:
-        """Call local quantized model (placeholder for future implementation)."""
-        return LLMResponse(
-            content="",
-            provider_used=AIProvider.LOCAL_MODEL,
-            success=False,
-            error="Local model support not yet implemented",
-            confidence=0.0
-        )
-    
+
     async def _call_rule_based(self,
                              config: LLMConfig,
                              prompt: str,
@@ -262,7 +255,7 @@ class LLMClient:
                              temperature: Optional[float] = None) -> LLMResponse:
         """Call rule-based processing (always succeeds as fallback)."""
         # Import here to avoid circular imports
-        from youtrack_mcp.ai_processor import LocalAIProcessor
+        from youtrack_mcp.tools.ai.ai_processor import AIProcessor
         
         # Simple rule-based response based on prompt content
         content = await self._generate_rule_based_response(prompt, system_prompt)
@@ -317,28 +310,20 @@ def create_llm_client_from_config() -> LLMClient:
     configs = []
     
     # 1. OpenAI-compatible provider (highest priority if configured)
-    if config.LLM_API_URL and config.LLM_API_KEY:
+    if config.OPENAI_API_BASE and config.OPENAI_API_KEY:
         configs.append(LLMConfig(
             provider=AIProvider.OPENAI_COMPATIBLE,
-            api_url=config.LLM_API_URL,
-            api_key=config.LLM_API_KEY,
-            model_name=config.LLM_MODEL,
-            max_tokens=config.LLM_MAX_TOKENS,
-            temperature=config.LLM_TEMPERATURE,
-            timeout_seconds=config.LLM_TIMEOUT,
+            api_url=config.OPENAI_API_BASE,
+            api_key=config.OPENAI_API_KEY,
+            model_name=config.OPENAI_MODEL,
+            max_tokens=config.OPENAI_MAX_TOKENS,
+            temperature=config.OPENAI_TEMPERATURE,
+            timeout_seconds=config.OPENAI_TIMEOUT,
             enabled=config.LLM_ENABLED
         ))
     
 
-    
-    # 3. Local model (future implementation)
-    if config.LOCAL_MODEL_PATH:
-        configs.append(LLMConfig(
-            provider=AIProvider.LOCAL_MODEL,
-            model_name=config.LOCAL_MODEL_PATH,
-            enabled=config.LOCAL_MODEL_ENABLED
-        ))
-    
+
     # 4. Rule-based fallback (always available)
     configs.append(LLMConfig(
         provider=AIProvider.RULE_BASED,
@@ -362,13 +347,7 @@ def create_openai_config(api_url: str, api_key: str, model: str = "gpt-3.5-turbo
     )
 
 
-def create_local_config(model_path: str) -> LLMConfig:
-    """Create local model configuration."""
-    return LLMConfig(
-        provider=AIProvider.LOCAL_MODEL,
-        model_name=model_path,
-        enabled=True
-    )
+
 
 
 
@@ -380,16 +359,8 @@ COMMON_PROVIDERS = {
         "api_url": "https://api.openai.com/v1",
         "models": ["gpt-4", "gpt-4-turbo", "gpt-3.5-turbo"]
     },
-    "anthropic": {
-        "api_url": "https://api.anthropic.com/v1",
-        "models": ["claude-3-sonnet", "claude-3-haiku"]
-    },
-    "ollama": {
-        "api_url": "http://localhost:11434/v1",
-        "models": ["llama2", "codellama", "mistral"]
-    },
     "openai_compatible": {
-        "api_url": "http://localhost:8000/v1",  # Generic local server
+        "api_url": "http://localhost:8000/v1",  # Generic OpenAI-compatible server
         "models": ["custom-model"]
     }
 }

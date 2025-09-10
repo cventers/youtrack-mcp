@@ -2,22 +2,16 @@
 
 ## Overview
 
-The YouTrack MCP now supports multiple AI providers for enhanced natural language processing capabilities. The system provides intelligent query translation, error enhancement, and activity pattern analysis using either external LLM APIs or local CPU models.
+The YouTrack MCP now supports OpenAI-compatible APIs for enhanced natural language processing capabilities. The system provides intelligent query translation, error enhancement, and activity pattern analysis using external LLM APIs.
 
 ## Supported AI Providers
 
 ### 1. OpenAI-Compatible APIs (Highest Priority)
 - **OpenAI**: Official OpenAI API
-- **Anthropic**: Claude API  
-- **Local Servers**: Ollama, OpenAI-compatible endpoints
+- **Local Servers**: OpenAI-compatible endpoints
 - **Other Providers**: Any OpenAI-compatible API
 
-### 2. Hugging Face Transformers (Second Priority)
-- **Local Models**: CPU inference with quantization
-- **Privacy-First**: No external API calls
-- **Optimized**: 4-bit and 8-bit quantization support
-
-### 3. Rule-Based Fallback (Always Available)
+### 2. Rule-Based Fallback (Always Available)
 - **No Dependencies**: Works without any AI models
 - **Pattern Matching**: Handles common YouTrack query patterns
 - **Reliable**: Always provides results
