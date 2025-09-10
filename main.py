@@ -34,47 +34,112 @@ from youtrack_mcp.config import Config, config
 from youtrack_mcp.server import YouTrackMCPServer
 from youtrack_mcp.tools.loader import load_all_tools
 
-# Set up structured JSON logging
+# Check if structlog is available
+structlog_available = False
 try:
     import structlog
-    # Configure structlog for JSON output
-    structlog.configure(
-        processors=[
-            structlog.stdlib.filter_by_level,
-            structlog.stdlib.add_logger_name,
-            structlog.stdlib.add_log_level,
-            structlog.stdlib.PositionalArgumentsFormatter(),
-            structlog.processors.TimeStamper(fmt="iso"),
-            structlog.processors.StackInfoRenderer(),
-            structlog.processors.format_exc_info,
-            structlog.processors.UnicodeDecoder(),
-            structlog.processors.JSONRenderer()
-        ],
-        context_class=dict,
-        logger_factory=structlog.stdlib.LoggerFactory(),
-        wrapper_class=structlog.stdlib.BoundLogger,
-        cache_logger_on_first_use=True,
-    )
-
-    # Replace standard logging with structlog
-    logging.basicConfig(
-        format="%(message)s",
-        level=logging.INFO,
-        handlers=[logging.StreamHandler()]
-    )
-
-    logger = structlog.get_logger(__name__)
-    logger.info("Structured JSON logging enabled")
-
+    structlog_available = True
 except ImportError:
-    # Fallback to standard logging if structlog is not available
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        handlers=[logging.StreamHandler()]
-    )
-    logger = logging.getLogger(__name__)
-    logger.warning("structlog not available, using standard logging")
+    pass
+
+# Global logger instance (will be initialized after config is loaded)
+logger = logging.getLogger(__name__)
+
+def setup_logging():
+    """Set up logging configuration based on config values."""
+    global logger
+
+    # Get logging configuration from environment variables (with config fallback)
+    log_level = os.getenv('LOG_LEVEL', getattr(config, 'LOG_LEVEL', 'INFO'))
+    log_file = os.getenv('LOG_FILE', getattr(config, 'LOG_FILE', None))
+    console_disabled = os.getenv('LOG_CONSOLE_DISABLE', 'false').lower() in ('true', '1', 'yes') or getattr(config, 'LOG_CONSOLE_DISABLE', False)
+
+    # Convert log level string to logging level
+    numeric_level = getattr(logging, log_level.upper(), logging.INFO)
+
+    # Set up handlers
+    handlers = []
+
+    # Add console handler unless disabled
+    if not console_disabled:
+        console_handler = logging.StreamHandler()
+        if structlog_available:
+            console_handler.setFormatter(logging.Formatter("%(message)s"))
+        else:
+            console_handler.setFormatter(logging.Formatter(
+                "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+            ))
+        handlers.append(console_handler)
+
+    # Add file handler if log file is specified
+    if log_file:
+        try:
+            # Create directory if it doesn't exist
+            os.makedirs(os.path.dirname(log_file), exist_ok=True)
+            file_handler = logging.FileHandler(log_file)
+            if structlog_available:
+                file_handler.setFormatter(logging.Formatter("%(message)s"))
+            else:
+                file_handler.setFormatter(logging.Formatter(
+                    "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+                ))
+            handlers.append(file_handler)
+        except (OSError, IOError) as e:
+            # If we can't create the log file, log to console only
+            if not console_disabled:
+                print(f"Warning: Could not create log file {log_file}: {e}")
+
+    # Configure logging
+    if structlog_available:
+        try:
+            # Import structlog here to avoid linter issues
+            import structlog
+            # Configure structlog for JSON output
+            structlog.configure(
+                processors=[
+                    structlog.stdlib.filter_by_level,
+                    structlog.stdlib.add_logger_name,
+                    structlog.stdlib.add_log_level,
+                    structlog.stdlib.PositionalArgumentsFormatter(),
+                    structlog.processors.TimeStamper(fmt="iso"),
+                    structlog.processors.StackInfoRenderer(),
+                    structlog.processors.format_exc_info,
+                    structlog.processors.UnicodeDecoder(),
+                    structlog.processors.JSONRenderer()
+                ],
+                context_class=dict,
+                logger_factory=structlog.stdlib.LoggerFactory(),
+                wrapper_class=structlog.stdlib.BoundLogger,
+                cache_logger_on_first_use=True,
+            )
+
+            # Replace standard logging with structlog
+            logging.basicConfig(
+                format="%(message)s",
+                level=numeric_level,
+                handlers=handlers
+            )
+
+            logger = structlog.get_logger(__name__)
+            logger.info("Structured JSON logging enabled")
+        except Exception as e:
+            # If structlog setup fails, fall back to standard logging
+            logging.basicConfig(
+                level=numeric_level,
+                format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+                handlers=handlers
+            )
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Failed to set up structlog: {e}, using standard logging")
+    else:
+        # Fallback to standard logging if structlog is not available
+        logging.basicConfig(
+            level=numeric_level,
+            format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+            handlers=handlers
+        )
+        logger = logging.getLogger(__name__)
+        logger.warning("structlog not available, using standard logging")
 
 # Global server and tools instances
 server = None
@@ -221,7 +286,7 @@ def load_config():
     if yaml_file:
         try:
             logger.info(f"Loading configuration from YAML file: {yaml_file}")
-            Config.load_from_yaml(yaml_file)
+            config.load_from_yaml(yaml_file)
         except Exception as e:
             logger.warning(f"Failed to load YAML configuration from {yaml_file}: {e}")
             logger.info("Falling back to environment variables and defaults")
@@ -315,6 +380,15 @@ def parse_args():
         help="Transport mode: 'stdio' for Claude integration (default), 'http' for API server"
     )
     parser.add_argument(
+        "--log-file",
+        help="Path to log file (enables console + file logging by default)"
+    )
+    parser.add_argument(
+        "--no-console-log",
+        action="store_true",
+        help="Disable console logging (only log to file if specified)"
+    )
+    parser.add_argument(
         "--version",
         action="store_true",
         help="Display version information and exit"
@@ -324,23 +398,30 @@ def parse_args():
 
 def apply_cli_args(args):
     """Apply command line arguments to configuration."""
-    # Set log level
-    logging.getLogger().setLevel(getattr(logging, args.log_level))
-    
     # Apply YouTrack configuration
     config_dict = {}
-    
+
     if args.youtrack_url:
         config_dict["YOUTRACK_URL"] = args.youtrack_url
-    
+
     if args.api_token:
         config_dict["YOUTRACK_API_TOKEN"] = args.api_token
-    
+
     if args.verify_ssl is not None:
         config_dict["VERIFY_SSL"] = args.verify_ssl
-    
+
+    # Apply logging configuration
+    if hasattr(args, 'log_level') and args.log_level:
+        config_dict["LOG_LEVEL"] = args.log_level
+
+    if hasattr(args, 'log_file') and args.log_file:
+        config_dict["LOG_FILE"] = args.log_file
+
+    if hasattr(args, 'no_console_log') and args.no_console_log:
+        config_dict["LOG_CONSOLE_DISABLE"] = True
+
     if config_dict:
-        Config.from_dict(config_dict)
+        config.from_dict(config_dict)
 
 def handle_signal(signum: int, frame) -> None:
     """
@@ -375,10 +456,13 @@ def main():
     
     # Apply command line arguments
     apply_cli_args(args)
-    
+
     # Load configuration
     load_config()
-    
+
+    # Set up logging based on configuration
+    setup_logging()
+
     # Log version information
     logger.info(f"Starting YouTrack MCP Server v{APP_VERSION}")
     

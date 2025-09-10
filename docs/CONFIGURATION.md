@@ -176,7 +176,16 @@ features:
 | Setting | Environment Variable | Default | Description |
 |---------|---------------------|---------|-------------|
 | `log_level` | `LOG_LEVEL` | `"INFO"` | Logging level |
-| `log_file` | `LOG_FILE` | `null` | Log file path |
+| `log_file` | `LOG_FILE` | `null` | Log file path (enables console + file logging) |
+| `log_console_disable` | `LOG_CONSOLE_DISABLE` | `"false"` | Disable console logging (only log to file if specified) |
+
+**YAML Configuration Example:**
+```yaml
+logging:
+  level: DEBUG
+  file: /var/log/youtrack-mcp.log
+  console_disable: true
+```
 
 ### Connection Configuration
 

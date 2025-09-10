@@ -36,6 +36,174 @@ class Config:
     YOUTRACK_API_TOKEN: str = os.getenv("YOUTRACK_API_TOKEN", "")
     YOUTRACK_TOKEN_FILE: str = os.getenv("YOUTRACK_TOKEN_FILE", "")
     VERIFY_SSL: bool = os.getenv("YOUTRACK_VERIFY_SSL", "true").lower() in (
+        "true", "1", "yes",
+    )
+
+    # Cloud instance configuration
+    YOUTRACK_CLOUD: bool = os.getenv("YOUTRACK_CLOUD", "false").lower() in (
+        "true", "1", "yes",
+    )
+
+    # API client configuration
+    MAX_RETRIES: int = int(os.getenv("YOUTRACK_MAX_RETRIES", "3"))
+    RETRY_DELAY: float = float(os.getenv("YOUTRACK_RETRY_DELAY", "1.0"))
+
+    # Token security configuration
+    TOKEN_TTL_SECONDS: int = int(os.getenv("YOUTRACK_TOKEN_TTL_SECONDS", "3600"))  # 1 hour default
+    ENABLE_TOKEN_REFRESH: bool = os.getenv("YOUTRACK_ENABLE_TOKEN_REFRESH", "true").lower() in (
+        "true", "1", "yes"
+    )
+
+    # MCP Server configuration
+    MCP_SERVER_NAME: str = os.getenv("MCP_SERVER_NAME", "youtrack-mcp")
+    MCP_SERVER_DESCRIPTION: str = os.getenv(
+        "MCP_SERVER_DESCRIPTION", "YouTrack MCP Server"
+    )
+    MCP_DEBUG: bool = os.getenv("MCP_DEBUG", "false").lower() in (
+        "true", "1", "yes",
+    )
+    MCP_PARAM_REPAIR: bool = os.getenv("MCP_PARAM_REPAIR", "false").lower() in (
+        "true", "1", "yes",
+    )
+    MCP_TRANSPORT: str = os.getenv("MCP_TRANSPORT", "stdio")
+    MCP_TIMEOUT: int = int(os.getenv("MCP_TIMEOUT", "15000"))  # Default 15 seconds
+    YOUTRACK_CAPS: str = os.getenv("YOUTRACK_CAPS", "")
+
+    # OpenAI Configuration
+    OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
+    OPENAI_API_BASE: str = os.getenv("OPENAI_API_BASE", "")
+    OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "")
+    OPENAI_MAX_TOKENS: int = int(os.getenv("OPENAI_MAX_TOKENS", "1000"))
+    OPENAI_TEMPERATURE: float = float(os.getenv("OPENAI_TEMPERATURE", "0.3"))
+    OPENAI_TIMEOUT: int = int(os.getenv("OPENAI_TIMEOUT", "30"))
+    LLM_ENABLED: bool = os.getenv("LLM_ENABLED", "false").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
+
+    # Hugging Face Configuration
+    HF_MODEL: str = os.getenv("HF_MODEL", "")
+    HF_DEVICE: str = os.getenv("HF_DEVICE", "cpu")
+    HF_MAX_TOKENS: int = int(os.getenv("HF_MAX_TOKENS", "500"))
+    HF_TEMPERATURE: float = float(os.getenv("HF_TEMPERATURE", "0.3"))
+    HF_TORCH_DTYPE: str = os.getenv("HF_TORCH_DTYPE", "auto")
+    HF_4BIT: bool = os.getenv("HF_4BIT", "false").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
+    HF_8BIT: bool = os.getenv("HF_8BIT", "false").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
+    HF_TRUST_REMOTE_CODE: bool = os.getenv("HF_TRUST_REMOTE_CODE", "false").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
+    HF_ENABLED: bool = os.getenv("HF_ENABLED", "false").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
+
+    # Cache Configuration
+    CACHE_ENABLED: bool = os.getenv("CACHE_ENABLED", "true").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
+    CACHE_TTL: int = int(os.getenv("CACHE_TTL", "300"))
+    CACHE_MAX_SIZE: int = int(os.getenv("CACHE_MAX_SIZE", "100"))
+
+    # Logging Configuration
+    LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
+    LOG_FILE: Optional[str] = os.getenv("LOG_FILE")
+    LOG_CONSOLE_DISABLE: bool = os.getenv("LOG_CONSOLE_DISABLE", "false").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
+
+    # Connection Configuration
+    CONNECTION_POOL_SIZE: int = int(os.getenv("CONNECTION_POOL_SIZE", "10"))
+    CONNECTION_TIMEOUT: int = int(os.getenv("CONNECTION_TIMEOUT", "30"))
+    READ_TIMEOUT: int = int(os.getenv("READ_TIMEOUT", "60"))
+
+    # Rate Limiting
+    RATE_LIMIT_ENABLED: bool = os.getenv("RATE_LIMIT_ENABLED", "true").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
+    RATE_LIMIT_REQUESTS: int = int(os.getenv("RATE_LIMIT_REQUESTS", "100"))
+    RATE_LIMIT_PERIOD: int = int(os.getenv("RATE_LIMIT_PERIOD", "60"))
+
+    # User Preferences
+    DATE_FORMAT: str = os.getenv("DATE_FORMAT", "%Y-%m-%d")
+    DATETIME_FORMAT: str = os.getenv("DATETIME_FORMAT", "%Y-%m-%d %H:%M:%S")
+    TIMEZONE: str = os.getenv("TIMEZONE", "America/Chicago")
+    MAX_DESCRIPTION_LENGTH: int = int(os.getenv("MAX_DESCRIPTION_LENGTH", "500"))
+    TRUNCATE_LONG_TEXT: bool = os.getenv("TRUNCATE_LONG_TEXT", "true").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
+    SHOW_ISSUE_URL: bool = os.getenv("SHOW_ISSUE_URL", "false").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
+    DEFAULT_QUERY_CONTEXT: str = os.getenv("DEFAULT_QUERY_CONTEXT", "me")
+    DEFAULT_STATE_FILTER: str = os.getenv("DEFAULT_STATE_FILTER", "Open")
+
+    # Feature Flags
+    NATURAL_LANGUAGE_SEARCH: bool = os.getenv("NATURAL_LANGUAGE_SEARCH", "false").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
+    SMART_SUGGESTIONS: bool = os.getenv("SMART_SUGGESTIONS", "false").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
+    ACTIVITY_ANALYSIS: bool = os.getenv("ACTIVITY_ANALYSIS", "false").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
+    AUTO_FIELD_DETECTION: bool = os.getenv("AUTO_FIELD_DETECTION", "false").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
+    BATCH_OPERATIONS: bool = os.getenv("BATCH_OPERATIONS", "false").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
+    ASYNC_PROCESSING: bool = os.getenv("ASYNC_PROCESSING", "false").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
+    CACHING_LAYER: bool = os.getenv("CACHING_LAYER", "false").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
+
+    # Configuration file
+    CONFIG_FILE: str = os.getenv("YOUTRACK_CONFIG_FILE", "")
+
+    # YouTrack API configuration
+    YOUTRACK_URL: str = os.getenv("YOUTRACK_URL", "")
+    YOUTRACK_API_TOKEN: str = os.getenv("YOUTRACK_API_TOKEN", "")
+    YOUTRACK_TOKEN_FILE: str = os.getenv("YOUTRACK_TOKEN_FILE", "")
+    VERIFY_SSL: bool = os.getenv("YOUTRACK_VERIFY_SSL", "true").lower() in (
         "true",
         "1",
         "yes",
@@ -122,9 +290,10 @@ class Config:
     CACHE_TTL: int = int(os.getenv("CACHE_TTL", "300"))
     CACHE_MAX_SIZE: int = int(os.getenv("CACHE_MAX_SIZE", "100"))
 
-    # Logging Configuration
-    LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
-    LOG_FILE: Optional[str] = os.getenv("LOG_FILE")
+    # Logging Configuration (will be set at runtime)
+    LOG_LEVEL: str = "INFO"
+    LOG_FILE: Optional[str] = None
+    LOG_CONSOLE_DISABLE: bool = False
 
     # Connection Configuration
     CONNECTION_POOL_SIZE: int = int(os.getenv("CONNECTION_POOL_SIZE", "10"))
@@ -282,6 +451,16 @@ class Config:
                             config_key = f"YOUTRACK_{config_key}"
                         else:
                             config_key = f"YOUTRACK_API_{config_key}"
+                    elif prefix == "LOGGING":
+                        # Direct mapping for logging section
+                        if config_key == "CONSOLE_DISABLE":
+                            config_key = "LOG_CONSOLE_DISABLE"
+                        elif config_key == "FILE":
+                            config_key = "LOG_FILE"
+                        elif config_key == "LEVEL":
+                            config_key = "LOG_LEVEL"
+                        else:
+                            config_key = f"LOG_{config_key}"
                     else:
                         config_key = f"{prefix}_{config_key}"
 
