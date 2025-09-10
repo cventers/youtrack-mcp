@@ -11,10 +11,23 @@ import json
 import logging
 from typing import Any, Dict, Optional, List
 
-from youtrack_mcp.api.client import YouTrackClient
+from youtrack_mcp.api.client import (
+    YouTrackClient,
+    YouTrackAPIError,
+    AuthenticationError,
+    PermissionDeniedError,
+    ResourceNotFoundError,
+    ValidationError,
+    ServerError,
+    RateLimitError
+)
 from youtrack_mcp.api.issues import IssuesClient
 from youtrack_mcp.mcp_wrappers import sync_wrapper, async_wrapper
 from youtrack_mcp.utils import format_json_response
+from youtrack_mcp.llm_error_responses import LLMErrorEducator
+
+# Initialize the error educator
+error_educator = LLMErrorEducator()
 
 logger = logging.getLogger(__name__)
 
@@ -70,13 +83,23 @@ class CoreIssuesTools:
                 "fields_requested": base_fields
             })
 
+        except (ResourceNotFoundError, AuthenticationError, PermissionDeniedError,
+                ValidationError, RateLimitError, ServerError, YouTrackAPIError) as e:
+            # Use LLM-optimized error response
+            llm_response = error_educator.create_educational_error_response(
+                operation="get_issue",
+                error=e,
+                context={"issue_id": issue_id, "include": include}
+            )
+            return format_json_response(llm_response)
         except Exception as e:
-            logger.exception(f"Error getting issue {issue_id}")
-            return format_json_response({
-                "error": str(e),
-                "error_type": type(e).__name__,
-                "issue_id": issue_id
-            })
+            logger.exception(f"Unexpected error getting issue {issue_id}: {e}")
+            llm_response = error_educator.create_educational_error_response(
+                operation="get_issue",
+                error=e,
+                context={"issue_id": issue_id, "include": include}
+            )
+            return format_json_response(llm_response)
 
     @async_wrapper
     async def create(self, project: str, summary: str, description: Optional[str] = None) -> str:
@@ -112,57 +135,121 @@ class CoreIssuesTools:
                 "created": True
             })
 
+        except (AuthenticationError, PermissionDeniedError, ValidationError,
+                ResourceNotFoundError, RateLimitError, ServerError, YouTrackAPIError) as e:
+            # Use LLM-optimized error response
+            llm_response = error_educator.create_educational_error_response(
+                operation="create_issue",
+                error=e,
+                context={"project": project, "summary": summary, "description": description}
+            )
+            return format_json_response(llm_response)
         except Exception as e:
-            logger.exception(f"Error creating issue in project {project}")
-            return format_json_response({
-                "error": str(e),
-                "error_type": type(e).__name__,
-                "project": project,
-                "summary": summary
-            })
+            logger.exception(f"Unexpected error creating issue in {project}: {e}")
+            llm_response = error_educator.create_educational_error_response(
+                operation="create_issue",
+                error=e,
+                context={"project": project, "summary": summary, "description": description}
+            )
+            return format_json_response(llm_response)
 
     @async_wrapper
     async def patch(self, issue_id: str, fields: Optional[Dict[str, Any]] = None, ops: Optional[List[Dict[str, Any]]] = None) -> str:
         """
-        Primary writer with typed operations.
+        Primary writer with typed operations and custom field support.
 
         FORMAT: issues.patch(issue_id="PROJECT-123", fields={"summary": "New title"})
         FORMAT: issues.patch(issue_id="PROJECT-123", ops=[{"op": "set", "field": "state", "value": "Fixed"}])
+        FORMAT: issues.patch(issue_id="PROJECT-123", fields={"customFields": {"Priority": "High", "Story Points": 5}})
 
         Args:
             issue_id: Issue ID or readable ID
-            fields: Direct field updates (simple key-value pairs)
+            fields: Direct field updates (simple key-value pairs, supports customFields)
             ops: Typed operations (advanced updates with validation)
 
         Returns:
             JSON with updated issue data
         """
         try:
-            if fields:
-                # Simple field updates
-                updated_issue = await self.issues_api.update_issue(
-                    issue_id=issue_id,
-                    summary=fields.get("summary"),
-                    description=fields.get("description")
-                )
-            elif ops:
-                # Typed operations (placeholder for now - would need more complex logic)
-                logger.warning("Typed operations not yet implemented, using simple update")
-                # For now, just update summary if present
-                summary = None
-                for op in ops:
-                    if op.get("field") == "summary" and op.get("op") == "set":
-                        summary = op.get("value")
-                        break
+            updated_issue = None
+            custom_fields_updated = []
 
-                updated_issue = await self.issues_api.update_issue(
-                    issue_id=issue_id,
-                    summary=summary
-                )
+            if fields:
+                # Handle custom fields separately
+                custom_fields = fields.get("customFields", {})
+
+                if custom_fields:
+                    # Update custom fields using the API
+                    await self.issues_api.update_issue_custom_fields(
+                        issue_id=issue_id,
+                        custom_fields=custom_fields
+                    )
+                    custom_fields_updated = list(custom_fields.keys())
+
+                    # Remove customFields from regular fields to avoid double processing
+                    fields_copy = fields.copy()
+                    fields_copy.pop("customFields", None)
+                    fields = fields_copy if fields_copy else None
+
+                # Handle regular field updates
+                if fields:
+                    updated_issue = await self.issues_api.update_issue(
+                        issue_id=issue_id,
+                        summary=fields.get("summary"),
+                        description=fields.get("description")
+                    )
+
+            elif ops:
+                # Typed operations with custom field support
+                logger.warning("Typed operations with custom fields not yet fully implemented")
+
+                # Process operations for custom fields
+                custom_ops = []
+                regular_ops = []
+
+                for op in ops:
+                    field_name = op.get("field", "")
+                    if field_name and not field_name.startswith(("summary", "description", "reporter", "assignee")):
+                        # Assume it's a custom field
+                        custom_ops.append(op)
+                    else:
+                        regular_ops.append(op)
+
+                # Handle custom field operations
+                if custom_ops:
+                    custom_fields_dict = {}
+                    for op in custom_ops:
+                        if op.get("op") == "set":
+                            custom_fields_dict[op.get("field")] = op.get("value")
+
+                    if custom_fields_dict:
+                        await self.issues_api.update_issue_custom_fields(
+                            issue_id=issue_id,
+                            custom_fields=custom_fields_dict
+                        )
+                        custom_fields_updated = list(custom_fields_dict.keys())
+
+                # Handle regular operations
+                if regular_ops:
+                    summary = None
+                    for op in regular_ops:
+                        if op.get("field") == "summary" and op.get("op") == "set":
+                            summary = op.get("value")
+                            break
+
+                    updated_issue = await self.issues_api.update_issue(
+                        issue_id=issue_id,
+                        summary=summary
+                    )
             else:
                 return format_json_response({
                     "error": "Either 'fields' or 'ops' parameter must be provided"
                 })
+
+            # Get the updated issue data for response
+            if not updated_issue:
+                # If we only updated custom fields, get the current issue
+                updated_issue = await self.issues_api.get_issue(issue_id)
 
             # Convert to dict for JSON response
             if hasattr(updated_issue, "model_dump"):
@@ -174,16 +261,28 @@ class CoreIssuesTools:
                 "issue": issue_data,
                 "updated": True,
                 "fields_updated": list(fields.keys()) if fields else [],
-                "ops_applied": len(ops) if ops else 0
+                "custom_fields_updated": custom_fields_updated,
+                "ops_applied": len(ops) if ops else 0,
+                "message": f"Successfully updated issue {issue_id}"
             })
 
+        except (ResourceNotFoundError, AuthenticationError, PermissionDeniedError,
+                ValidationError, RateLimitError, ServerError, YouTrackAPIError) as e:
+            # Use LLM-optimized error response
+            llm_response = error_educator.create_educational_error_response(
+                operation="update_issue",
+                error=e,
+                context={"issue_id": issue_id, "fields": fields, "ops": ops}
+            )
+            return format_json_response(llm_response)
         except Exception as e:
-            logger.exception(f"Error updating issue {issue_id}")
-            return format_json_response({
-                "error": str(e),
-                "error_type": type(e).__name__,
-                "issue_id": issue_id
-            })
+            logger.exception(f"Unexpected error updating issue {issue_id}: {e}")
+            llm_response = error_educator.create_educational_error_response(
+                operation="update_issue",
+                error=e,
+                context={"issue_id": issue_id, "fields": fields, "ops": ops}
+            )
+            return format_json_response(llm_response)
 
     def get_tool_definitions(self) -> Dict[str, Dict[str, Any]]:
         """Get core issues tool definitions."""

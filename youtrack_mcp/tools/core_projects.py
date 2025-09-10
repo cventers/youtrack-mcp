@@ -11,10 +11,20 @@ Implements the 4 core project tools:
 import logging
 from typing import Any, Dict, Optional, List
 
-from youtrack_mcp.api.client import YouTrackClient
+from youtrack_mcp.api.client import (
+    YouTrackClient,
+    YouTrackAPIError,
+    AuthenticationError,
+    PermissionDeniedError,
+    ResourceNotFoundError,
+    ValidationError,
+    ServerError,
+    RateLimitError
+)
 from youtrack_mcp.api.projects import ProjectsClient
 from youtrack_mcp.mcp_wrappers import async_wrapper
 from youtrack_mcp.utils import format_json_response
+from youtrack_mcp.llm_error_responses import create_llm_friendly_error
 
 logger = logging.getLogger(__name__)
 
@@ -57,13 +67,23 @@ class CoreProjectsTools:
                 "include_archived": include_archived
             })
 
+        except (ResourceNotFoundError, AuthenticationError, PermissionDeniedError,
+                ValidationError, RateLimitError, ServerError, YouTrackAPIError) as e:
+            # Use LLM-optimized error response
+            llm_response = create_llm_friendly_error(
+                operation="list_projects",
+                error=e,
+                context={"include_archived": include_archived}
+            )
+            return format_json_response(llm_response)
         except Exception as e:
-            logger.exception("Error listing projects")
-            return format_json_response({
-                "error": str(e),
-                "error_type": type(e).__name__,
-                "include_archived": include_archived
-            })
+            logger.exception("Unexpected error listing projects")
+            llm_response = create_llm_friendly_error(
+                operation="list_projects",
+                error=e,
+                context={"include_archived": include_archived}
+            )
+            return format_json_response(llm_response)
 
     @async_wrapper
     async def get(self, project_id: str, include: Optional[List[str]] = None) -> str:

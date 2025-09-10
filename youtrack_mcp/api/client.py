@@ -7,6 +7,7 @@ from typing import Dict, Any, Optional
 import os
 import json
 import random
+import time
 import httpx
 from urllib.parse import urljoin
 from pydantic import BaseModel, ConfigDict
@@ -92,6 +93,8 @@ class YouTrackClient:
         verify_ssl: Optional[bool] = None,
         max_retries: int = 3,
         retry_delay: float = 1.0,
+        token_ttl_seconds: int = 3600,  # 1 hour default
+        enable_token_refresh: bool = True,
     ):
         """
         Initialize YouTrack API client.
@@ -102,10 +105,15 @@ class YouTrackClient:
             verify_ssl: Whether to verify SSL certificates, defaults to config.VERIFY_SSL
             max_retries: Maximum number of retries for transient errors
             retry_delay: Initial delay between retries in seconds (increases exponentially)
+            token_ttl_seconds: Time-to-live for cached tokens in seconds (default: 1 hour)
+            enable_token_refresh: Whether to enable automatic token refresh (default: True)
         """
         self.base_url = base_url or config.get_base_url()
         self._api_token = api_token  # Store provided token or None
         self._token_loaded = api_token is not None  # Track if token was provided
+        self._token_timestamp = None  # Track when token was loaded
+        self._token_ttl = token_ttl_seconds if token_ttl_seconds != 3600 else config.TOKEN_TTL_SECONDS
+        self._enable_token_refresh = enable_token_refresh if enable_token_refresh else config.ENABLE_TOKEN_REFRESH
         self.verify_ssl = (
             verify_ssl if verify_ssl is not None else config.VERIFY_SSL
         )
@@ -117,19 +125,60 @@ class YouTrackClient:
 
     @property
     def api_token(self) -> str:
-        """Get API token with lazy loading for security."""
-        if not self._token_loaded:
+        """Get API token with lazy loading and time-based refresh for security."""
+        current_time = time.time()
+
+        # Check if token needs to be refreshed
+        if (not self._token_loaded or
+            (self._enable_token_refresh and
+             self._token_timestamp is not None and
+             current_time - self._token_timestamp > self._token_ttl)):
+
+            logger.debug("Refreshing API token (lazy loading or TTL expired)")
             self._api_token = config.get_api_token()
+            self._token_timestamp = current_time
             self._token_loaded = True
+
+            # If httpx client exists, update its authorization header
+            if self.client:
+                self.client.headers["Authorization"] = f"Bearer {self._api_token}"
+
         if self._api_token is None:
             raise ValueError("API token is required")
         return self._api_token
+
+    def refresh_token(self) -> None:
+        """Force refresh of the API token."""
+        logger.debug("Forcing API token refresh")
+        self._token_loaded = False
+        self._token_timestamp = None
+        # Access the property to trigger refresh
+        _ = self.api_token
+
+    def clear_token_cache(self) -> None:
+        """Clear the cached token for security."""
+        logger.debug("Clearing API token cache")
+        self._api_token = None
+        self._token_loaded = False
+        self._token_timestamp = None
+
+    def get_token_info(self) -> Dict[str, Any]:
+        """Get information about the current token state."""
+        return {
+            "token_loaded": self._token_loaded,
+            "token_timestamp": self._token_timestamp,
+            "token_age_seconds": time.time() - self._token_timestamp if self._token_timestamp else None,
+            "token_ttl_seconds": self._token_ttl,
+            "token_refresh_enabled": self._enable_token_refresh,
+            "token_expired": (time.time() - self._token_timestamp > self._token_ttl) if self._token_timestamp else False
+        }
 
         # Initialize httpx client - will be set in async context
         self.client = None
 
         logger.debug(
-            f"YouTrack client initialized for {'YouTrack Cloud' if config.is_cloud_instance() else self.base_url}"
+            f"YouTrack client initialized for {'YouTrack Cloud' if config.is_cloud_instance() else self.base_url} "
+            f"(token TTL: {self._token_ttl}s, refresh: {self._enable_token_refresh})"
         )
 
     def _get_httpx_client(self) -> httpx.AsyncClient:

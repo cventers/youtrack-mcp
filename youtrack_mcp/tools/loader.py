@@ -67,6 +67,8 @@ def load_all_tools() -> Dict[str, Callable]:
     from youtrack_mcp.tools.core_search import CoreSearchTools
     from youtrack_mcp.tools.core_resources import CoreResourcesTools
     from youtrack_mcp.tools.core_ai import CoreAITools
+    # DateTimeTools is not a class, it's a module with functions
+    # We'll handle datetime tools separately if needed
 
     # Initialize core tool classes
     tool_classes = [

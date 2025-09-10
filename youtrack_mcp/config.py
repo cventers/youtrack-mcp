@@ -44,22 +44,25 @@ class Config:
     MAX_RETRIES: int = int(os.getenv("YOUTRACK_MAX_RETRIES", "3"))
     RETRY_DELAY: float = float(os.getenv("YOUTRACK_RETRY_DELAY", "1.0"))
 
+    # Token security configuration
+    TOKEN_TTL_SECONDS: int = int(os.getenv("YOUTRACK_TOKEN_TTL_SECONDS", "3600"))  # 1 hour default
+    ENABLE_TOKEN_REFRESH: bool = os.getenv("YOUTRACK_ENABLE_TOKEN_REFRESH", "true").lower() in (
+        "true", "1", "yes"
+    )
+
     # MCP Server configuration
     MCP_SERVER_NAME: str = os.getenv("MCP_SERVER_NAME", "youtrack-mcp")
     MCP_SERVER_DESCRIPTION: str = os.getenv(
         "MCP_SERVER_DESCRIPTION", "YouTrack MCP Server"
     )
     MCP_DEBUG: bool = os.getenv("MCP_DEBUG", "false").lower() in (
-        "true",
-        "1",
-        "yes",
+        "true", "1", "yes",
     )
     MCP_PARAM_REPAIR: bool = os.getenv("MCP_PARAM_REPAIR", "false").lower() in (
-        "true",
-        "1",
-        "yes",
+        "true", "1", "yes",
     )
     MCP_TRANSPORT: str = os.getenv("MCP_TRANSPORT", "stdio")
+    MCP_TIMEOUT: int = int(os.getenv("MCP_TIMEOUT", "15000"))  # Default 15 seconds
     YOUTRACK_CAPS: str = os.getenv("YOUTRACK_CAPS", "")
 
     # OpenAI Configuration

@@ -64,10 +64,12 @@ class StructuredLogger:
         if self.use_structlog:
             # Use structlog for structured logging
             log_method = getattr(self.logger, level, self.logger.info)
+            # Remove 'service' from kwargs if it exists to avoid conflicts
+            kwargs_no_service = {k: v for k, v in kwargs.items() if k != 'service'}
             log_method(
                 redacted_message,
                 service="youtrack-mcp",
-                **kwargs
+                **kwargs_no_service
             )
         else:
             # Fallback to standard logging with JSON
@@ -120,11 +122,73 @@ class YouTrackMCPServer:
             instructions=config.MCP_SERVER_DESCRIPTION,
         )
 
+        # Set MCP timeout from environment if specified
+        if hasattr(config, 'MCP_TIMEOUT') and config.MCP_TIMEOUT:
+            # Store timeout for potential use in server operations
+            self._mcp_timeout = config.MCP_TIMEOUT / 1000.0  # Convert ms to seconds
+            logger.info(f"MCP timeout set to {self._mcp_timeout}s ({config.MCP_TIMEOUT}ms)")
+        else:
+            self._mcp_timeout = 15.0  # Default 15 seconds
+
         # Initialize tool registry
         self._tools: Dict[str, Callable] = {}
 
         # Keep track of registered tool names to prevent duplication
         self._registered_tools = set()
+
+        # Register MCP Resources
+        self._register_resources()
+
+    def _register_resources(self) -> None:
+        """Register MCP Resources with the server."""
+        try:
+            # Import resource handlers
+            from youtrack_mcp.mcp_resources import (
+                handle_query_syntax_resource,
+                handle_project_fields_resource,
+                handle_projects_list_resource,
+                handle_users_directory_resource
+            )
+
+            # Register resources with FastMCP
+            # Note: FastMCP may use different method names, checking common patterns
+            if hasattr(self.server, 'add_resource'):
+                # Standard MCP resource registration
+                self.server.add_resource(
+                    uri="youtrack://query-syntax",
+                    name="YouTrack Query Syntax Guide",
+                    description="Complete reference for YouTrack Query Language (YQL) syntax",
+                    handler=handle_query_syntax_resource
+                )
+
+                self.server.add_resource(
+                    uri="youtrack://projects",
+                    name="YouTrack Projects List",
+                    description="List of all available projects with metadata",
+                    handler=handle_projects_list_resource
+                )
+
+                self.server.add_resource(
+                    uri="youtrack://users",
+                    name="YouTrack Users Directory",
+                    description="Directory of all users with login names and metadata",
+                    handler=handle_users_directory_resource
+                )
+
+                # Dynamic resource for project fields
+                self.server.add_resource(
+                    uri="youtrack://project/{project_id}/fields",
+                    name="Project Custom Fields",
+                    description="Available custom fields for a specific project",
+                    handler=handle_project_fields_resource
+                )
+
+                logger.info("Registered 4 MCP Resources with server")
+            else:
+                logger.warning("FastMCP server does not support add_resource method - resources not registered")
+
+        except Exception as e:
+            logger.warning(f"Failed to register MCP Resources: {e}")
 
     def _generate_tool_schema(
         self,
@@ -933,17 +997,39 @@ class YouTrackMCPServer:
                 should_stream=should_stream,
             )
 
+    async def _run_stdio_with_fast_handshake(self) -> None:
+        """Run stdio server with fast handshake (immediate flush)."""
+        import sys
+        import os
+
+        # Ensure stdout is unbuffered for fast handshake
+        try:
+            if hasattr(sys.stdout, 'reconfigure'):
+                sys.stdout.reconfigure(line_buffering=True)
+        except (AttributeError, OSError):
+            # Fallback for older Python versions or when reconfigure is not available
+            try:
+                sys.stdout = os.fdopen(sys.stdout.fileno(), 'w', buffering=1)
+            except (AttributeError, OSError):
+                # If all else fails, just continue with default buffering
+                pass
+
+        logger.info("Fast handshake enabled: stdout configured for immediate flushing")
+
+        # Use the standard FastMCP stdio method
+        await self.server.run_stdio_async()
+
     def run(self) -> None:
         """Run the MCP server."""
         logger.info(
             f"Starting YouTrack MCP server ({config.MCP_SERVER_NAME}) with {self.transport_mode} transport"
         )
-        
+
         # FastMCP has different run methods for different transports
         if self.transport_mode == "stdio":
-            # For stdio, use run_stdio_async
+            # Use custom stdio with fast handshake
             import asyncio
-            asyncio.run(self.server.run_stdio_async())
+            asyncio.run(self._run_stdio_with_fast_handshake())
         else:
             # For HTTP/SSE transport
             self.server.run()
