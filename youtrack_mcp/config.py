@@ -16,6 +16,14 @@ except ImportError:
     # dotenv is not required
     pass
 
+# Optional import for YAML support
+try:
+    import yaml
+    YAML_AVAILABLE = True
+except ImportError:
+    YAML_AVAILABLE = False
+    yaml = None
+
 
 class Config:
     """Configuration settings for YouTrack MCP server."""
@@ -201,6 +209,87 @@ class Config:
                 setattr(cls, key, value)
 
     @classmethod
+    def load_from_yaml(cls, yaml_file: str) -> None:
+        """
+        Load configuration from a YAML file.
+
+        Args:
+            yaml_file: Path to the YAML configuration file
+
+        Raises:
+            ImportError: If PyYAML is not installed
+            FileNotFoundError: If the YAML file doesn't exist
+            ValueError: If the YAML file is invalid
+        """
+        if not YAML_AVAILABLE:
+            raise ImportError(
+                "PyYAML is required to load YAML configuration files. "
+                "Install it with: pip install PyYAML"
+            )
+
+        if not os.path.exists(yaml_file):
+            raise FileNotFoundError(f"YAML configuration file not found: {yaml_file}")
+
+        try:
+            with open(yaml_file, 'r', encoding='utf-8') as f:
+                yaml_config = yaml.safe_load(f)
+
+            if yaml_config is None:
+                raise ValueError(f"YAML file is empty or invalid: {yaml_file}")
+
+            # Flatten nested YAML structure to match Config class attributes
+            flattened_config = cls._flatten_yaml_config(yaml_config)
+
+            # Update configuration from flattened dictionary
+            cls.from_dict(flattened_config)
+
+        except yaml.YAMLError as e:
+            raise ValueError(f"Invalid YAML file {yaml_file}: {e}")
+
+    @classmethod
+    def _flatten_yaml_config(cls, yaml_config: Dict[str, Any], prefix: str = "") -> Dict[str, Any]:
+        """
+        Flatten nested YAML configuration to match Config class attribute names.
+
+        Args:
+            yaml_config: Nested YAML configuration dictionary
+            prefix: Current prefix for nested keys
+
+        Returns:
+            Flattened dictionary with Config class attribute names
+        """
+        flattened = {}
+
+        for key, value in yaml_config.items():
+            # Convert YAML key to uppercase Config attribute name
+            config_key = key.upper()
+
+            if isinstance(value, dict):
+                # Recursively flatten nested dictionaries
+                nested_flattened = cls._flatten_yaml_config(value, config_key)
+                flattened.update(nested_flattened)
+            else:
+                # Handle special cases for nested keys
+                if prefix:
+                    # For nested keys, combine prefix with key
+                    if prefix == "YOUTRACK":
+                        # Direct mapping for youtrack section
+                        config_key = f"YOUTRACK_{config_key}"
+                    elif prefix == "MCP":
+                        config_key = f"MCP_{config_key}"
+                    elif prefix == "API":
+                        if config_key in ["MAX_RETRIES", "RETRY_DELAY"]:
+                            config_key = f"YOUTRACK_{config_key}"
+                        else:
+                            config_key = f"YOUTRACK_API_{config_key}"
+                    else:
+                        config_key = f"{prefix}_{config_key}"
+
+                flattened[config_key] = value
+
+        return flattened
+
+    @classmethod
     def get_api_token(cls) -> str:
         """
         Get the API token from environment variable or token file with lazy loading.
@@ -228,6 +317,10 @@ class Config:
                 raise ValueError(
                     f"Could not read token file {token_file}: {e}"
                 )
+
+        # Finally try config attribute
+        if hasattr(cls, 'YOUTRACK_API_TOKEN') and cls.YOUTRACK_API_TOKEN:
+            return cls.YOUTRACK_API_TOKEN
 
         raise ValueError(
             "YouTrack API token is required. Provide it using YOUTRACK_API_TOKEN environment variable, "

@@ -197,10 +197,38 @@ async def list_tools():
     return {"tools": tool_definitions}
 
 def load_config():
-    """Load configuration from environment variables or file."""
+    """Load configuration from environment variables, YAML file, or defaults."""
+    # First, try to load from YAML file if specified
+    yaml_file = os.getenv("YOUTRACK_CONFIG_FILE", "")
+    if not yaml_file:
+        # Try configuration file locations in priority order
+        possible_files = [
+            "./local/youtrack-mcp.yaml",      # Project local config (highest priority)
+            "./local/youtrack-mcp.yml",
+            os.path.expanduser("~/.config/youtrack-mcp.yaml"),  # User config
+            os.path.expanduser("~/.config/youtrack-mcp.yml"),
+            "./youtrack-mcp-config.yaml",     # Project root config
+            "./config.yaml",
+            "./youtrack-mcp.yaml",
+            "/etc/youtrack-mcp/config.yaml"   # System config (lowest priority)
+        ]
+        for possible_file in possible_files:
+            if os.path.exists(possible_file):
+                yaml_file = possible_file
+                logger.info(f"Found configuration file: {yaml_file}")
+                break
+
+    if yaml_file:
+        try:
+            logger.info(f"Loading configuration from YAML file: {yaml_file}")
+            Config.load_from_yaml(yaml_file)
+        except Exception as e:
+            logger.warning(f"Failed to load YAML configuration from {yaml_file}: {e}")
+            logger.info("Falling back to environment variables and defaults")
+
     # Environment variables have higher priority than config file
     env_config = {}
-    
+
     # Extract config variables from environment
     for key in dir(Config):
         if key.isupper() and not key.startswith("_"):
@@ -211,12 +239,12 @@ def load_config():
                 if env_value.lower() in ("true", "false"):
                     env_value = env_value.lower() == "true"
                 env_config[key] = env_value
-    
+
     # Create config instance from environment variables
     if env_config:
         logger.info("Loading configuration from environment variables")
         Config.from_dict(env_config)
-    
+
     # Ensure token is properly formatted for YouTrack Cloud
     if config.YOUTRACK_API_TOKEN and not config.YOUTRACK_API_TOKEN.startswith(("perm:", "perm-")):
         # Check if we need to add the perm- prefix
@@ -379,4 +407,4 @@ def main():
         server.run()
 
 if __name__ == "__main__":
-    main() 
+    main()
