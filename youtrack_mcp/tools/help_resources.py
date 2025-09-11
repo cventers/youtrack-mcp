@@ -115,8 +115,8 @@ class HelpResources:
                 },
                 "patch": {
                     "title": "Update Issue",
-                    "description": "Update issue properties using simple fields or typed operations",
-                    "syntax": "issues.patch(issue_id='PROJECT-123', fields={'summary': 'New title'})",
+                    "description": "Update issue with /fields/<FieldName> subpath support and schema-aware coercion",
+                    "syntax": "issues.patch(issue_id='PROJECT-123', fields={'Type': 'Bug', 'Priority': 'High'})",
                     "parameters": {
                         "issue_id": {
                             "type": "string",
@@ -125,24 +125,33 @@ class HelpResources:
                         },
                         "fields": {
                             "type": "dict",
-                            "description": "Simple field updates (summary, description)",
+                            "description": "Simple field updates with custom field support",
                             "required": False
                         },
                         "ops": {
                             "type": "list",
-                            "description": "Typed operations for complex updates",
+                            "description": "Typed operations with /fields/<FieldName> subpaths",
                             "required": False
                         }
                     },
                     "examples": [
                         "issues.patch('DEMO-123', fields={'summary': 'Updated title'})",
-                        "issues.patch('PROJECT-456', fields={'description': 'More details'})",
-                        "issues.patch('BUG-789', ops=[{'op': 'set', 'field': 'state', 'value': 'Fixed'}])"
+                        "issues.patch('PROJECT-456', fields={'Type': 'Bug', 'Priority': 'High'})",
+                        "issues.patch('BUG-789', ops=[{'op': 'set', 'path': '/fields/Type', 'value': 'Feature'}])"
                     ],
+                    "response": {
+                        "issue": "Updated issue data",
+                        "updated": True,
+                        "regular_fields_updated": ["summary"],
+                        "custom_fields_updated": ["Type", "Priority"],
+                        "total_fields_updated": 3,
+                        "message": "Successfully updated issue DEMO-123"
+                    },
                     "notes": [
+                        "Supports both friendly fields{} and /fields/<FieldName> subpath formats",
+                        "Custom fields are schema-aware with validation",
                         "Either 'fields' or 'ops' parameter must be provided",
-                        "Typed operations support complex field updates",
-                        "Returns updated issue data"
+                        "Returns detailed update summary"
                     ]
                 }
             },

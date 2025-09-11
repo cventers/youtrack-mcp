@@ -161,13 +161,13 @@ class CoreIssuesTools:
         Primary writer with typed operations and custom field support.
 
         FORMAT: issues.patch(issue_id="PROJECT-123", fields={"summary": "New title"})
-        FORMAT: issues.patch(issue_id="PROJECT-123", ops=[{"op": "set", "field": "state", "value": "Fixed"}])
-        FORMAT: issues.patch(issue_id="PROJECT-123", fields={"customFields": {"Priority": "High", "Story Points": 5}})
+        FORMAT: issues.patch(issue_id="PROJECT-123", ops=[{"op": "set", "path": "/fields/Type", "value": "Bug"}])
+        FORMAT: issues.patch(issue_id="PROJECT-123", fields={"Type": "Bug", "Priority": "High"})
 
         Args:
             issue_id: Issue ID or readable ID
-            fields: Direct field updates (simple key-value pairs, supports customFields)
-            ops: Typed operations (advanced updates with validation)
+            fields: Direct field updates (simple key-value pairs, supports custom fields)
+            ops: Typed operations with /fields/<FieldName> subpath support
 
         Returns:
             JSON with updated issue data
@@ -175,75 +175,68 @@ class CoreIssuesTools:
         try:
             updated_issue = None
             custom_fields_updated = []
+            regular_fields_updated = []
 
-            if fields:
-                # Handle custom fields separately
-                custom_fields = fields.get("customFields", {})
+            # Handle friendly fields{} format - convert to ops format internally
+            if fields and not ops:
+                ops = []
+                for field_name, value in fields.items():
+                    if field_name in ["summary", "description"]:
+                        # Regular fields
+                        ops.append({
+                            "op": "set",
+                            "path": f"/fields/{field_name}",
+                            "value": value
+                        })
+                    else:
+                        # Custom fields
+                        ops.append({
+                            "op": "set",
+                            "path": f"/fields/{field_name}",
+                            "value": value
+                        })
 
-                if custom_fields:
-                    # Update custom fields using the API
-                    await self.issues_api.update_issue_custom_fields(
-                        issue_id=issue_id,
-                        custom_fields=custom_fields
-                    )
-                    custom_fields_updated = list(custom_fields.keys())
-
-                    # Remove customFields from regular fields to avoid double processing
-                    fields_copy = fields.copy()
-                    fields_copy.pop("customFields", None)
-                    fields = fields_copy if fields_copy else None
-
-                # Handle regular field updates
-                if fields:
-                    updated_issue = await self.issues_api.update_issue(
-                        issue_id=issue_id,
-                        summary=fields.get("summary"),
-                        description=fields.get("description")
-                    )
-
-            elif ops:
-                # Typed operations with custom field support
-                logger.warning("Typed operations with custom fields not yet fully implemented")
-
-                # Process operations for custom fields
-                custom_ops = []
-                regular_ops = []
+            if ops:
+                # Process typed operations with /fields/<FieldName> support
+                custom_fields_dict = {}
+                regular_updates = {}
 
                 for op in ops:
-                    field_name = op.get("field", "")
-                    if field_name and not field_name.startswith(("summary", "description", "reporter", "assignee")):
-                        # Assume it's a custom field
-                        custom_ops.append(op)
-                    else:
-                        regular_ops.append(op)
+                    path = op.get("path", "")
+                    value = op.get("value")
+                    operation = op.get("op", "set")
 
-                # Handle custom field operations
-                if custom_ops:
-                    custom_fields_dict = {}
-                    for op in custom_ops:
-                        if op.get("op") == "set":
-                            custom_fields_dict[op.get("field")] = op.get("value")
+                    if operation != "set":
+                        continue  # Only support set operations for now
 
-                    if custom_fields_dict:
-                        await self.issues_api.update_issue_custom_fields(
-                            issue_id=issue_id,
-                            custom_fields=custom_fields_dict
-                        )
-                        custom_fields_updated = list(custom_fields_dict.keys())
+                    if path.startswith("/fields/"):
+                        field_name = path[8:]  # Remove "/fields/" prefix
 
-                # Handle regular operations
-                if regular_ops:
-                    summary = None
-                    for op in regular_ops:
-                        if op.get("field") == "summary" and op.get("op") == "set":
-                            summary = op.get("value")
-                            break
+                        if field_name in ["summary", "description"]:
+                            # Regular fields
+                            regular_updates[field_name] = value
+                            regular_fields_updated.append(field_name)
+                        else:
+                            # Custom fields - use IssuesClient builders for schema-aware coercion
+                            custom_fields_dict[field_name] = value
+                            custom_fields_updated.append(field_name)
 
+                # Apply regular field updates
+                if regular_updates:
                     updated_issue = await self.issues_api.update_issue(
                         issue_id=issue_id,
-                        summary=summary
+                        summary=regular_updates.get("summary"),
+                        description=regular_updates.get("description")
                     )
-            else:
+
+                # Apply custom field updates with schema-aware processing
+                if custom_fields_dict:
+                    await self.issues_api.update_issue_custom_fields(
+                        issue_id=issue_id,
+                        custom_fields=custom_fields_dict
+                    )
+
+            elif not fields:
                 return format_json_response({
                     "error": "Either 'fields' or 'ops' parameter must be provided"
                 })
@@ -262,8 +255,9 @@ class CoreIssuesTools:
             return format_json_response({
                 "issue": issue_data,
                 "updated": True,
-                "fields_updated": list(fields.keys()) if fields else [],
+                "regular_fields_updated": regular_fields_updated,
                 "custom_fields_updated": custom_fields_updated,
+                "total_fields_updated": len(regular_fields_updated) + len(custom_fields_updated),
                 "ops_applied": len(ops) if ops else 0,
                 "message": f"Successfully updated issue {issue_id}"
             })
@@ -298,7 +292,7 @@ class CoreIssuesTools:
                 "function": self.create
             },
             "issues.patch": {
-                "description": "Update issue fields and properties",
+                "description": "Update issue with /fields/<FieldName> support",
                 "function": self.patch
             }
         }
