@@ -14,72 +14,7 @@ from youtrack_mcp.mcp_wrappers import create_bound_tool
 # Set up logger
 logger = logging.getLogger(__name__)
 
-# Router mappings for backward compatibility
-ROUTER_MAPPINGS = {
-    "projects.custom_fields": {
-        "target_tool": "projects.schema",
-        "deprecation_message": "projects.custom_fields() is deprecated. Use projects.schema() for comprehensive field schemas",
-        "parameter_mapping": lambda project_id: {"project_id": project_id},
-        "response_mapping": lambda response: response
-    },
-    "issues.custom_fields.update_custom_fields": {
-        "target_tool": "issues.patch",
-        "deprecation_message": "issues.custom_fields.update_custom_fields() is deprecated. Use issues.patch() with fields{} parameter",
-        "parameter_mapping": lambda issue_id, custom_fields: {
-            "issue_id": issue_id,
-            "fields": custom_fields
-        },
-        "response_mapping": lambda response: response
-    }
-}
 
-# Track which deprecation warnings have been logged (one-time per process)
-DEPRECATED_TOOLS_LOGGED = set()
-
-def log_deprecation_once(tool_name: str, message: str):
-    """Log deprecation warning once per process for each tool."""
-    if tool_name not in DEPRECATED_TOOLS_LOGGED:
-        logger.warning(f"DEPRECATED TOOL: {message}")
-        DEPRECATED_TOOLS_LOGGED.add(tool_name)
-
-def create_router_wrapper(legacy_tool_name: str, target_tool_func: Callable) -> Callable:
-    """Create a wrapper function that routes legacy tool calls to new implementations."""
-    mapping = ROUTER_MAPPINGS.get(legacy_tool_name)
-    if not mapping:
-        raise ValueError(f"No router mapping found for legacy tool: {legacy_tool_name}")
-
-    async def router_wrapper(*args, **kwargs):
-        # Log deprecation warning (once per process)
-        log_deprecation_once(legacy_tool_name, mapping["deprecation_message"])
-
-        # Map parameters from legacy format to new format
-        try:
-            new_kwargs = mapping["parameter_mapping"](*args, **kwargs)
-        except Exception as e:
-            logger.error(f"Parameter mapping failed for {legacy_tool_name}: {e}")
-            new_kwargs = kwargs
-
-        # Call the target tool
-        try:
-            result = await target_tool_func(**new_kwargs)
-            return result
-        except Exception as e:
-            logger.exception(f"Error routing {legacy_tool_name} to {mapping['target_tool']}: {e}")
-            import json
-            error_response = {
-                "error": str(e),
-                "error_type": type(e).__name__,
-                "_deprecation": {
-                    "tool": legacy_tool_name,
-                    "message": mapping["deprecation_message"],
-                    "use_instead": mapping["target_tool"]
-                }
-            }
-            return json.dumps(error_response)
-
-    router_wrapper.__name__ = f"router_{legacy_tool_name.replace('.', '_')}"
-    router_wrapper.__doc__ = f"Router for deprecated tool {legacy_tool_name}"
-    return router_wrapper
 
 # Define priority classes for resolving duplicates
 TOOL_PRIORITY = {
@@ -111,12 +46,12 @@ def load_all_tools() -> Dict[str, Callable]:
     """
     Load all tools from the youtrack_mcp.tools package.
 
-    This function loads the 12 core tools for the minimal tool surface refactor.
-    The core tools provide a lossless but much more efficient interface.
+    This function loads the 12 core tools for the minimal tool surface.
+    No legacy tools are included - only the modern, efficient interface.
 
     Available core tools:
     - issues.get, issues.create, issues.patch (from CoreIssuesTools)
-    - projects.list, projects.get, projects.patch, projects.create (from CoreProjectsTools)
+    - projects.list, projects.get, projects.schema, projects.patch, projects.create (from CoreProjectsTools)
     - users.search (from CoreUsersTools)
     - search.query, search.autosearch (from CoreSearchTools)
     - ai.plan (from CoreAITools)
@@ -175,17 +110,8 @@ def load_all_tools() -> Dict[str, Callable]:
                 tools[tool_name] = bound_tool
                 logger.debug(f"Registered tool '{tool_name}' from {display_name}")
 
-    # Add legacy tools with router wrappers for backward compatibility
-    for legacy_tool_name, mapping in ROUTER_MAPPINGS.items():
-        target_tool_name = mapping["target_tool"]
-        if target_tool_name in tools:
-            target_tool_func = tools[target_tool_name]
-            router_wrapper = create_router_wrapper(legacy_tool_name, target_tool_func)
-            tools[legacy_tool_name] = router_wrapper
-            logger.debug(f"Added router wrapper for legacy tool '{legacy_tool_name}' -> '{target_tool_name}'")
-
-    # Log total number of tools loaded (including legacy routers)
-    logger.info(f"Loader registered {len(tools)} tools (minimal surface + legacy routers)")
+    # Log total number of core tools loaded
+    logger.info(f"Loader registered {len(tools)} core tools (minimal surface)")
 
     return tools
 

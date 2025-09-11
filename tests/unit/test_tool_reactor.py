@@ -172,73 +172,14 @@ class TestIssuesPatchFieldsSupport:
         )
 
 
-class TestRouterBackwardCompatibility:
-    """Test router functionality for backward compatibility."""
 
-    @pytest.fixture
-    def mock_target_tool(self):
-        """Create a mock target tool function."""
-        async def mock_tool(**kwargs):
-            return json.dumps({"result": "success", **kwargs})
-        return mock_tool
-
-    def test_router_mappings_exist(self):
-        """Test that router mappings are properly defined."""
-        from youtrack_mcp.tools.loader import ROUTER_MAPPINGS
-
-        assert "projects.custom_fields" in ROUTER_MAPPINGS
-        assert "issues.custom_fields.update_custom_fields" in ROUTER_MAPPINGS
-
-        # Check projects.custom_fields mapping
-        mapping = ROUTER_MAPPINGS["projects.custom_fields"]
-        assert mapping["target_tool"] == "projects.schema"
-        assert "deprecation_message" in mapping
-        assert callable(mapping["parameter_mapping"])
-
-        # Check issues.custom_fields.update_custom_fields mapping
-        mapping = ROUTER_MAPPINGS["issues.custom_fields.update_custom_fields"]
-        assert mapping["target_tool"] == "issues.patch"
-        assert "deprecation_message" in mapping
-        assert callable(mapping["parameter_mapping"])
-
-    @pytest.mark.asyncio
-    async def test_router_wrapper_functionality(self, mock_target_tool):
-        """Test that router wrapper correctly routes calls."""
-        from youtrack_mcp.tools.loader import create_router_wrapper
-
-        # Create router wrapper
-        wrapper = create_router_wrapper("projects.custom_fields", mock_target_tool)
-
-        # Test parameter mapping
-        result = await wrapper(project_id="TEST_PROJECT")
-        result_data = json.loads(result)
-
-        assert result_data["result"] == "success"
-        assert result_data["project_id"] == "TEST_PROJECT"
-
-    @pytest.mark.asyncio
-    async def test_router_deprecation_logging(self, mock_target_tool, caplog):
-        """Test that deprecation warnings are logged once per process."""
-        from youtrack_mcp.tools.loader import create_router_wrapper
-
-        wrapper = create_router_wrapper("projects.custom_fields", mock_target_tool)
-
-        # First call should log deprecation
-        await wrapper(project_id="TEST_PROJECT")
-        assert "DEPRECATED TOOL" in caplog.text
-        assert "projects.custom_fields() is deprecated" in caplog.text
-
-        # Second call should not log again (one-time per process)
-        caplog.clear()
-        await wrapper(project_id="TEST_PROJECT2")
-        assert "DEPRECATED TOOL" not in caplog.text
 
 
 class TestToolLoaderIntegration:
     """Test that the tool loader properly integrates router functionality."""
 
-    def test_load_all_tools_includes_legacy_tools(self):
-        """Test that load_all_tools includes legacy tools via router."""
+    def test_load_all_tools_core_only(self):
+        """Test that load_all_tools includes only core tools (no legacy)."""
         with patch('youtrack_mcp.tools.core_projects.CoreProjectsTools'), \
              patch('youtrack_mcp.tools.core_issues.CoreIssuesTools'), \
              patch('youtrack_mcp.tools.core_users.CoreUsersTools'), \
@@ -248,28 +189,15 @@ class TestToolLoaderIntegration:
 
             tools = load_all_tools()
 
-            # Check that new tools are present
+            # Check that core tools are present
             assert "projects.schema" in tools
             assert "issues.patch" in tools
+            assert "projects.get" in tools
+            assert "issues.get" in tools
 
-            # Check that legacy tools are present (via router)
-            assert "projects.custom_fields" in tools
-            assert "issues.custom_fields.update_custom_fields" in tools
-
-    def test_legacy_tools_are_router_wrappers(self):
-        """Test that legacy tools are actually router wrapper functions."""
-        with patch('youtrack_mcp.tools.core_projects.CoreProjectsTools'), \
-             patch('youtrack_mcp.tools.core_issues.CoreIssuesTools'), \
-             patch('youtrack_mcp.tools.core_users.CoreUsersTools'), \
-             patch('youtrack_mcp.tools.core_search.CoreSearchTools'), \
-             patch('youtrack_mcp.tools.core_resources.CoreResourcesTools'), \
-             patch('youtrack_mcp.tools.core_ai.CoreAITools'):
-
-            tools = load_all_tools()
-
-            # Check function names indicate they are router wrappers
-            legacy_tool = tools["projects.custom_fields"]
-            assert "router" in legacy_tool.__name__
+            # Check that legacy tools are NOT present
+            assert "projects.custom_fields" not in tools
+            assert "issues.custom_fields.update_custom_fields" not in tools
 
 
 class TestSchemaSizeBudget:

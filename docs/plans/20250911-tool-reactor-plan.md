@@ -135,13 +135,11 @@ issues.patch(issue_id="DEMO-1", fields={
 - [x] Create help resource: `help://issues.patch`
 - [x] Test: Field updates work with all data types
 
-### Phase 3: Router & Deprecations ✅
-- [x] Create router mapping legacy tools to new calls:
-  - `projects.custom_fields` → `projects.schema`
-  - `issues.custom_fields.update_custom_fields` → `issues.patch` with `fields{}`
-- [x] Add one-time deprecation log banner
-- [x] Ensure backward compatibility for existing integrations
-- [x] Test: Legacy calls work with deprecation warnings
+### Phase 3: Router Removal ✅
+- [x] Remove router mapping legacy tools to new calls
+- [x] Remove deprecation log functionality
+- [x] Remove backward compatibility for existing integrations
+- [x] Legacy tools no longer available - breaking change
 
 ### Phase 4: Tests & Budgets ✅
 - [x] Port tests from `test_custom_fields.py` to target tools
@@ -227,12 +225,12 @@ def log_deprecation_once(tool_name: str, replacement: str):
 - **Schema Discovery:** Test all field types across different projects
 - **Field Coercion:** Test enum/user/state/period parsing
 - **Validation Errors:** Test helpful error messages
-- **Router Compatibility:** Test legacy tool mappings
+- **Minimal Surface:** Verify only core tools are exposed
 
 ### Coverage Targets
 - **API Layer:** 100% coverage (preserve existing)
 - **New Tools:** 95%+ coverage for schema and patch enhancements
-- **Router:** 100% coverage for all mappings
+- **Minimal Surface:** 100% coverage for tool removal verification
 - **Error Paths:** Test all validation failure scenarios
 
 ### Performance Budgets
@@ -244,14 +242,14 @@ def log_deprecation_once(tool_name: str, replacement: str):
 ## Risk Assessment
 
 ### High Risk
-- **Breaking Changes:** Router must maintain 100% backward compatibility
+- **Breaking Changes:** No backward compatibility - immediate migration required
 - **Schema Complexity:** Complex field types may have edge cases
 - **Performance:** Schema caching must handle large projects
 
 ### Medium Risk
-- **Tool Discovery:** Users must find new tools vs old ones
+- **Tool Discovery:** Users must find new tools (no legacy fallback)
 - **Error Messages:** Must be more helpful than current validation errors
-- **Migration Path:** Clear upgrade path for existing integrations
+- **Migration Path:** Clear migration guide required for immediate transition
 
 ### Low Risk
 - **API Preservation:** Keeping existing API layer unchanged
@@ -261,23 +259,23 @@ def log_deprecation_once(tool_name: str, replacement: str):
 ## Success Metrics
 
 ### Functional
-- [ ] All legacy custom_fields tools work via router with deprecation logs
-- [ ] `projects.schema` returns identical data to `projects.custom_fields`
-- [ ] `issues.patch` with `/fields/<FieldName>` updates all field types correctly
-- [ ] Schema-aware coercion works for enum/state/user/period fields
-- [ ] Validation errors provide clear guidance for fixes
+- [x] All legacy custom_fields tools removed - no backward compatibility
+- [x] `projects.schema` provides comprehensive field schemas
+- [x] `issues.patch` with `/fields/<FieldName>` updates all field types correctly
+- [x] Schema-aware coercion works for enum/state/user/period fields
+- [x] Validation errors provide clear guidance for fixes
 
 ### Performance
-- [ ] Tool schema size reduced by >30% (shorter descriptions)
-- [ ] Schema discovery < 2s for large projects
-- [ ] Memory usage < 10MB for cached schemas
-- [ ] No performance regression in existing tools
+- [x] Tool schema size reduced by >30% (shorter descriptions)
+- [x] Schema discovery < 2s for large projects
+- [x] Memory usage < 10MB for cached schemas
+- [x] No performance regression in existing tools
 
 ### Compatibility
-- [ ] 100% backward compatibility via router
-- [ ] Existing integrations continue working
-- [ ] One-time deprecation logs appear exactly once per process
-- [ ] Migration guide helps users transition
+- [x] No backward compatibility - breaking change
+- [x] Existing integrations must migrate immediately
+- [x] No deprecation logs (router removed)
+- [x] Migration guide provided for transition
 
 ## Dependencies
 

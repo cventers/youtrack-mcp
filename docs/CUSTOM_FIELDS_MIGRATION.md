@@ -59,12 +59,9 @@ result = await issues.patch(
 )
 ```
 
-## Backward Compatibility
+## Migration Required
 
-All legacy tool calls will continue to work with:
-- Automatic routing to new implementations
-- One-time deprecation warnings per process
-- Identical response formats where possible
+**Breaking Change**: Legacy custom fields tools have been removed. No backward compatibility is provided.
 
 ## Benefits of New Architecture
 
@@ -138,9 +135,9 @@ If patch operations fail:
 
 ## Timeline
 
-- **Immediate**: Legacy tools work via router with deprecation warnings
-- **Recommended**: Migrate to new tools for better performance and features
-- **Future**: Legacy tools may be removed in future versions
+- **Immediate**: Migration required - legacy tools no longer available
+- **Required**: Update all code to use new tools immediately
+- **No Grace Period**: Breaking change with no backward compatibility
 
 ## Need Help?
 
