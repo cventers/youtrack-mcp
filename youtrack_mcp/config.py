@@ -62,8 +62,6 @@ class Config:
     MCP_DEBUG: bool = os.getenv("MCP_DEBUG", "false").lower() in (
         "true", "1", "yes",
     )
-        "true", "1", "yes",
-    )
     MCP_TRANSPORT: str = os.getenv("MCP_TRANSPORT", "stdio")
     MCP_TIMEOUT: int = int(os.getenv("MCP_TIMEOUT", "15000"))  # Default 15 seconds
     YOUTRACK_CAPS: str = os.getenv("YOUTRACK_CAPS", "")
@@ -231,8 +229,6 @@ class Config:
         "MCP_SERVER_DESCRIPTION", "YouTrack MCP Server"
     )
     MCP_DEBUG: bool = os.getenv("MCP_DEBUG", "false").lower() in (
-        "true", "1", "yes",
-    )
         "true", "1", "yes",
     )
     MCP_TRANSPORT: str = os.getenv("MCP_TRANSPORT", "stdio")
