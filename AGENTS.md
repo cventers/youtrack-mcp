@@ -313,7 +313,7 @@ result = call_tool({
 - **Extra properties**: Rejected with `additionalProperties: false`
 
 ### Environment Flags
-- `MCP_PARAM_REPAIR=true`: Enable legacy router for backward compatibility
+
 - Default: Strict validation only (legacy router disabled)
 
 ### Benefits

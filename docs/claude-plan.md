@@ -7,7 +7,7 @@ The YouTrack MCP server currently exports a sprawling surface of 50+ tools acros
 
 ### Why This Change
 - **Context Efficiency**: Reduce serialized tool schema from ~40KB to <15KB
-- **Reliability**: Eliminate ambiguous tool selection and parameter auto-repair
+- **Reliability**: Eliminate ambiguous tool selection with strict JSON schema validation
 - **Clarity**: One clear path for each operation instead of multiple overlapping tools
 - **Safety**: Explicit write operations with validation and confirmation
 
@@ -330,11 +330,11 @@ def plan(
    - Return candidates on ambiguity
    - Test: `test_project_resolution.py`
 
-5. **Parameter repair gating** (2h)
-   - Add MCP_PARAM_REPAIR env flag
-   - Log all parameter repairs
-   - Default to disabled
-   - Test: `test_param_repair.py`
+ 5. **Legacy compatibility removal** (2h)
+    - Remove MCP_PARAM_REPAIR env flag
+    - Remove legacy router and backward compatibility
+    - Enforce strict JSON schema validation only
+    - Test: `test_strict_validation.py`
 
 ### Phase 1: Introduce Core-15 Facades
 **Duration**: 3-4 days  
@@ -518,7 +518,7 @@ def plan(
 | Remove placeholders | TBD | 2h | test_no_placeholders.py | No mock returns |
 | Add provider gates | TBD | 2h | test_provider_gating.py | Clear error messages |
 | Fix project resolution | TBD | 4h | test_project_resolution.py | Exact match first |
-| Gate param repair | TBD | 2h | test_param_repair.py | Flag controls behavior |
+| Strict validation | Complete | 2h | test_strict_validation.py | Enforce JSON schema only |
 
 ### Phase 1 Tasks
 | Task | Owner | Estimate | Test | Accept |
@@ -648,14 +648,13 @@ def test_ai_plan_fuzzy(intent):
     # Should never crash
 ```
 
-#### Parameter Repair Gating
+#### Strict Validation Only
 ```python
 @given(st.dictionaries(st.text(), st.text()))
-def test_param_repair_gated(params):
-    with env_var("MCP_PARAM_REPAIR", "false"):
-        # Should not auto-repair
-        with pytest.raises(ValidationError):
-            issues.patch("TEST-1", fields=params)
+def test_strict_validation_only(params):
+    # Always enforce strict JSON schema
+    with pytest.raises(ValidationError):
+        issues.patch("TEST-1", fields=params)
 ```
 
 ### Golden Tests
@@ -984,7 +983,7 @@ pytest tests/test_imports.py -v
 pytest tests/test_no_placeholders.py -v
 pytest tests/test_provider_gating.py -v
 pytest tests/test_project_resolution.py -v
-pytest tests/test_param_repair.py -v
+pytest tests/test_tool_calls_refactor.py -v
 
 # Phase 1: Core-15
 pytest tests/test_core15_search.py -v

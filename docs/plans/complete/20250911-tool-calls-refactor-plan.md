@@ -23,10 +23,9 @@
 - [x] Define typed subpath grammar for issues.patch (fields map or ops array with oneOf validation)
 
 ### Phase 3: Legacy Compatibility
-- [x] Create legacy router that accepts old args/kwargs variants and adapts to canonical object
-- [x] Add deprecation logging for legacy tool shapes (one-time warning per legacy call)
-- [x] Gate all repair behaviors behind MCP_PARAM_REPAIR=true environment flag (off by default)
-- [x] Disable brace trimming and string reparsing unless flag is set
+- [x] Remove legacy router and backward compatibility
+- [x] Remove MCP_PARAM_REPAIR environment flag
+- [x] Enforce strict JSON schema validation only
 
 ### Phase 4: Documentation and Examples
 - [x] Refactor tool descriptions to be terse (remove sprawling examples)

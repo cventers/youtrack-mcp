@@ -134,7 +134,6 @@ features:
 | `mcp_server_name` | `MCP_SERVER_NAME` | `"youtrack-mcp"` | Server name |
 | `mcp_server_description` | `MCP_SERVER_DESCRIPTION` | `"YouTrack MCP Server"` | Server description |
 | `mcp_debug` | `MCP_DEBUG` | `"false"` | Enable debug logging |
-| `mcp_param_repair` | `MCP_PARAM_REPAIR` | `"false"` | Enable parameter repair |
 | `mcp_transport` | `MCP_TRANSPORT` | `"stdio"` | Transport mode (stdio/http) |
 
 ### OpenAI Configuration

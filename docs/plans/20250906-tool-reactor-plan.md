@@ -190,7 +190,7 @@ MCP Server
 - [x] Add provider gating for unsupported AI providers
 - [x] Implement exact-first project resolution (no fuzzy matching)
 - [x] Remove placeholder text generation (`{PROJECT_NAME}`)
-- [ ] Add `MCP_PARAM_REPAIR` flag for parameter auto-repair
+- [x] Remove `MCP_PARAM_REPAIR` flag (dropped legacy compatibility)
 - [ ] Create environment variable `YOUTRACK_CAPS` for capability packs
 - [x] Add structured logging with redaction
 

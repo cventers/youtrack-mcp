@@ -52,9 +52,6 @@ mcp:
   # Debug mode (enables detailed logging)
   debug: false
 
-  # Parameter repair (attempts to fix invalid parameters)
-  param_repair: false
-
   # Transport protocol (usually "stdio" for MCP)
   transport: "stdio"
 

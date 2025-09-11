@@ -62,7 +62,6 @@ class Config:
     MCP_DEBUG: bool = os.getenv("MCP_DEBUG", "false").lower() in (
         "true", "1", "yes",
     )
-    MCP_PARAM_REPAIR: bool = os.getenv("MCP_PARAM_REPAIR", "false").lower() in (
         "true", "1", "yes",
     )
     MCP_TRANSPORT: str = os.getenv("MCP_TRANSPORT", "stdio")
@@ -234,7 +233,6 @@ class Config:
     MCP_DEBUG: bool = os.getenv("MCP_DEBUG", "false").lower() in (
         "true", "1", "yes",
     )
-    MCP_PARAM_REPAIR: bool = os.getenv("MCP_PARAM_REPAIR", "false").lower() in (
         "true", "1", "yes",
     )
     MCP_TRANSPORT: str = os.getenv("MCP_TRANSPORT", "stdio")
