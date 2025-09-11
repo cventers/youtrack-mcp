@@ -28,7 +28,7 @@ async def test_custom_fields_support():
     try:
         # Step 1: Get custom fields for CLUSTER project
         print("\n📋 Step 1: Getting custom field requirements for CLUSTER project...")
-        custom_fields_result = await projects_tool.custom_fields("CLUSTER")
+        custom_fields_result = await projects_tool.schema("CLUSTER")
         custom_fields_data = json.loads(custom_fields_result)
 
         if "error" in custom_fields_data:
