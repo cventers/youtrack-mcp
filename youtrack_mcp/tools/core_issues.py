@@ -157,21 +157,7 @@ class CoreIssuesTools:
 
     @async_wrapper
     async def patch(self, issue_id: str, fields: Optional[Dict[str, Any]] = None, ops: Optional[List[Dict[str, Any]]] = None) -> str:
-        """
-        Primary writer with typed operations and custom field support.
-
-        FORMAT: issues.patch(issue_id="PROJECT-123", fields={"summary": "New title"})
-        FORMAT: issues.patch(issue_id="PROJECT-123", ops=[{"op": "set", "path": "/fields/Type", "value": "Bug"}])
-        FORMAT: issues.patch(issue_id="PROJECT-123", fields={"Type": "Bug", "Priority": "High"})
-
-        Args:
-            issue_id: Issue ID or readable ID
-            fields: Direct field updates (simple key-value pairs, supports custom fields)
-            ops: Typed operations with /fields/<FieldName> subpath support
-
-        Returns:
-            JSON with updated issue data
-        """
+        """Update issue with /fields/<FieldName> support and schema-aware coercion."""
         try:
             updated_issue = None
             custom_fields_updated = []
@@ -292,7 +278,7 @@ class CoreIssuesTools:
                 "function": self.create
             },
             "issues.patch": {
-                "description": "Update issue with /fields/<FieldName> support",
+                "description": "Update issue fields with schema-aware coercion",
                 "function": self.patch
             }
         }

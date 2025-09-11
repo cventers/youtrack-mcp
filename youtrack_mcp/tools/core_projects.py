@@ -235,15 +235,7 @@ class CoreProjectsTools:
 
     @async_wrapper
     async def schema(self, project_id: str) -> str:
-        """
-        Get project schema including custom fields, types, and validation rules.
-
-        Args:
-            project_id: Project ID or short name
-
-        Returns:
-            JSON with complete project schema and field requirements
-        """
+        """Get project schema with custom fields and validation rules."""
         try:
             # Get custom fields schema
             schemas = self.projects_api.get_all_custom_fields_schemas(project_id)
@@ -349,7 +341,7 @@ class CoreProjectsTools:
                 "function": self.get
             },
             "projects.schema": {
-                "description": "Get project schema including custom fields and validation rules",
+                "description": "Get project schema with custom fields",
                 "function": self.schema
             },
             "projects.patch": {
