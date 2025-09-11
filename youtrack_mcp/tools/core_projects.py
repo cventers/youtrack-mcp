@@ -222,6 +222,69 @@ class CoreProjectsTools:
             })
 
     @async_wrapper
+    async def custom_fields(self, project_id: str) -> str:
+        """
+        Get custom field requirements for a project.
+
+        FORMAT: projects.custom_fields(project_id="CLUSTER")
+
+        Args:
+            project_id: Project ID or short name
+
+        Returns:
+            JSON with custom field schemas and requirements
+        """
+        try:
+            # Get custom fields schema
+            schemas = self.projects_api.get_all_custom_fields_schemas(project_id)
+
+            # Get basic custom fields list for backward compatibility
+            fields = await self.projects_api.get_custom_fields(project_id)
+
+            # Separate required and optional fields
+            required_fields = []
+            optional_fields = []
+
+            for field_name, schema in schemas.items():
+                if schema.get("required", False):
+                    required_fields.append({
+                        "name": field_name,
+                        "type": schema.get("type", "string"),
+                        "allowed_values": schema.get("allowed_values", []),
+                        "description": f"Required {schema.get('type', 'string')} field"
+                    })
+                else:
+                    optional_fields.append({
+                        "name": field_name,
+                        "type": schema.get("type", "string"),
+                        "allowed_values": schema.get("allowed_values", []),
+                        "description": f"Optional {schema.get('type', 'string')} field"
+                    })
+
+            return format_json_response({
+                "project_id": project_id,
+                "custom_fields": fields,
+                "schemas": schemas,
+                "required_fields": required_fields,
+                "optional_fields": optional_fields,
+                "total_fields": len(schemas),
+                "required_count": len(required_fields),
+                "usage_guide": {
+                    "for_issue_creation": "Include required_fields in custom_fields parameter when creating issues",
+                    "example": "issues.create(project='CLUSTER', summary='Test', custom_fields={'Type': 'Bug', 'Priority': 'High'})"
+                }
+            })
+
+        except Exception as e:
+            logger.exception(f"Error getting custom fields for project {project_id}")
+            return format_json_response({
+                "error": str(e),
+                "error_type": type(e).__name__,
+                "project_id": project_id,
+                "suggestion": "Check project ID/name and ensure you have permission to view custom fields"
+            })
+
+    @async_wrapper
     async def create(self, name: str, short_name: str, lead_id: str) -> str:
         """
         Create new projects.
@@ -272,8 +335,12 @@ class CoreProjectsTools:
                 "function": self.list
             },
             "projects.get": {
-                "description": "Get project details",
+                "description": "Get project details with optional expansions",
                 "function": self.get
+            },
+            "projects.custom_fields": {
+                "description": "Get custom field requirements and schemas for issue creation",
+                "function": self.custom_fields
             },
             "projects.patch": {
                 "description": "Update project properties",
