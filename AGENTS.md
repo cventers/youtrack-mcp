@@ -249,6 +249,80 @@ When working on this codebase:
 
 The project prioritizes practical YouTrack integration over theoretical MCP protocol details, with emphasis on error handling that helps LLMs provide better user experiences. The modular architecture enhances maintainability while preserving all existing functionality.
 
+## Tool Calling Standards (POST-REFACTOR)
+
+### Canonical Invocation Format
+**ALL tool calls MUST use the strict JSON object format:**
+
+```json
+{
+  "tool_name": "issues.get",
+  "arguments": {
+    "issue_id": "DEMO-123",
+    "include": ["customFields", "comments"]
+  }
+}
+```
+
+### Key Requirements
+1. **Single arguments object**: All parameters go in the `arguments` object
+2. **No positional arguments**: Everything is a named parameter
+3. **Strict validation**: JSON Schema validation with `additionalProperties: false`
+4. **No automatic repair**: Invalid calls return clear validation errors
+5. **Exact parameter names**: Use schema-defined names (no fuzzy matching)
+
+### Migration from Legacy Format
+**OLD (deprecated):**
+```python
+# Flexible args/kwargs with repair
+result = issues.get("DEMO-123", include=["customFields"])
+result = issues.create(project="DEMO", summary="Bug")
+```
+
+**NEW (required):**
+```python
+# Strict JSON schema
+result = call_tool({
+    "tool_name": "issues.get",
+    "arguments": {
+        "issue_id": "DEMO-123",
+        "include": ["customFields"]
+    }
+})
+```
+
+### Available Tools and Schemas
+- `issues.get` - Rich issue read with expansions
+- `issues.create` - Schema-aware issue creation
+- `issues.patch` - Update with fields{} or ops[] (oneOf validation)
+- `projects.list` - List projects with pagination
+- `projects.get` - Project details with include expansions
+- `projects.schema` - Get project custom field schema
+- `projects.patch` - Update project fields
+- `projects.create` - Create new project
+- `users.search` - Search users by name/login
+- `search.query` - Execute YQL queries
+- `search.autosearch` - Natural language to YQL translation
+- `ai.plan` - Generate operation plans
+- `resources.read` - Read MCP resources
+
+### Error Handling
+- **Schema validation errors**: Clear messages indicating exactly what's wrong
+- **Missing required fields**: Specific field names listed
+- **Invalid enums**: Allowed values provided
+- **Extra properties**: Rejected with `additionalProperties: false`
+
+### Environment Flags
+- `MCP_PARAM_REPAIR=true`: Enable legacy router for backward compatibility
+- Default: Strict validation only (legacy router disabled)
+
+### Benefits
+- **Predictable**: Same input always produces same behavior
+- **Debuggable**: Clear validation errors, no silent repairs
+- **Portable**: Works with any MCP client without custom logic
+- **Maintainable**: No complex repair logic to maintain
+- **Token-efficient**: Smaller schemas, less context usage
+
 ## Tool Design Philosophy (READ ME BEFORE PROPOSING TOOLS)
 
 **We optimize for a *small, stable* default tool surface.** Tools are expensive tokens in MCP: names, schemas, and descriptions all consume context. Fewer, more expressive tools → better models, fewer errors.
