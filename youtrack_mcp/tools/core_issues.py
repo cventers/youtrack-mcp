@@ -102,16 +102,17 @@ class CoreIssuesTools:
             return format_json_response(llm_response)
 
     @async_wrapper
-    async def create(self, project: str, summary: str, description: Optional[str] = None) -> str:
+    async def create(self, project: str, summary: str, description: Optional[str] = None, custom_fields: Optional[Dict[str, Any]] = None) -> str:
         """
-        Schema-aware issue creation.
+        Schema-aware issue creation with custom field support.
 
-        FORMAT: issues.create(project="DEMO", summary="Bug report", description="Details...")
+        FORMAT: issues.create(project="DEMO", summary="Bug report", description="Details...", custom_fields={"Type": "Bug", "Priority": "High"})
 
         Args:
             project: Project ID or short name
             summary: Issue summary/title
             description: Optional issue description
+            custom_fields: Optional dictionary of custom field names and values (e.g., {"Type": "Bug", "Priority": "High"})
 
         Returns:
             JSON with created issue data
@@ -121,7 +122,8 @@ class CoreIssuesTools:
             issue = await self.issues_api.create_issue(
                 project_id=project,
                 summary=summary,
-                description=description
+                description=description,
+                custom_fields=custom_fields
             )
 
             # Convert to dict for JSON response
@@ -141,7 +143,7 @@ class CoreIssuesTools:
             llm_response = error_educator.create_educational_error_response(
                 operation="create_issue",
                 error=e,
-                context={"project": project, "summary": summary, "description": description}
+                context={"project": project, "summary": summary, "description": description, "custom_fields": custom_fields}
             )
             return format_json_response(llm_response)
         except Exception as e:
@@ -149,7 +151,7 @@ class CoreIssuesTools:
             llm_response = error_educator.create_educational_error_response(
                 operation="create_issue",
                 error=e,
-                context={"project": project, "summary": summary, "description": description}
+                context={"project": project, "summary": summary, "description": description, "custom_fields": custom_fields}
             )
             return format_json_response(llm_response)
 
@@ -292,7 +294,7 @@ class CoreIssuesTools:
                 "function": self.get
             },
             "issues.create": {
-                "description": "Create new issue in project",
+                "description": "Create new issue in project with custom field support. Use projects.custom_fields() first to see required fields like Type, Priority, etc.",
                 "function": self.create
             },
             "issues.patch": {
