@@ -154,4 +154,48 @@ class TestErrorHandling:
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    # Run tests manually without pytest
+    import sys
+
+    print("Running tool calls refactor tests manually...")
+
+    # Create test instance
+    test_instance = TestSchemaValidation()
+
+    try:
+        # Run schema validation tests
+        print("\n1. Testing schema validation...")
+        test_instance.test_get_tool_schema_valid_tool()
+        print("   ✓ get_tool_schema_valid_tool passed")
+
+        test_instance.test_get_tool_schema_invalid_tool()
+        print("   ✓ get_tool_schema_invalid_tool passed")
+
+        test_instance.test_validate_tool_call_valid()
+        print("   ✓ validate_tool_call_valid passed")
+
+        test_instance.test_validate_tool_call_missing_required()
+        print("   ✓ validate_tool_call_missing_required passed")
+
+        test_instance.test_validate_tool_call_extra_properties()
+        print("   ✓ validate_tool_call_extra_properties passed")
+
+        test_instance.test_issues_create_schema_validation()
+        print("   ✓ issues_create_schema_validation passed")
+
+        test_instance.test_issues_patch_schema_validation()
+        print("   ✓ issues_patch_schema_validation passed")
+
+        # Run error handling tests
+        print("\n2. Testing error handling...")
+        error_test_instance = TestErrorHandling()
+        error_test_instance.test_schema_validation_error_message()
+        print("   ✓ schema_validation_error_message passed")
+
+        print("\n✅ All tests passed successfully!")
+
+    except Exception as e:
+        print(f"\n❌ Test failed: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
