@@ -248,3 +248,31 @@ When working on this codebase:
 6. **Focus on LLM usability** - Error messages should help LLMs learn and improve
 
 The project prioritizes practical YouTrack integration over theoretical MCP protocol details, with emphasis on error handling that helps LLMs provide better user experiences. The modular architecture enhances maintainability while preserving all existing functionality.
+
+## Tool Design Philosophy (READ ME BEFORE PROPOSING TOOLS)
+
+**We optimize for a *small, stable* default tool surface.** Tools are expensive tokens in MCP: names, schemas, and descriptions all consume context. Fewer, more expressive tools → better models, fewer errors.
+
+### DO
+- **Use the default pack (12 tools)** unless capability flags explicitly enable more.
+- **Make reads rich via `include[]`**, not by inventing new read tools. Example: `issues.get(include=["comments","attachments","links","work_items","history","activities","time_tracking"])` and `projects.get(include=["schema","versions","builds","subsystems"])`.
+- **Make all writes go through `issues.patch`** using a **typed subpath grammar**:
+  - `/fields/<FieldName>` for custom/system fields (schema-aware enum/state/user/period coercion).
+  - `/comments`, `/attachments`, `/links`, `/work_items` add/replace/remove.
+- **Expose planning, not auto-exec**: `ai.plan` returns change plans; human/agent must call `issues.patch` explicitly.
+
+### DON’T
+- **DON’T add narrow, single-purpose tools** (e.g., `projects.custom_fields`, `issues.update_custom_fields`, `comments.update_comment`).
+- **DON’T put long tutorials in tool descriptions**. Keep descriptions short; put examples in `help://...` resources.
+- **DON’T use fuzzy project/field matching**. Resolve exact `shortName`/`name`; return candidates on ambiguity.
+
+### When you think we “need a new tool”
+1. Can this be an **`include[]` expansion** on an existing read tool? → Use that.
+2. Can this be an **`ops[]` or `fields{}`** pattern on `issues.patch`? → Use that.
+3. Is it administrative and rarely used? → Put it in a **capability-gated pack** (off by default).
+4. Still convinced? Propose the change with:
+   - A before/after **token budget** for serialized tool schemas,
+   - Test deltas and failure modes.
+
+**Agents MUST match this architecture** when proposing tool changes. PRs that add narrow tools without exhausting the options above will be rejected.
+
