@@ -90,11 +90,11 @@ class CoreProjectsTools:
         """
         Project details with expansions.
 
-        FORMAT: projects.get(project_id="DEMO", include=["customFields", "issues"])
+        FORMAT: projects.get(project_id="DEMO", include=["schema", "issues"])
 
         Args:
             project_id: Project ID or short name
-            include: List of expansions (customFields, issues, etc.)
+            include: List of expansions (schema, issues, etc.)
 
         Returns:
             JSON with full project data and requested expansions
@@ -118,6 +118,18 @@ class CoreProjectsTools:
                     except Exception as e:
                         logger.warning(f"Failed to get custom fields: {e}")
                         expansions["customFields"] = []
+
+                if "schema" in include:
+                    try:
+                        # Use the schema method for comprehensive field information
+                        schema_result = await self.schema(project_id)
+                        # Parse the JSON response and extract the schema data
+                        import json
+                        schema_data = json.loads(schema_result)
+                        expansions["schema"] = schema_data
+                    except Exception as e:
+                        logger.warning(f"Failed to get project schema: {e}")
+                        expansions["schema"] = {}
 
                 if "issues" in include:
                     try:
@@ -222,17 +234,15 @@ class CoreProjectsTools:
             })
 
     @async_wrapper
-    async def custom_fields(self, project_id: str) -> str:
+    async def schema(self, project_id: str) -> str:
         """
-        Get custom field requirements for a project.
-
-        FORMAT: projects.custom_fields(project_id="CLUSTER")
+        Get project schema including custom fields, types, and validation rules.
 
         Args:
             project_id: Project ID or short name
 
         Returns:
-            JSON with custom field schemas and requirements
+            JSON with complete project schema and field requirements
         """
         try:
             # Get custom fields schema
@@ -338,9 +348,9 @@ class CoreProjectsTools:
                 "description": "Get project details with optional expansions",
                 "function": self.get
             },
-            "projects.custom_fields": {
-                "description": "Get custom field requirements and schemas for issue creation",
-                "function": self.custom_fields
+            "projects.schema": {
+                "description": "Get project schema including custom fields and validation rules",
+                "function": self.schema
             },
             "projects.patch": {
                 "description": "Update project properties",

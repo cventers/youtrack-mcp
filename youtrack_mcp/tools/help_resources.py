@@ -171,7 +171,7 @@ class HelpResources:
                 "get": {
                     "title": "Get Project Details",
                     "description": "Get detailed project information with expansions",
-                    "syntax": "projects.get(project_id='DEMO', include=['customFields', 'issues'])",
+                    "syntax": "projects.get(project_id='DEMO', include=['schema', 'issues'])",
                     "parameters": {
                         "project_id": {
                             "type": "string",
@@ -181,17 +181,74 @@ class HelpResources:
                         "include": {
                             "type": "list",
                             "description": "List of expansions to include",
-                            "options": ["customFields", "issues"],
+                            "options": ["schema", "issues"],
                             "required": False
                         }
                     },
                     "examples": [
                         "projects.get('DEMO')",
-                        "projects.get('PROJECT', include=['customFields'])"
+                        "projects.get('PROJECT', include=['schema'])"
                     ],
                     "notes": [
                         "Use project short name (key) not display name",
                         "Expansions provide additional data"
+                    ]
+                },
+                "schema": {
+                    "title": "Get Project Schema",
+                    "description": "Get complete project schema including custom fields, types, and validation rules",
+                    "syntax": "projects.schema(project_id='DEMO')",
+                    "parameters": {
+                        "project_id": {
+                            "type": "string",
+                            "description": "Project ID or short name",
+                            "required": True
+                        }
+                    },
+                    "examples": [
+                        "projects.schema('DEMO')",
+                        "projects.schema('CLUSTER')"
+                    ],
+                    "response": {
+                        "project_id": "DEMO",
+                        "schemas": {
+                            "Type": {
+                                "type": "enum",
+                                "required": True,
+                                "allowed_values": ["Bug", "Feature", "Task"]
+                            },
+                            "Priority": {
+                                "type": "enum",
+                                "required": True,
+                                "allowed_values": ["Critical", "High", "Normal", "Low"]
+                            }
+                        },
+                        "required_fields": [
+                            {
+                                "name": "Type",
+                                "type": "enum",
+                                "allowed_values": ["Bug", "Feature", "Task"],
+                                "description": "Required enum field"
+                            }
+                        ],
+                        "optional_fields": [
+                            {
+                                "name": "Description",
+                                "type": "text",
+                                "allowed_values": [],
+                                "description": "Optional text field"
+                            }
+                        ],
+                        "usage_guide": {
+                            "for_issue_creation": "Include required_fields in custom_fields parameter when creating issues",
+                            "example": "issues.create(project='DEMO', summary='Test', custom_fields={'Type': 'Bug', 'Priority': 'High'})"
+                        }
+                    },
+                    "notes": [
+                        "Provides complete field schemas for validation",
+                        "Separates required vs optional fields",
+                        "Includes allowed values for enum fields",
+                        "Essential for proper issue creation"
                     ]
                 },
                 "patch": {
