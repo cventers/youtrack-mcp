@@ -133,7 +133,7 @@ class ErrorHandler:
 
     def _load_error_patterns(self) -> List[Dict[str, Any]]:
         """Load error patterns from YAML file."""
-        patterns_file = Path(__file__).parent / "data" / "error_patterns.yaml"
+        patterns_file = Path(__file__).parent.parent / "data" / "error_patterns.yaml"
 
         try:
             with open(patterns_file, 'r') as f:
