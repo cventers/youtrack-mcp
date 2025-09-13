@@ -457,6 +457,22 @@ class Config:
                             config_key = "LOG_LEVEL"
                         else:
                             config_key = f"LOG_{config_key}"
+                    elif prefix == "LLM":
+                        # Direct mapping for AI LLM section to OpenAI config
+                        if config_key == "API_KEY":
+                            config_key = "OPENAI_API_KEY"
+                        elif config_key == "API_URL":
+                            config_key = "OPENAI_BASE_URL"
+                        elif config_key == "MODEL":
+                            config_key = "OPENAI_MODEL"
+                        elif config_key == "MAX_TOKENS":
+                            config_key = "OPENAI_MAX_TOKENS"
+                        elif config_key == "TEMPERATURE":
+                            config_key = "OPENAI_TEMPERATURE"
+                        elif config_key == "TIMEOUT":
+                            config_key = "OPENAI_TIMEOUT"
+                        elif config_key == "ENABLED":
+                            config_key = "LLM_ENABLED"
                     else:
                         config_key = f"{prefix}_{config_key}"
 

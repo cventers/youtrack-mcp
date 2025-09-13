@@ -15,6 +15,7 @@ from youtrack_mcp.mcp_wrappers import sync_wrapper
 from youtrack_mcp.utils import format_json_response, ErrorHandler
 from youtrack_mcp.ai.service import AIService
 from youtrack_mcp.ai.openai_client import OpenAIClient
+from youtrack_mcp.config import config
 
 logger = logging.getLogger(__name__)
 
@@ -27,8 +28,18 @@ class AITools:
         # Initialize OpenAI client for NL to YQL (ai.plan, search autosearch)
         openai_client = None
         try:
-            openai_client = OpenAIClient()
-            logger.info("OpenAI client initialized for NL to YQL")
+            # Use config values instead of environment variables
+            if config.OPENAI_API_KEY and config.LLM_ENABLED:
+                openai_client = OpenAIClient(
+                    api_key=config.OPENAI_API_KEY,
+                    base_url=config.OPENAI_BASE_URL,
+                    model=config.OPENAI_MODEL,
+                    temperature=config.OPENAI_TEMPERATURE,
+                    timeout=config.OPENAI_TIMEOUT
+                )
+                logger.info("OpenAI client initialized for NL to YQL using config values")
+            else:
+                logger.warning("LLM not enabled or API key not configured. NL to YQL will be unavailable.")
         except Exception as e:
             logger.warning(f"Failed to initialize OpenAI client: {e}. NL to YQL will be unavailable.")
 

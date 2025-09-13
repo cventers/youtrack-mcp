@@ -32,7 +32,7 @@ from pydantic import BaseModel, Field
 
 from youtrack_mcp.config import Config, config
 from youtrack_mcp.server import YouTrackMCPServer
-from youtrack_mcp.tools.loader import load_all_tools
+from youtrack_mcp.utils.loader import load_all_tools
 
 # Check if structlog is available
 structlog_available = False
@@ -389,6 +389,10 @@ def parse_args():
         help="Disable console logging (only log to file if specified)"
     )
     parser.add_argument(
+        "--openai-api-key",
+        help="OpenAI API key for AI features"
+    )
+    parser.add_argument(
         "--version",
         action="store_true",
         help="Display version information and exit"
@@ -409,6 +413,9 @@ def apply_cli_args(args):
 
     if args.verify_ssl is not None:
         config_dict["VERIFY_SSL"] = args.verify_ssl
+
+    if args.openai_api_key:
+        config_dict["OPENAI_API_KEY"] = args.openai_api_key
 
     # Apply logging configuration
     if hasattr(args, 'log_level') and args.log_level:
