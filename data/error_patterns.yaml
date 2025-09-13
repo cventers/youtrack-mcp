@@ -1,0 +1,142 @@
+version: "1.0"
+updated_at: "2025-09-13T00:00:00Z"
+patterns:
+  - id: "auth_token_invalid"
+    match: "regex|^Invalid token.*$"
+    scope: "authentication"
+    examples:
+      - "Invalid token provided"
+      - "Token expired or malformed"
+    classification:
+      category: "authentication_error"
+      severity: "high"
+    explanation: "The provided authentication token is invalid or expired."
+    remediation_steps:
+      - "Verify your YouTrack token in configuration."
+      - "Regenerate token if expired."
+      - "Check token permissions for the requested operation."
+    developer_notes: "Common during initial setup or token rotation."
+    test_vectors:
+      - input: "Invalid token provided"
+        expected_output: "Authentication failed: Invalid token. Verify your YouTrack token..."
+  - id: "project_not_found"
+    match: "exact|Project 'DEMO' not found"
+    scope: "projects"
+    examples:
+      - "Project 'DEMO' not found"
+    classification:
+      category: "resource_error"
+      severity: "medium"
+    explanation: "The specified project does not exist."
+    remediation_steps:
+      - "Check project shortName spelling."
+      - "Verify project exists in YouTrack."
+      - "Use projects.list tool to see available projects."
+    developer_notes: "Exact match for specific error messages."
+    test_vectors:
+      - input: "Project 'DEMO' not found"
+        expected_output: "Project not found: DEMO. Check project shortName..."
+  - id: "field_unknown"
+    match: "regex|unknown field|field.*not found|invalid field"
+    scope: "queries"
+    examples:
+      - "Unknown field 'assigned'"
+      - "Field 'status' not found"
+    classification:
+      category: "query_error"
+      severity: "medium"
+    explanation: "The query references a field that doesn't exist in the project."
+    remediation_steps:
+      - "Use get_custom_fields() to see available fields for this project."
+      - "Check field name spelling and case sensitivity."
+    developer_notes: "Field names are case-sensitive and project-specific."
+    test_vectors:
+      - input: "Unknown field 'assigned'"
+        expected_output: "Field error: Unknown field 'assigned'. Use get_custom_fields()..."
+  - id: "syntax_error"
+    match: "regex|syntax error|parse error|invalid query"
+    scope: "queries"
+    examples:
+      - "Syntax error in query"
+      - "Invalid query syntax"
+    classification:
+      category: "query_error"
+      severity: "medium"
+    explanation: "The query syntax is not valid YouTrack Query Language."
+    remediation_steps:
+      - "Check for proper field:value format and correct operators."
+      - "Use ':' instead of '=' for field assignments."
+    developer_notes: "YQL uses 'field: value' format, not 'field = value'."
+    test_vectors:
+      - input: "Syntax error in query"
+        expected_output: "Query syntax error. Check for proper field:value format..."
+  - id: "date_invalid"
+    match: "regex|date.*invalid|time.*format|invalid.*date"
+    scope: "queries"
+    examples:
+      - "Invalid date format"
+      - "Date format not recognized"
+    classification:
+      category: "query_error"
+      severity: "low"
+    explanation: "The date format is not recognized by YouTrack."
+    remediation_steps:
+      - "Use YYYY-MM-DD format."
+      - "Use relative dates like '-7d' for last 7 days."
+      - "Use date ranges with '..' operator."
+    developer_notes: "YouTrack supports relative dates: -7d, w (week), m (month)."
+    test_vectors:
+      - input: "Invalid date format"
+        expected_output: "Date format error. Use YYYY-MM-DD format..."
+  - id: "permission_denied"
+    match: "regex|403|forbidden|permission denied"
+    scope: "authorization"
+    examples:
+      - "403 Forbidden"
+      - "Permission denied"
+    classification:
+      category: "authorization_error"
+      severity: "high"
+    explanation: "You don't have permission to perform this operation."
+    remediation_steps:
+      - "Contact your project administrator for necessary permissions."
+      - "Check your role in the project settings."
+    developer_notes: "YouTrack uses role-based access control."
+    test_vectors:
+      - input: "403 Forbidden"
+        expected_output: "Permission denied. Contact administrator for permissions..."
+  - id: "resource_not_found"
+    match: "regex|404|not found"
+    scope: "resources"
+    examples:
+      - "404 Not Found"
+      - "Issue not found"
+    classification:
+      category: "resource_error"
+      severity: "medium"
+    explanation: "The requested resource was not found."
+    remediation_steps:
+      - "Verify the ID is correct and accessible."
+      - "Check if the resource was deleted."
+    developer_notes: "IDs are case-sensitive and follow PROJECT-NUMBER format."
+    test_vectors:
+      - input: "Issue not found"
+        expected_output: "Resource not found. Verify ID and permissions..."
+  - id: "unauthorized"
+    match: "regex|401|unauthorized"
+    scope: "authentication"
+    examples:
+      - "401 Unauthorized"
+      - "Authentication failed"
+    classification:
+      category: "authentication_error"
+      severity: "high"
+    explanation: "Authentication failed. Your API token may be invalid or expired."
+    remediation_steps:
+      - "Check your API token in configuration."
+      - "Ensure token starts with 'perm:' for permanent tokens."
+      - "Regenerate token if expired."
+    developer_notes: "Tokens should be stored securely and not logged."
+    test_vectors:
+      - input: "401 Unauthorized"
+        expected_output: "Authentication failed. Check API token..."

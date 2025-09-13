@@ -65,13 +65,15 @@ class Config:
     MCP_TRANSPORT: str = os.getenv("MCP_TRANSPORT", "stdio")
     MCP_TIMEOUT: int = int(os.getenv("MCP_TIMEOUT", "15000"))  # Default 15 seconds
     YOUTRACK_CAPS: str = os.getenv("YOUTRACK_CAPS", "")
+    # AI Mode Configuration
+    YOUTRACK_AI_MODE: str = os.getenv("YOUTRACK_AI_MODE", "rule")
 
     # OpenAI Configuration
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
-    OPENAI_API_BASE: str = os.getenv("OPENAI_API_BASE", "")
-    OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "")
+    OPENAI_BASE_URL: str = os.getenv("OPENAI_BASE_URL", "")
+    OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
     OPENAI_MAX_TOKENS: int = int(os.getenv("OPENAI_MAX_TOKENS", "1000"))
-    OPENAI_TEMPERATURE: float = float(os.getenv("OPENAI_TEMPERATURE", "0.3"))
+    OPENAI_TEMPERATURE: float = float(os.getenv("OPENAI_TEMPERATURE", "0.7"))
     OPENAI_TIMEOUT: int = int(os.getenv("OPENAI_TIMEOUT", "30"))
     LLM_ENABLED: bool = os.getenv("LLM_ENABLED", "false").lower() in (
         "true",
@@ -234,13 +236,15 @@ class Config:
     MCP_TRANSPORT: str = os.getenv("MCP_TRANSPORT", "stdio")
     MCP_TIMEOUT: int = int(os.getenv("MCP_TIMEOUT", "15000"))  # Default 15 seconds
     YOUTRACK_CAPS: str = os.getenv("YOUTRACK_CAPS", "")
+    # AI Mode Configuration
+    YOUTRACK_AI_MODE: str = os.getenv("YOUTRACK_AI_MODE", "rule")
 
     # OpenAI Configuration
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
-    OPENAI_API_BASE: str = os.getenv("OPENAI_API_BASE", "")
-    OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "")
+    OPENAI_BASE_URL: str = os.getenv("OPENAI_BASE_URL", "")
+    OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
     OPENAI_MAX_TOKENS: int = int(os.getenv("OPENAI_MAX_TOKENS", "1000"))
-    OPENAI_TEMPERATURE: float = float(os.getenv("OPENAI_TEMPERATURE", "0.3"))
+    OPENAI_TEMPERATURE: float = float(os.getenv("OPENAI_TEMPERATURE", "0.7"))
     OPENAI_TIMEOUT: int = int(os.getenv("OPENAI_TIMEOUT", "30"))
     LLM_ENABLED: bool = os.getenv("LLM_ENABLED", "false").lower() in (
         "true",

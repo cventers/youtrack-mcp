@@ -136,17 +136,21 @@ features:
 | `mcp_debug` | `MCP_DEBUG` | `"false"` | Enable debug logging |
 | `mcp_transport` | `MCP_TRANSPORT` | `"stdio"` | Transport mode (stdio/http) |
 
+### AI Mode Configuration
+
+| Setting | Environment Variable | Default | Description |
+|---------|---------------------|---------|-------------|
+| `youttrack_ai_mode` | `YOUTRACK_AI_MODE` | `"rule"` | AI processing mode: `off`, `rule`, `llm` |
+
 ### OpenAI Configuration
 
 | Setting | Environment Variable | Default | Description |
 |---------|---------------------|---------|-------------|
 | `openai_api_key` | `OPENAI_API_KEY` | `""` | OpenAI API key |
-| `openai_api_base` | `OPENAI_API_BASE` | `""` | OpenAI API base URL |
-| `openai_model` | `OPENAI_MODEL` | `""` | OpenAI model name |
-| `openai_max_tokens` | `OPENAI_MAX_TOKENS` | `"1000"` | Maximum tokens per request |
-| `openai_temperature` | `OPENAI_TEMPERATURE` | `"0.3"` | Response temperature |
+| `openai_base_url` | `OPENAI_BASE_URL` | `""` | OpenAI API base URL |
+| `openai_model` | `OPENAI_MODEL` | `"gpt-4o-mini"` | OpenAI model name |
+| `openai_temperature` | `OPENAI_TEMPERATURE` | `"0.7"` | Response temperature |
 | `openai_timeout` | `OPENAI_TIMEOUT` | `"30"` | Request timeout (seconds) |
-| `llm_enabled` | `LLM_ENABLED` | `"false"` | Enable LLM features |
 
 ### Hugging Face Configuration
 
@@ -265,11 +269,29 @@ youtrack_token_file: "/path/to/token/file"
 
 ## AI Integration
 
+### AI Mode Configuration
+The server supports three AI processing modes:
+
+- **`off`**: Disable all AI features, return structured disabled responses
+- **`rule`**: Use rule-based processing only (deterministic, no API keys required)
+- **`llm`**: Use LLM-powered processing only (requires OpenAI API key)
+
+```yaml
+# AI Mode
+youttrack_ai_mode: "rule"  # off, rule, llm
+
+# OpenAI (required for llm mode)
+openai_api_key: "sk-..."
+openai_base_url: "https://api.openai.com/v1"
+openai_model: "gpt-4o-mini"
+openai_temperature: 0.7
+```
+
 ### OpenAI Setup
 ```yaml
+youttrack_ai_mode: "llm"
 openai_api_key: "sk-..."
 openai_model: "gpt-4"
-llm_enabled: true
 ```
 
 ### Groq Cloud (Recommended)
