@@ -154,6 +154,8 @@ class StrictYouTrackMCPServer:
 
         # Create strict wrapper that validates input
         strict_wrapper = self._create_strict_wrapper(func, name, schema)
+        # Set tool name for parameter processing
+        strict_wrapper._tool_name = name
 
         # Register with MCP server using the schema
         self.server.add_tool(
