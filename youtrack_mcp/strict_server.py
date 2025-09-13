@@ -154,8 +154,6 @@ class StrictYouTrackMCPServer:
 
         # Create strict wrapper that validates input
         strict_wrapper = self._create_strict_wrapper(func, name, schema)
-        # Set tool name for parameter processing
-        strict_wrapper._tool_name = name
 
         # Register with MCP server using the schema
         self.server.add_tool(
@@ -183,22 +181,27 @@ class StrictYouTrackMCPServer:
         Returns:
             A wrapper function with strict validation
         """
+        from youtrack_mcp.mcp_wrappers import process_parameters
+
         is_async = inspect.iscoroutinefunction(func)
 
         async def strict_async_wrapper(**kwargs) -> str:
             """Strict async wrapper with JSON schema validation."""
             try:
-                # Validate the tool call
-                validate_tool_call(name, kwargs)
+                # Process parameters through MCP wrappers to handle various formats
+                processed_args, processed_kwargs = process_parameters(name, (), kwargs)
 
-                # Call the function with validated arguments
+                # Validate the tool call with processed parameters
+                validate_tool_call(name, processed_kwargs)
+
+                # Call the function with processed arguments
                 if is_async:
-                    result = await func(**kwargs)
+                    result = await func(**processed_kwargs)
                 else:
                     # Run sync function in executor
                     import asyncio
                     loop = asyncio.get_event_loop()
-                    result = await loop.run_in_executor(None, lambda: func(**kwargs))
+                    result = await loop.run_in_executor(None, lambda: func(**processed_kwargs))
 
                 # Ensure result is JSON string
                 if not isinstance(result, str):
@@ -227,11 +230,14 @@ class StrictYouTrackMCPServer:
         def strict_sync_wrapper(**kwargs) -> str:
             """Strict sync wrapper with JSON schema validation."""
             try:
-                # Validate the tool call
-                validate_tool_call(name, kwargs)
+                # Process parameters through MCP wrappers to handle various formats
+                processed_args, processed_kwargs = process_parameters(name, (), kwargs)
 
-                # Call the function with validated arguments
-                result = func(**kwargs)
+                # Validate the tool call with processed parameters
+                validate_tool_call(name, processed_kwargs)
+
+                # Call the function with processed arguments
+                result = func(**processed_kwargs)
 
                 # Ensure result is JSON string
                 if not isinstance(result, str):
@@ -292,12 +298,7 @@ class StrictYouTrackMCPServer:
             import asyncio
             import sys
 
-            # Ensure stdout is unbuffered for fast handshake
-            try:
-                if hasattr(sys.stdout, 'reconfigure'):
-                    sys.stdout.reconfigure(line_buffering=True)
-            except (AttributeError, OSError):
-                pass
+            # Note: stdout buffering optimization removed for compatibility
 
             asyncio.run(self._run_stdio_async())
         else:
