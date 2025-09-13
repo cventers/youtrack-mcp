@@ -2,31 +2,45 @@
 Description=YouTrack MCP Server (User Service)
 After=network.target
 Requires=network.target
+Documentation=https://github.com/yourorg/youtrack-mcp
 
 [Service]
+Type=simple
+
 # Environment variables for YouTrack connection
 Environment=YOUTRACK_URL=https://your.youtrack.cloud
 Environment=YOUTRACK_API_TOKEN=perm:XXXX
 Environment=MCP_TIMEOUT=15000
 Environment=MCP_DEBUG=false
 Environment=YOUTRACK_VERIFY_SSL=true
+Environment=LOG_LEVEL=INFO
+Environment=LOG_FILE=%h/.local/share/youtrack-mcp/youtrack-mcp.log
 
-# Use Podman for containerized deployment
+# Use Podman for containerized deployment (recommended for security)
 ExecStart=/usr/bin/podman run \
   --rm \
   --name youtrack-mcp-%u \
   --user 10001:10001 \
   --read-only \
   --tmpfs /tmp:rw,noexec,nosuid,size=100m \
+  --tmpfs %h/.local/share/youtrack-mcp:rw,mode=700 \
   --cap-drop ALL \
   --security-opt no-new-privileges \
+  --security-opt label=disable \
   --network slirp4netns:allow_host_loopback=true \
+  --log-driver journald \
+  -v %h/.config/youtrack-mcp:/app/config:ro \
   -e YOUTRACK_URL \
   -e YOUTRACK_API_TOKEN \
   -e MCP_TIMEOUT \
   -e MCP_DEBUG \
   -e YOUTRACK_VERIFY_SSL \
+  -e LOG_LEVEL \
+  -e LOG_FILE \
   docker.io/yourrepo/youtrack-mcp:latest
+
+# Alternative: Direct Python execution (less secure, for development)
+# ExecStart=%h/.local/bin/youtrack-mcp --transport stdio
 
 # Restart on failure with exponential backoff
 Restart=on-failure
@@ -37,6 +51,18 @@ StartLimitBurst=3
 # Resource limits
 MemoryLimit=512M
 CPUQuota=50%
+TasksMax=100
+
+# Security hardening
+NoNewPrivileges=yes
+ProtectHome=yes
+ProtectSystem=strict
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictNamespaces=yes
+LockPersonality=yes
 
 # Logging
 StandardOutput=journal

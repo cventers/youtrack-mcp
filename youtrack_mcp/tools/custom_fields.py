@@ -224,10 +224,33 @@ class CustomFieldsTools:
         # For now, we'll do basic type validation
 
         if project_id:
-            # TODO: Look up actual field type from project
-            pass
+            # Look up actual field type from project schema
+            try:
+                from youtrack_mcp.api.projects import ProjectsClient
+                from youtrack_mcp.api.client import YouTrackClient
 
-        # Basic validation based on value type
+                # Get project field schemas
+                projects_client = ProjectsClient(YouTrackClient())
+                all_schemas = projects_client.get_all_custom_fields_schemas(project_id)
+
+                # Find the specific field
+                for field_schema in all_schemas.values():
+                    if field_schema.get("name") == field_name:
+                        actual_field_type = field_schema.get("type", "text")
+                        logger.info(f"Found actual field type for '{field_name}': {actual_field_type}")
+                        validation = self._validate_field_value(field_value, actual_field_type)
+
+                        return {
+                            "field_name": field_name,
+                            "field_value": field_value,
+                            "actual_type": actual_field_type,
+                            "validation": validation,
+                            "source": "project_schema"
+                        }
+            except Exception as e:
+                logger.warning(f"Failed to lookup field type from project schema: {e}. Falling back to type guessing.")
+
+        # Fallback: Basic validation based on value type
         if isinstance(field_value, str):
             field_type_guess = "text"
         elif isinstance(field_value, int):
@@ -246,7 +269,7 @@ class CustomFieldsTools:
         return {
             "field_name": field_name,
             "field_value": field_value,
-            "guessed_type": field_type_guess,
+            "field_type": field_type_guess,
             "validation": validation,
             "recommendation": "Use update_custom_field() to apply this value to an issue"
         }
