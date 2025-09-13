@@ -1,0 +1,47 @@
+[Unit]
+Description=YouTrack MCP Server (User Service)
+After=network.target
+Requires=network.target
+
+[Service]
+# Environment variables for YouTrack connection
+Environment=YOUTRACK_URL=https://your.youtrack.cloud
+Environment=YOUTRACK_API_TOKEN=perm:XXXX
+Environment=MCP_TIMEOUT=15000
+Environment=MCP_DEBUG=false
+Environment=YOUTRACK_VERIFY_SSL=true
+
+# Use Podman for containerized deployment
+ExecStart=/usr/bin/podman run \
+  --rm \
+  --name youtrack-mcp-%u \
+  --user 10001:10001 \
+  --read-only \
+  --tmpfs /tmp:rw,noexec,nosuid,size=100m \
+  --cap-drop ALL \
+  --security-opt no-new-privileges \
+  --network slirp4netns:allow_host_loopback=true \
+  -e YOUTRACK_URL \
+  -e YOUTRACK_API_TOKEN \
+  -e MCP_TIMEOUT \
+  -e MCP_DEBUG \
+  -e YOUTRACK_VERIFY_SSL \
+  docker.io/yourrepo/youtrack-mcp:latest
+
+# Restart on failure with exponential backoff
+Restart=on-failure
+RestartSec=5
+StartLimitIntervalSec=300
+StartLimitBurst=3
+
+# Resource limits
+MemoryLimit=512M
+CPUQuota=50%
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=youtrack-mcp
+
+[Install]
+WantedBy=default.target

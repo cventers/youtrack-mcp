@@ -6,6 +6,7 @@ including generic field updates, field validation, and field type handling.
 """
 
 import logging
+import re
 from typing import Dict, Any, List, Optional, Union
 
 from youtrack_mcp.api.client import YouTrackClient
@@ -73,7 +74,7 @@ class CustomFieldsTools:
             # First get the issue to understand current custom fields
             issue_data = await self.issues_api.get_issue(issue_id)
 
-            if not issue_data or 'customFields' not in issue_data:
+            if not issue_data or not hasattr(issue_data, 'custom_fields') or not issue_data.custom_fields:
                 return {
                     "error": f"Issue {issue_id} not found or has no custom fields",
                     "issue_id": issue_id,
@@ -83,13 +84,13 @@ class CustomFieldsTools:
 
             # Find the target field
             target_field = None
-            for field in issue_data['customFields']:
-                if field.get('name') == field_name:
+            for field in issue_data.custom_fields or []:
+                if isinstance(field, dict) and field.get('name') == field_name:
                     target_field = field
                     break
 
             if not target_field:
-                available_fields = [f.get('name', '') for f in issue_data['customFields']]
+                available_fields = [f.get('name', '') if isinstance(f, dict) else str(f) for f in issue_data.custom_fields or []]
                 return {
                     "error": f"Custom field '{field_name}' not found on issue {issue_id}",
                     "issue_id": issue_id,
@@ -173,7 +174,7 @@ class CustomFieldsTools:
                     "issue_id": issue_id
                 }
 
-            custom_fields = issue_data.get('customFields', [])
+            custom_fields = issue_data.custom_fields or []
 
             fields_info = {
                 "issue_id": issue_id,
@@ -293,7 +294,7 @@ class CustomFieldsTools:
                         "recommendation": "Provide a date string like '2025-06-13' or '2025-06-13T10:30:00Z'"
                     }
                 # Basic ISO date validation
-                if not (value.match(r'^\d{4}-\d{2}-\d{2}') or value.match(r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}')):
+                if not (re.match(r'^\d{4}-\d{2}-\d{2}', value) or re.match(r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}', value)):
                     return {
                         "valid": False,
                         "error": "Date format should be YYYY-MM-DD or ISO 8601",
@@ -343,9 +344,9 @@ class CustomFieldsTools:
         if field_type in ['text', 'string', 'enum', 'state', 'user']:
             return str(value)
         elif field_type in ['integer', 'int']:
-            return int(value)
+            return int(value) if isinstance(value, (str, int)) else 0
         elif field_type in ['float', 'number']:
-            return float(value)
+            return float(value) if isinstance(value, (str, int, float)) else 0.0
         elif field_type == 'boolean':
             return bool(value)
         elif field_type in ['date', 'datetime']:

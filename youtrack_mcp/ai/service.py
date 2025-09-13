@@ -10,7 +10,7 @@ from typing import Any, Dict, Optional, Union
 from cachetools import TTLCache
 
 from .openai_client import OpenAIClient
-from ..utils import ErrorEnhancementResult
+from ..utils import ErrorEnhancementResult, ErrorHandler
 from . import QueryTranslationResult
 
 logger = logging.getLogger(__name__)
@@ -36,9 +36,28 @@ class AIService:
         # Caches
         self.query_cache = TTLCache(maxsize=1000, ttl=3600)  # 1 hour
 
+        # Error handler for rule-based error enhancement
+        self.error_handler = ErrorHandler()
+
         logger.info("AIService initialized (NL to YQL: LLM required)")
 
+    @property
+    def error_patterns(self):
+        """Access error patterns from the error handler."""
+        return self.error_handler.error_patterns
 
+    def enhance_error_message(self, error: Union[Exception, str], context: Dict[str, Any]) -> ErrorEnhancementResult:
+        """
+        Enhance error message using rule-based processing.
+
+        Args:
+            error: Error exception or string
+            context: Operation context
+
+        Returns:
+            Enhanced error result
+        """
+        return self.error_handler.enhance_error(error, context)
 
     def translate_nl_to_yql(self, natural_query: str, project_context: Optional[str] = None) -> QueryTranslationResult:
         """

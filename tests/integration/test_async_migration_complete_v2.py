@@ -47,7 +47,7 @@ async def test_all_tools():
         from youtrack_mcp.tools.issues_tools import IssuesTools
         from youtrack_mcp.tools.projects_tools import ProjectsTools
         from youtrack_mcp.tools.search_tools import SearchTools
-from youtrack_mcp.tools.users_tools import UsersTools
+        from youtrack_mcp.tools.users_tools import UsersTools
         from youtrack_mcp.tools.ai_tools import AITools
         from youtrack_mcp.tools.resources_tools import ResourcesTools
         from youtrack_mcp.tools.projects_admin_tools import ProjectsAdminTools
@@ -56,33 +56,45 @@ from youtrack_mcp.tools.users_tools import UsersTools
         # Mock API client methods
         async def mock_get_issue(issue_id):
             await asyncio.sleep(0.01)
-            return {"id": issue_id, "summary": "Test Issue"}
-        
-        async def mock_create_issue(project, summary, description=None):
+            from youtrack_mcp.api.issues import Issue
+            return Issue(id=issue_id, summary="Test Issue")
+
+        async def mock_create_issue(project_id, summary, description=None, assignee=None, priority=None, state=None, custom_fields=None, attachments=None):
             await asyncio.sleep(0.01)
-            return {"id": "TEST-123", "project": project, "summary": summary}
+            from youtrack_mcp.api.issues import Issue
+            return Issue(id="TEST-123", summary=summary, description=description)
         
         async def mock_get_projects(include_archived=False):
             await asyncio.sleep(0.01)
-            return [{"id": "P1", "name": "Project 1", "shortName": "P1"}]
-        
+            from youtrack_mcp.api.projects import Project
+            return [Project(id="P1", name="Project 1", shortName="P1")]
+
         async def mock_get_project(project_id):
             await asyncio.sleep(0.01)
-            return {"id": project_id, "name": f"Project {project_id}"}
-        
+            from youtrack_mcp.api.projects import Project
+            return Project(id=project_id, name=f"Project {project_id}", shortName=project_id)
+
+        async def mock_create_project(name, short_name, description=None, lead_id=None):
+            await asyncio.sleep(0.01)
+            from youtrack_mcp.api.projects import Project
+            return Project(id=short_name, name=name, shortName=short_name, description=description)
+
         async def mock_search_issues(query, limit=10):
             await asyncio.sleep(0.01)
-            return [{"id": "TEST-1", "summary": "Test Issue"}]
-        
+            from youtrack_mcp.api.issues import Issue
+            return [Issue(id="TEST-1", summary="Test Issue")]
+
         async def mock_search_users(query, limit=10):
             await asyncio.sleep(0.01)
-            return [{"id": "user1", "login": query, "name": "Test User"}]
+            from youtrack_mcp.api.users import User
+            return [User(id="user1", login=query, name="Test User")]
         
         print("\n1. Testing CoreIssuesTools (3 methods)...")
         try:
             issues = IssuesTools()
-            issues.issues_api.get_issue = mock_get_issue
-            issues.issues_api.create_issue = mock_create_issue
+            # Mock the async methods properly
+            issues.issues_api.get_issue = AsyncMock(return_value=mock_get_issue)
+            issues.issues_api.create_issue = AsyncMock(return_value=mock_create_issue)
             
             # Test get
             total_count += 1
@@ -117,7 +129,7 @@ from youtrack_mcp.tools.users_tools import UsersTools
             projects = ProjectsTools()
             projects.projects_api.get_projects = mock_get_projects
             projects.projects_api.get_project = mock_get_project
-            projects.projects_api.create_project = mock_create_issue  # Reuse mock
+            projects.projects_api.create_project = mock_create_project
             
             # Test list
             total_count += 1

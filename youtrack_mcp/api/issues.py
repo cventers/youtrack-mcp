@@ -2361,7 +2361,7 @@ class IssuesClient:
 
         except Exception as e:
             logger.exception(f"Error searching issues with query: {query}")
-            return []
+            raise
 
     async def add_comment(self, issue_id: str, text: str) -> Dict[str, Any]:
         """

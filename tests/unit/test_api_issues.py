@@ -14,6 +14,7 @@ pytestmark = pytest.mark.unit
 from typing import List, Dict, Any
 
 from youtrack_mcp.api.issues import IssuesClient, Issue
+from youtrack_mcp.api.client import YouTrackAPIError
 from youtrack_mcp.api.client import YouTrackClient
 
 
@@ -154,75 +155,80 @@ class TestIssuesClientBasicMethods:
         assert issues[1].id == "DEMO-124"
         mock_client.get.assert_called_once_with("issues", params={"query": "", "$top": 10, "fields": "id,idReadable,summary,description,created,updated,project(id,name,shortName),reporter(id,login,name),assignee(id,login,name),priority(name),state(name),customFields(id,name,value)"})
 
-    def test_search_issues_with_query(self):
+    @pytest.mark.asyncio
+    async def test_search_issues_with_query(self):
         """Test getting issues with search query."""
         mock_client = Mock(spec=YouTrackClient)
-        mock_client.get.return_value = [
+        mock_client.get = AsyncMock(return_value=[
             {
                 "id": "DEMO-123",
                 "summary": "Bug issue",
                 "project": {"shortName": "DEMO"}
             }
-        ]
+        ])
 
         issues_client = IssuesClient(mock_client)
-        issues = issues_client.search_issues("Type: Bug")
+        issues = await issues_client.search_issues("Type: Bug")
 
         assert len(issues) == 1
         assert issues[0].summary == "Bug issue"
         mock_client.get.assert_called_once()
 
-    def test_search_issues_empty_response(self):
+    @pytest.mark.asyncio
+    async def test_search_issues_empty_response(self):
         """Test handling empty issues response."""
         mock_client = Mock(spec=YouTrackClient)
-        mock_client.get.return_value = []
+        mock_client.get = AsyncMock(return_value=[])
 
         issues_client = IssuesClient(mock_client)
-        issues = issues_client.search_issues("")
+        issues = await issues_client.search_issues("")
 
         assert len(issues) == 0
         mock_client.get.assert_called_once()
 
-    def test_search_issues_api_error(self):
+    @pytest.mark.asyncio
+    async def test_search_issues_api_error(self):
         """Test handling API errors in search_issues."""
         mock_client = Mock(spec=YouTrackClient)
-        mock_client.get.side_effect = Exception("API Error")
+        mock_client.get = AsyncMock(side_effect=Exception("API Error"))
 
         issues_client = IssuesClient(mock_client)
 
         with pytest.raises(Exception) as exc_info:
-            issues_client.search_issues("")
+            await issues_client.search_issues("")
 
         assert "API Error" in str(exc_info.value)
 
-    def test_get_issue_by_id(self):
+    @pytest.mark.asyncio
+    async def test_get_issue_by_id(self):
         """Test getting a single issue by ID."""
         mock_client = Mock(spec=YouTrackClient)
-        mock_client.get.return_value = {
+        mock_client.get = AsyncMock(return_value={
             "id": "DEMO-123",
             "summary": "Single issue",
             "description": "Issue description",
             "project": {"shortName": "DEMO"}
-        }
-        
+        })
+
         issues_client = IssuesClient(mock_client)
-        issue = issues_client.get_issue("DEMO-123")
-        
+        issue = await issues_client.get_issue("DEMO-123")
+
         assert isinstance(issue, Issue)
         assert issue.id == "DEMO-123"
         assert issue.summary == "Single issue"
         assert issue.description == "Issue description"
 
-    def test_get_issue_not_found(self):
+    @pytest.mark.asyncio
+    async def test_get_issue_not_found(self):
         """Test handling issue not found - returns minimal issue with error info."""
         mock_client = Mock(spec=YouTrackClient)
-        mock_client.get.side_effect = Exception("Issue not found")
-        
+        mock_client.get = AsyncMock(side_effect=Exception("Issue not found"))
+
         issues_client = IssuesClient(mock_client)
-        
+
         # get_issue doesn't raise exceptions, it returns a minimal Issue with error info
-        issue = issues_client.get_issue("NONEXISTENT-123")
-        
+        issue = await issues_client.get_issue("NONEXISTENT-123")
+
         assert isinstance(issue, Issue)
         assert issue.id == "NONEXISTENT-123"
         assert "Error:" in issue.summary  # Error message is included in summary

@@ -24,7 +24,7 @@ from cachetools import TTLCache, LRUCache
 from youtrack_mcp.api.client import YouTrackClient
 from youtrack_mcp.api.issues import IssuesClient
 from youtrack_mcp.api.projects import ProjectsClient
-from youtrack_mcp.mcp_wrappers import sync_wrapper
+from youtrack_mcp.mcp_wrappers import async_wrapper
 from youtrack_mcp.utils import format_json_response
 
 logger = logging.getLogger(__name__)
@@ -111,8 +111,8 @@ class AdvancedSearchTools:
         
         logger.info("AdvancedSearchTools initialized with caching and analytics")
     
-    @sync_wrapper
-    def intelligent_search(
+    @async_wrapper
+    async def intelligent_search(
         self,
         natural_query: str,
         project: Optional[str] = None,
@@ -150,21 +150,24 @@ class AdvancedSearchTools:
             self.stats.cache_misses += 1
             
             # Execute search
-            results = self.issues_api.search_issues(yql_query, limit=limit)
-            
+            issues = await self.issues_api.search_issues(yql_query, limit=limit)
+
+            # Wrap results in expected format
+            results = {"issues": [issue.model_dump() if hasattr(issue, 'model_dump') else issue for issue in issues]}
+
             # Process results
             execution_time = time.time() - start_time
-            
+
             # Update stats
             self.stats.total_searches += 1
             self.stats.total_results += len(results.get("issues", []))
             self.stats.total_execution_time += execution_time
             self.stats.popular_queries[natural_query] = self.stats.popular_queries.get(natural_query, 0) + 1
-            
+
             # Extract field usage
             for field in self._extract_fields_from_query(yql_query):
                 self.stats.field_usage[field] = self.stats.field_usage.get(field, 0) + 1
-            
+
             # Build response
             response = {
                 "query": {
@@ -178,7 +181,7 @@ class AdvancedSearchTools:
                     "from_cache": False
                 }
             }
-            
+
             # Add suggestions if requested
             if include_suggestions:
                 response["suggestions"] = self._generate_suggestions(natural_query, results)
@@ -197,8 +200,8 @@ class AdvancedSearchTools:
                 "query": natural_query
             })
     
-    @sync_wrapper
-    def search_by_query_builder(
+    @async_wrapper
+    async def search_by_query_builder(
         self,
         conditions: List[Dict[str, Any]],
         text_search: Optional[str] = None,
@@ -255,10 +258,9 @@ class AdvancedSearchTools:
                 order_prefix = "-" if sort_order.lower() == "desc" else ""
                 sort_param = f"{order_prefix}{sort_by}"
             
-            results = self.issues_api.search_issues(
+            results = await self.issues_api.search_issues(
                 query=final_query,
-                limit=limit,
-                order_by=sort_param
+                limit=limit
             )
             
             return format_json_response({
@@ -280,8 +282,8 @@ class AdvancedSearchTools:
                 "conditions": conditions
             })
     
-    @sync_wrapper
-    def search_suggestions(self, partial_query: str, context: Optional[str] = None) -> str:
+    @async_wrapper
+    async def search_suggestions(self, partial_query: str, context: Optional[str] = None) -> str:
         """
         Get search suggestions and auto-completions.
         
@@ -342,8 +344,8 @@ class AdvancedSearchTools:
                 "query": partial_query
             })
     
-    @sync_wrapper
-    def search_analytics(self) -> str:
+    @async_wrapper
+    async def search_analytics(self) -> str:
         """
         Get search analytics and performance metrics.
         
@@ -408,8 +410,8 @@ class AdvancedSearchTools:
                 "error_type": type(e).__name__
             })
     
-    @sync_wrapper
-    def clear_search_cache(self) -> str:
+    @async_wrapper
+    async def clear_search_cache(self) -> str:
         """
         Clear search caches and optionally reset analytics.
         
