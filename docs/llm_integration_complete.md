@@ -9,8 +9,8 @@ The YouTrack MCP server has been successfully enhanced with comprehensive LLM in
 ### 1. **Multi-Provider LLM Client System** 🤖
 - **OpenAI-Compatible APIs**: Support for OpenAI, Anthropic, Ollama, and any OpenAI-compatible endpoint
 - **Hugging Face Transformers**: Local CPU inference with quantization (4-bit, 8-bit)
-- **Rule-Based Fallback**: Always available, no dependencies required
-- **Intelligent Hierarchy**: Automatic fallback from external APIs → local models → rule-based
+- **Error Message Enhancement**: Always available, no dependencies required
+- **Intelligent Hierarchy**: Automatic fallback from external APIs → local models
 
 ### 2. **Environment-Based Configuration** ⚙️
 - **Zero-Code Setup**: Fully configurable via environment variables
@@ -43,14 +43,15 @@ The YouTrack MCP server has been successfully enhanced with comprehensive LLM in
 ├─────────────────────┤
 │ 1. OpenAI-Compatible│ → External APIs (OpenAI, Anthropic, Ollama)
 │ 2. Hugging Face     │ → Local CPU models with quantization
-│ 3. Rule-Based       │ → Pattern matching (always available)
+│ Error Enhancement   │ → Always available for better UX
 └─────────────────────┘
 ```
 
-### Provider Fallback Flow
+### Provider Priority Flow
 ```
-User Request → OpenAI API → Hugging Face Model → Rule-Based → Response
-             (if configured)  (if configured)     (always)
+User Request → OpenAI API → Hugging Face Model → Response
+             (if configured)  (if configured)
+Error Enhancement: Always available for improved user experience
 ```
 
 ## 📁 New Files Created
@@ -143,9 +144,9 @@ result = await analyze_user_activity_patterns(
 - **Cost**: Free (after download)
 - **Privacy**: Complete local processing
 
-### Rule-Based Fallback
+### Error Message Enhancement
 - **Latency**: <100ms
-- **Quality**: Moderate
+- **Quality**: Enhanced user experience
 - **Cost**: Free
 - **Privacy**: Complete
 
@@ -155,7 +156,7 @@ result = await analyze_user_activity_patterns(
 - ✅ Multi-provider LLM client initialization
 - ✅ OpenAI-compatible API interface (mock testing)
 - ✅ Hugging Face configuration and model selection
-- ✅ Rule-based fallback functionality
+- ✅ Error message enhancement functionality
 - ✅ AI processor integration with LLM client
 - ✅ Natural language query translation
 - ✅ Error message enhancement
@@ -163,7 +164,7 @@ result = await analyze_user_activity_patterns(
 - ✅ Configuration from environment variables
 
 ### Performance Tests ✅
-- ✅ Fallback hierarchy (external → local → rule-based)
+- ✅ Provider priority (external → local)
 - ✅ Error handling and graceful degradation
 - ✅ Memory usage within configured limits
 - ✅ Response time optimization with caching
@@ -193,7 +194,7 @@ result = await analyze_user_activity_patterns(
 1. **Cloud-First**: Use OpenAI/Anthropic APIs for best quality
 2. **Hybrid**: External APIs with local fallback
 3. **Privacy-First**: Local models only (Hugging Face)
-4. **Minimal**: Rule-based only (no AI dependencies)
+4. **Minimal**: Error enhancement only (no AI dependencies)
 
 ### Monitoring
 - Provider usage logging

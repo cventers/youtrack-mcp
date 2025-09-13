@@ -17,7 +17,7 @@ YouTrack MCP now supports:
 For AI enhancements previously planned with HuggingFace models:
 1. **Switch to OpenAI-compatible API providers** for LLM capabilities
 2. **Use cloud-based embedding services** for semantic search
-3. **Implement rule-based alternatives** for classification tasks
+3. **Leverage error message enhancement** for improved user experience
 4. **Consider third-party AI services** for advanced features
 
 ## 🎯 Enhancement Areas & Model Recommendations

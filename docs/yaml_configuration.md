@@ -347,9 +347,9 @@ python main.py
 # INFO - Configuration loaded from: /path/to/config.yaml
 # INFO - Configured for YouTrack at: https://youtrack.company.com
 # INFO - AI features: enabled (max memory: 2048MB)
-# INFO - LLM client initialized with 2 provider(s)
+# INFO - LLM client initialized with 1 provider(s)
 #   1. openai_compatible: gpt-3.5-turbo
-#   2. rule_based: default
+# INFO - Error message enhancement: enabled
 ```
 
 ### Test Configuration

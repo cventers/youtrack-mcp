@@ -36,7 +36,7 @@ The YouTrack MCP has been successfully enhanced with AI-powered capabilities, tr
   - CPU-optimized design for privacy-preserving AI assistance
   - Memory-efficient with configurable limits (<2GB RAM)
   - Intelligent caching with TTL for performance
-  - Graceful fallback to rule-based processing
+  - Error message enhancement for improved user experience
 
 - **Core AI Capabilities**:
   - Natural language to YouTrack Query Language (YQL) translation
@@ -153,7 +153,7 @@ YOUTRACK_TOKEN=your_api_token
 **Query Translation**:
 - Average confidence: 75-85% for common patterns
 - Response time: <100ms for cached translations
-- Memory usage: <50MB for rule-based processing
+- Memory usage: <50MB for error message enhancement
 
 **ID Normalization**:
 - Processing overhead: <1ms per issue

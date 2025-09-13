@@ -11,10 +11,10 @@ The YouTrack MCP now supports OpenAI-compatible APIs for enhanced natural langua
 - **Local Servers**: OpenAI-compatible endpoints
 - **Other Providers**: Any OpenAI-compatible API
 
-### 2. Rule-Based Fallback (Always Available)
+### 2. Error Message Enhancement (Always Available)
 - **No Dependencies**: Works without any AI models
-- **Pattern Matching**: Handles common YouTrack query patterns
-- **Reliable**: Always provides results
+- **Context Enhancement**: Provides helpful error explanations and fix suggestions
+- **Reliable**: Always enhances error messages for better user experience
 
 ## Configuration
 
@@ -232,21 +232,20 @@ result = await analyze_user_activity_patterns(
 - **Cost**: Free after initial download
 - **Privacy**: Complete - no external calls
 
-### Rule-Based Fallback
+### Error Message Enhancement
 - **Latency**: <100ms
-- **Quality**: Moderate
+- **Quality**: Enhanced user experience
 - **Cost**: Free
 - **Privacy**: Complete
 
-## Fallback Hierarchy
+## Provider Priority
 
-The system automatically falls back through providers:
+The system uses configured providers in priority order:
 
 1. **OpenAI-Compatible** (if configured and available)
 2. **Hugging Face** (if configured and model loaded)
-3. **Rule-Based** (always available)
 
-This ensures the system always provides results, even if AI providers fail.
+Error message enhancement is always available regardless of AI provider configuration.
 
 ## Troubleshooting
 
@@ -268,7 +267,7 @@ pip install transformers torch
 - Ensure sufficient API credits
 
 #### "All LLM providers failed"
-- System falls back to rule-based processing
+- Error message enhancement remains available
 - Check environment variables
 - Verify network connectivity for external APIs
 

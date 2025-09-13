@@ -16,7 +16,7 @@ YouTrack MCP now supports:
 ### Migration
 If you were using Hugging Face Transformers:
 1. Switch to OpenAI-compatible API providers
-2. Use rule-based processing as fallback
+2. Leverage error message enhancement for improved user experience
 3. Consider cloud-based AI services for enhanced functionality
 
 For configuration examples, see `docs/YAML_CONFIGURATION.md` and `docs/LLM_INTEGRATION.md`.
