@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from youtrack_mcp.tools.projects_tools import ProjectsTools
 from youtrack_mcp.tools.issues_tools import IssuesTools
-from youtrack_mcp.tools.loader import load_all_tools
+from youtrack_mcp.utils.loader import load_all_tools
 
 
 class TestProjectsSchema:
@@ -255,5 +255,4 @@ class TestSchemaSizeBudget:
 
         assert len(result_data["schemas"]) == 8
         assert result_data["required_count"] == 4  # Type, Priority, Reporter, State
-        assert result_data["total_fields"] == 8</content>
-</xai:function_call">Create comprehensive unit tests for the tool reactor refactoring
+        assert result_data["total_fields"] == 8

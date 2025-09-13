@@ -3,7 +3,7 @@
 import pytest
 import inspect
 from unittest.mock import Mock, patch
-from youtrack_mcp.tools.loader import (
+from youtrack_mcp.utils.loader import (
     load_all_tools,
     TOOL_PRIORITY,
 )
@@ -53,7 +53,7 @@ class TestLoadAllToolsIntegration:
         }
 
         # Call the actual function (which is mocked)
-        from youtrack_mcp.tools.loader import load_all_tools
+        from youtrack_mcp.utils.loader import load_all_tools
         tools = load_all_tools()
 
         # Should return a dictionary of tools
@@ -67,7 +67,7 @@ class TestLoadAllToolsIntegration:
         # Mock the function to return empty dict on error
         mock_load_all_tools.return_value = {}
 
-        from youtrack_mcp.tools.loader import load_all_tools
+        from youtrack_mcp.utils.loader import load_all_tools
         tools = load_all_tools()
         
         # Should still return a dict (possibly empty)
@@ -79,7 +79,7 @@ class TestLoadAllToolsIntegration:
         # Mock the function to return empty dict on error
         mock_load_all_tools.return_value = {}
 
-        from youtrack_mcp.tools.loader import load_all_tools
+        from youtrack_mcp.utils.loader import load_all_tools
         tools = load_all_tools()
         
         # Should still return a dict (possibly empty)

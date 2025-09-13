@@ -50,7 +50,7 @@ def patch_module():
 patch_module()
 
 # Now import the loader and load tools
-from youtrack_mcp.tools.loader import load_all_tools
+from youtrack_mcp.utils.loader import load_all_tools
 
 print("\nTesting YouTrack MCP tool prioritization...\n")
 

@@ -12,7 +12,7 @@ from unittest.mock import Mock, patch, AsyncMock
 from typing import Dict, Any
 
 from youtrack_mcp.server import YouTrackMCPServer
-from youtrack_mcp.tools.loader import load_all_tools
+from youtrack_mcp.utils.loader import load_all_tools
 
 
 class TestMCPCompliance:
