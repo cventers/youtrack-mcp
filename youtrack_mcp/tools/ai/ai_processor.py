@@ -951,20 +951,3 @@ Provide insights and recommendations based on this activity pattern."""
             return await self._rule_based_analyze_patterns(activity_data, analysis_types)
 
 
-# Global instance (initialized by main.py)
-local_ai_processor: Optional[AIProcessor] = None
-
-
-def get_ai_processor() -> AIProcessor:
-    """Get the global AI processor instance."""
-    global local_ai_processor
-    if local_ai_processor is None:
-        local_ai_processor = AIProcessor()
-    return local_ai_processor
-
-
-def initialize_ai_processor(enable_ai: bool = True, max_memory_mb: int = 2048, llm_client=None) -> AIProcessor:
-    """Initialize the global AI processor instance."""
-    global local_ai_processor
-    local_ai_processor = AIProcessor(enable_ai=enable_ai, max_memory_mb=max_memory_mb, llm_client=llm_client)
-    return local_ai_processor
