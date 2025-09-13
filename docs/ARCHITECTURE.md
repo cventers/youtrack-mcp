@@ -43,10 +43,12 @@ youtrack_mcp/tools/issues/
 ## Testing Coverage
 
 The modular architecture enables comprehensive testing:
-- **120 unit tests** across all 8 modules
-- **Test categories**: Success scenarios, error handling, validation, integration
-- **Coverage areas**: API error handling, workflow restrictions, parameter validation
+- **120+ unit tests** across all 8 modules with extensive coverage
+- **Test categories**: Success scenarios, error handling, validation, integration, async functionality
+- **Coverage areas**: API error handling, workflow restrictions, parameter validation, MCP compliance
 - **Test organization**: One test file per module for focused testing
+- **Integration tests**: End-to-end testing with mock YouTrack API
+- **MCP compliance**: Official SDK contract tests for Claude Code CLI compatibility
 
 ## Integration
 

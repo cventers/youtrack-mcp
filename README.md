@@ -312,30 +312,29 @@ For issues and questions:
 
 *Latest update: Modular architecture refactoring with 120+ unit tests and enhanced maintainability.*
 
-## Version 1.11.1 Released
+## Version 1.17.2 Released
 
-🎉 **MAJOR ARCHITECTURAL IMPROVEMENT** - Modular Refactoring Complete
-- ✅ **Modular Architecture**: Refactored monolithic 1,797-line file into 8 focused modules
-- ✅ **Enhanced Maintainability**: Clear separation of concerns with single-responsibility modules
-- ✅ **Comprehensive Testing**: 120+ unit tests across all modules with extensive coverage
-- ✅ **Backward Compatibility**: Existing API interfaces remain unchanged
-- ✅ **Improved Error Handling**: Enhanced workflow restriction detection and user guidance
-- ✅ **Clean Organization**: Logical module structure with comprehensive documentation
+🎉 **LATEST RELEASE** - Enhanced Stability and Performance
+- ✅ **Modular Architecture**: 8 focused modules with 120+ unit tests
+- ✅ **Async Migration Complete**: Full httpx.AsyncClient implementation
+- ✅ **MCP Compliance**: Full MCP protocol compliance with Claude Code CLI
+- ✅ **Enhanced Error Handling**: LLM-optimized error responses with educational context
+- ✅ **Custom Fields Support**: Complete CRUD operations for all field types
+- ✅ **Activity Tracking**: User activity search and analysis capabilities
+- ✅ **Performance Optimization**: Multi-layer caching and rate limiting
+- ✅ **Security Hardening**: Token management and input validation
 
-### Module Breakdown
-- **basic_operations**: Core CRUD operations (get, create, update, search)
-- **custom_fields**: Custom field management and validation
-- **dedicated_updates**: Specialized updates with enhanced error handling
-- **linking**: Issue relationships and dependency management
-- **diagnostics**: Workflow analysis and interactive help
-- **attachments**: File operations and raw data access
-- **comments**: Comment retrieval and management
-- **utilities**: Infrastructure and tool consolidation
+### Architecture Highlights
+- **8 Focused Modules**: Clean separation of concerns with single-responsibility design
+- **120+ Unit Tests**: Comprehensive test coverage across all modules
+- **Async-First**: Full async/await implementation with httpx.AsyncClient
+- **LLM-Optimized**: Error messages designed to help AI models learn and improve
+- **Multi-Registry Support**: Docker Hub, GitHub Container Registry, npm registries
 
-### Previous Features (Still Available)
-- ✅ Complete custom fields CRUD operations (create, read, update, delete)
-- ✅ Field validation against project schema (all field types supported)
-- ✅ Batch update capabilities for performance
-- ✅ Comprehensive error handling with detailed messages
-- ✅ 567 tests (+68 new tests) with extensive coverage
-- ✅ Clean project organization with `automations/` directory
+### Core Features
+- **Issue Management**: Complete CRUD operations with custom fields support
+- **Project Management**: Schema-aware operations with field validation
+- **Search Capabilities**: YQL queries with natural language translation
+- **User Management**: Activity tracking and permission management
+- **Resource Access**: MCP resources for documentation and configuration
+- **AI Integration**: Planning tools and intelligent error handling

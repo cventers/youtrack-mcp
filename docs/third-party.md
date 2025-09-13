@@ -89,3 +89,4 @@ This directory contains cached copies and extracts from official YouTrack API do
 
 ## Last Updated
 Created: 2025-06-13
+Last Updated: 2025-09-12 (Version 1.17.2 Documentation Update)

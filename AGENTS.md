@@ -1,6 +1,6 @@
 # YouTrack MCP Server - AI Agent Documentation
 
-This document provides guidance for AI agents working on the YouTrack MCP (Model Context Protocol) server implementation.
+This document provides guidance for AI agents working on the YouTrack MCP (Model Context Protocol) server implementation. **Version 1.17.2** with modular architecture and enhanced performance.
 
 ## Project Structure
 
@@ -8,26 +8,29 @@ This document provides guidance for AI agents working on the YouTrack MCP (Model
 - **`main.py`** - FastMCP server implementation with all MCP tools
 - **`youtrack_mcp/`** - Core library modules
   - **`api/`** - YouTrack API client implementations
-    - `client.py` - Base HTTP client with authentication
+    - `client.py` - Base HTTP client with httpx.AsyncClient and authentication
     - `issues.py` - Issue operations (CRUD, search, linking)
     - `projects.py` - Project management operations
+    - `search.py` - Search and query operations
     - `users.py` - User management operations
   - **`tools/`** - MCP tool implementations (modular architecture)
     - **`issues/`** - Modular issue management (8 focused modules)
       - `basic_operations.py` - Core CRUD operations
-      - `custom_fields.py` - Custom field management
-      - `dedicated_updates.py` - Specialized updates
-      - `linking.py` - Issue relationships
-      - `diagnostics.py` - Workflow analysis
-      - `attachments.py` - File operations
-      - `comments.py` - Comment management
-      - `utilities.py` - Infrastructure functions
+      - `custom_fields.py` - Custom field management and validation
+      - `dedicated_updates.py` - Specialized updates with enhanced error handling
+      - `linking.py` - Issue relationships and dependencies
+      - `diagnostics.py` - Workflow analysis and interactive help
+      - `attachments.py` - File operations and raw data access
+      - `comments.py` - Comment retrieval and management
+      - `utilities.py` - Infrastructure and tool consolidation
     - `core_issues.py` - Core issue operations
     - `core_projects.py` - Project management
     - `core_search.py` - Search functionality
     - `core_users.py` - User management
-  - **`config.py`** - Configuration management
-  - **`utils.py`** - Utility functions (date conversion, field resolution)
+    - `core_ai.py` - AI planning and assistance tools
+    - `core_resources.py` - MCP resource management
+  - **`config.py`** - Configuration management with secure token handling
+  - **`utils.py`** - Utility functions (date conversion, field resolution, ID normalization)
 
 ### Documentation
 
@@ -85,13 +88,17 @@ The **`docs/third-party.md`** file serves as an index to all extracted documenta
 
 ## Current Implementation Status
 
-### ✅ Working Features
-- All basic MCP tools (get_issue, create_issue, search_issues, etc.)
-- Project management (get_projects, create_project, update_project)
-- User management (get_users, search_users)
-- Issue linking and dependencies
-- Commands API integration for bulk operations
-- Custom field handling with value resolution
+### ✅ Working Features (Version 1.17.2)
+- **Complete MCP Tool Suite**: All 12 core tools with modular architecture
+- **Issue Management**: Full CRUD operations with custom fields support
+- **Project Management**: Schema-aware operations with field validation
+- **Search Capabilities**: YQL queries with natural language translation
+- **User Management**: Activity tracking and permission management
+- **AI Integration**: Planning tools and intelligent error handling
+- **Resource Access**: MCP resources for documentation and configuration
+- **Async Performance**: Full httpx.AsyncClient implementation
+- **Security**: Token management and input validation
+- **Testing**: 120+ unit tests with MCP compliance validation
 
 
 
@@ -154,7 +161,8 @@ uv lock --upgrade
 ### Error Handling Philosophy
 - **Preserve YouTrack errors**: Return original API errors with added educational context
 - **LLM-friendly**: Include explanations, examples, and "learn from this" guidance
-- **Specific exceptions**: Replace generic `except Exception` with specific error types
+- **Specific exceptions**: All generic `except Exception` replaced with specific error types
+- **Educational responses**: Error messages designed to help AI models learn correct usage patterns
 
 ### Performance Considerations
 - **Async Operations**: Use httpx.AsyncClient for all HTTP requests
@@ -171,12 +179,14 @@ uv lock --upgrade
 ### MCP Compliance
 - **Required**: `pip install mcp[test]` and `pytest -k mcp_contracts`
 - **Purpose**: Ensure handshake/capability message compatibility
+- **Status**: ✅ **FULLY COMPLIANT** - Claude Code CLI auto-resume working
 - **Critical**: For Claude Code CLI auto-resume functionality
 
 ### Multi-Model Testing
 - **Providers**: Test with Anthropic, OpenAI, Google, Mistral
 - **Focus**: Tool-call formatting, parameter validation, JSON schema compliance
 - **Mock API**: Use `respx` for YouTrack API mocking in CI
+- **Status**: Comprehensive test matrix implemented
 
 ## Common Patterns
 
@@ -249,7 +259,7 @@ When working on this codebase:
 
 The project prioritizes practical YouTrack integration over theoretical MCP protocol details, with emphasis on error handling that helps LLMs provide better user experiences. The modular architecture enhances maintainability while preserving all existing functionality.
 
-## Tool Calling Standards (POST-REFACTOR)
+## Tool Calling Standards (Version 1.17.2)
 
 ### Canonical Invocation Format
 **ALL tool calls MUST use the strict JSON object format:**
@@ -270,6 +280,7 @@ The project prioritizes practical YouTrack integration over theoretical MCP prot
 3. **Strict validation**: JSON Schema validation with `additionalProperties: false`
 4. **No automatic repair**: Invalid calls return clear validation errors
 5. **Exact parameter names**: Use schema-defined names (no fuzzy matching)
+6. **Async-first**: All tools are async and return JSON-serializable responses
 
 ### Migration from Legacy Format
 **OLD (deprecated):**

@@ -3,7 +3,7 @@
 [![npm version](https://badge.fury.io/js/youtrack-mcp-tonyzorin.svg)](https://www.npmjs.com/package/youtrack-mcp-tonyzorin)
 [![npm downloads](https://img.shields.io/npm/dm/youtrack-mcp-tonyzorin.svg)](https://www.npmjs.com/package/youtrack-mcp-tonyzorin)
 
-A Model Context Protocol (MCP) server for JetBrains YouTrack with a modern modular architecture, enabling seamless integration with Claude Desktop and other MCP clients.
+A Model Context Protocol (MCP) server for JetBrains YouTrack with a modern modular architecture, enabling seamless integration with Claude Desktop and other MCP clients. Version 1.17.2 features enhanced stability, performance optimization, and comprehensive custom fields support.
 
 ## Quick Start
 

@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "youtrack-mcp"
-version = "0.1.0"
-description = "YouTrack MCP Server for AI assistants"
+version = "1.17.2"
+description = "YouTrack MCP Server for AI assistants with modular architecture and enhanced performance"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
