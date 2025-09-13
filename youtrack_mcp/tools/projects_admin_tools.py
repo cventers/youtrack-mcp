@@ -19,7 +19,7 @@ from youtrack_mcp.utils import format_json_response
 logger = logging.getLogger(__name__)
 
 
-class CoreProjectsAdminTools:
+class ProjectsAdminTools:
     """Administrative project tools with permission gating."""
 
     def __init__(self):
@@ -182,4 +182,4 @@ class CoreProjectsAdminTools:
         }
 
 
-__all__ = ["CoreProjectsAdminTools"]
+__all__ = ["ProjectsAdminTools"]

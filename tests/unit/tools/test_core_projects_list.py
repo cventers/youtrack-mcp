@@ -7,7 +7,7 @@ Tests the project discovery functionality.
 import pytest
 import json
 from unittest.mock import Mock, patch
-from youtrack_mcp.tools.core_projects import CoreProjectsTools
+from youtrack_mcp.tools.projects_tools import ProjectsTools
 from youtrack_mcp.utils import format_json_response
 
 
@@ -16,7 +16,7 @@ class TestCoreProjectsList:
 
     def setup_method(self):
         """Set up test fixtures."""
-        self.tools = CoreProjectsTools()
+        self.tools = ProjectsTools()
         self.tools.client = Mock()
         self.tools.projects_api = Mock()
 

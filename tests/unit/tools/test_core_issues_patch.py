@@ -6,7 +6,7 @@ Tests the typed operations and field updates for issue patching.
 
 import pytest
 from unittest.mock import Mock, patch
-from youtrack_mcp.tools.core_issues import CoreIssuesTools
+from youtrack_mcp.tools.issues_tools import IssuesTools
 from youtrack_mcp.utils import format_json_response
 
 
@@ -15,7 +15,7 @@ class TestCoreIssuesPatch:
 
     def setup_method(self):
         """Set up test fixtures."""
-        self.tools = CoreIssuesTools()
+        self.tools = IssuesTools()
         self.tools.client = Mock()
         self.tools.issues_api = Mock()
 
@@ -137,7 +137,7 @@ class TestCoreIssuesPatchSubpaths:
 
     def setup_method(self):
         """Set up test fixtures."""
-        self.tools = CoreIssuesTools()
+        self.tools = IssuesTools()
         self.tools.client = Mock()
         self.tools.issues_api = Mock()
 

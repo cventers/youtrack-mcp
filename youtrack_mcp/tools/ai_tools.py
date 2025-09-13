@@ -15,7 +15,7 @@ from youtrack_mcp.tools.ai.ai_tools import AITools
 logger = logging.getLogger(__name__)
 
 
-class CoreAITools:
+class AITools:
     """Minimal AI tools with clean interfaces."""
 
     def __init__(self):
@@ -149,4 +149,4 @@ class CoreAITools:
         }
 
 
-__all__ = ["CoreAITools"]
+__all__ = ["AITools"]

@@ -44,14 +44,14 @@ async def test_all_tools():
         mock_client.delete = mock_delete
         
         # Now import after patching
-        from youtrack_mcp.tools.core_issues import CoreIssuesTools
-        from youtrack_mcp.tools.core_projects import CoreProjectsTools
-        from youtrack_mcp.tools.core_search import CoreSearchTools
-        from youtrack_mcp.tools.core_users import CoreUsersTools
-        from youtrack_mcp.tools.core_ai import CoreAITools
-        from youtrack_mcp.tools.core_resources import CoreResourcesTools
-        from youtrack_mcp.tools.core_projects_admin import CoreProjectsAdminTools
-        from youtrack_mcp.tools.core_users_admin import CoreUsersAdminTools
+        from youtrack_mcp.tools.issues_tools import IssuesTools
+        from youtrack_mcp.tools.projects_tools import ProjectsTools
+        from youtrack_mcp.tools.search_tools import SearchTools
+from youtrack_mcp.tools.users_tools import UsersTools
+        from youtrack_mcp.tools.ai_tools import AITools
+        from youtrack_mcp.tools.resources_tools import ResourcesTools
+        from youtrack_mcp.tools.projects_admin_tools import ProjectsAdminTools
+        from youtrack_mcp.tools.users_admin_tools import UsersAdminTools
         
         # Mock API client methods
         async def mock_get_issue(issue_id):
@@ -80,7 +80,7 @@ async def test_all_tools():
         
         print("\n1. Testing CoreIssuesTools (3 methods)...")
         try:
-            issues = CoreIssuesTools()
+            issues = IssuesTools()
             issues.issues_api.get_issue = mock_get_issue
             issues.issues_api.create_issue = mock_create_issue
             
@@ -114,7 +114,7 @@ async def test_all_tools():
         
         print("\n2. Testing CoreProjectsTools (4 methods)...")
         try:
-            projects = CoreProjectsTools()
+            projects = ProjectsTools()
             projects.projects_api.get_projects = mock_get_projects
             projects.projects_api.get_project = mock_get_project
             projects.projects_api.create_project = mock_create_issue  # Reuse mock
@@ -157,7 +157,7 @@ async def test_all_tools():
         
         print("\n3. Testing CoreSearchTools (2 methods)...")
         try:
-            search = CoreSearchTools()
+            search = SearchTools()
             search.issues_api.search_issues = mock_search_issues
             
             # Test query
@@ -182,7 +182,7 @@ async def test_all_tools():
         
         print("\n4. Testing CoreUsersTools (1 method)...")
         try:
-            users = CoreUsersTools()
+            users = UsersTools()
             users.users_api.search_users = mock_search_users
             
             # Test search
@@ -199,7 +199,7 @@ async def test_all_tools():
         
         print("\n5. Testing CoreAITools (1 method)...")
         try:
-            ai = CoreAITools()
+            ai = AITools()
             
             # Test plan
             total_count += 1
@@ -215,7 +215,7 @@ async def test_all_tools():
         
         print("\n6. Testing CoreResourcesTools (1 method)...")
         try:
-            resources = CoreResourcesTools()
+            resources = ResourcesTools()
             
             # Test read
             total_count += 1
@@ -231,7 +231,7 @@ async def test_all_tools():
         
         print("\n7. Testing CoreProjectsAdminTools (3 methods)...")
         try:
-            admin_projects = CoreProjectsAdminTools()
+            admin_projects = ProjectsAdminTools()
             
             # Test delete
             total_count += 1
@@ -263,7 +263,7 @@ async def test_all_tools():
         
         print("\n8. Testing CoreUsersAdminTools (3 methods)...")
         try:
-            admin_users = CoreUsersAdminTools()
+            admin_users = UsersAdminTools()
             
             # Test create
             total_count += 1

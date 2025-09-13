@@ -7,7 +7,7 @@ Tests the secured URI proxy functionality.
 import pytest
 import json
 from unittest.mock import Mock, patch
-from youtrack_mcp.tools.core_resources import CoreResourcesTools
+from youtrack_mcp.tools.resources_tools import ResourcesTools
 from youtrack_mcp.utils import format_json_response
 
 
@@ -16,7 +16,7 @@ class TestCoreResourcesRead:
 
     def setup_method(self):
         """Set up test fixtures."""
-        self.tools = CoreResourcesTools()
+        self.tools = ResourcesTools()
         # Mock the client directly
         self.mock_client = Mock()
         self.tools._client = self.mock_client

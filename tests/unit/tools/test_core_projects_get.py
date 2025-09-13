@@ -7,7 +7,7 @@ Tests the project details with expansions functionality.
 import pytest
 import json
 from unittest.mock import Mock, patch
-from youtrack_mcp.tools.core_projects import CoreProjectsTools
+from youtrack_mcp.tools.projects_tools import ProjectsTools
 from youtrack_mcp.utils import format_json_response
 
 
@@ -18,7 +18,7 @@ class TestCoreProjectsGet:
         """Set up test fixtures."""
         with patch('youtrack_mcp.tools.core_projects.YouTrackClient'), \
              patch('youtrack_mcp.tools.core_projects.ProjectsClient'):
-            self.tools = CoreProjectsTools()
+            self.tools = ProjectsTools()
             self.tools.client = Mock()
             self.tools.projects_api = Mock()
 

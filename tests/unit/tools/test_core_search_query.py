@@ -7,7 +7,7 @@ Tests the explicit YouTrack Query Language execution functionality.
 import pytest
 import json
 from unittest.mock import Mock, patch
-from youtrack_mcp.tools.core_search import CoreSearchTools
+from youtrack_mcp.tools.search_tools import SearchTools
 from youtrack_mcp.utils import format_json_response
 
 
@@ -16,7 +16,7 @@ class TestCoreSearchQuery:
 
     def setup_method(self):
         """Set up test fixtures."""
-        self.tools = CoreSearchTools()
+        self.tools = SearchTools()
         self.tools.client = Mock()
         self.tools.issues_api = Mock()
 

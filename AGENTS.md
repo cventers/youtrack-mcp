@@ -23,13 +23,17 @@ This document provides guidance for AI agents working on the YouTrack MCP (Model
       - `attachments.py` - File operations and raw data access
       - `comments.py` - Comment retrieval and management
       - `utilities.py` - Infrastructure and tool consolidation
-    - `core_issues.py` - Core issue operations
-    - `core_projects.py` - Project management
-    - `core_search.py` - Search functionality
-    - `core_users.py` - User management
-    - `core_ai.py` - AI planning and assistance tools
-    - `core_resources.py` - MCP resource management
+    - `issues_tools.py` - Core issue operations
+    - `projects_tools.py` - Project management
+    - `search_tools.py` - Search functionality
+    - `users_tools.py` - User management
+    - `ai_tools.py` - AI planning and assistance tools
+    - `resources_tools.py` - MCP resource management
+    - `projects_admin_tools.py` - Project administration tools
+    - `users_admin_tools.py` - User administration tools
   - **`config.py`** - Configuration management with secure token handling
+
+**Note:** Tool files follow the naming convention `[module]_tools.py` instead of the previous `core_[module].py` pattern.
   - **`utils.py`** - Utility functions (date conversion, field resolution, ID normalization)
 
 ### Documentation

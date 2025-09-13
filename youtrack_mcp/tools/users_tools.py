@@ -16,7 +16,7 @@ from youtrack_mcp.utils import format_json_response
 logger = logging.getLogger(__name__)
 
 
-class CoreUsersTools:
+class UsersTools:
     """Minimal users tools with clean interfaces."""
 
     def __init__(self):
@@ -74,4 +74,4 @@ class CoreUsersTools:
         }
 
 
-__all__ = ["CoreUsersTools"]
+__all__ = ["UsersTools"]

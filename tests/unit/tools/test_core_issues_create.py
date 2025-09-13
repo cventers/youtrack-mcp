@@ -7,7 +7,7 @@ Tests the schema-aware issue creation functionality.
 import pytest
 import json
 from unittest.mock import Mock, AsyncMock, patch
-from youtrack_mcp.tools.core_issues import CoreIssuesTools
+from youtrack_mcp.tools.issues_tools import IssuesTools
 from youtrack_mcp.utils import format_json_response
 
 
@@ -16,7 +16,7 @@ class TestCoreIssuesCreate:
 
     def setup_method(self):
         """Set up test fixtures."""
-        self.tools = CoreIssuesTools()
+        self.tools = IssuesTools()
         self.tools.client = Mock()
         self.tools.issues_api = Mock()
 

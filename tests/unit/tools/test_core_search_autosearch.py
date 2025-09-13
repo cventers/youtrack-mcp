@@ -6,7 +6,7 @@ Tests the natural language to YQL translation with confidence scoring.
 
 import pytest
 from unittest.mock import Mock, patch
-from youtrack_mcp.tools.core_search import CoreSearchTools
+from youtrack_mcp.tools.search_tools import SearchTools
 from youtrack_mcp.utils import format_json_response
 
 
@@ -15,7 +15,7 @@ class TestCoreSearchAutosearch:
 
     def setup_method(self):
         """Set up test fixtures."""
-        self.tools = CoreSearchTools()
+        self.tools = SearchTools()
         self.tools.client = Mock()
 
     def test_autosearch_high_confidence(self):
@@ -189,7 +189,7 @@ class TestAutosearchConfidenceRails:
 
     def setup_method(self):
         """Set up test fixtures."""
-        self.tools = CoreSearchTools()
+        self.tools = SearchTools()
 
     def test_high_confidence_threshold(self):
         """Test that high confidence (>= 0.8) uses direct YQL."""

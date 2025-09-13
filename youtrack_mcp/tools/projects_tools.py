@@ -29,7 +29,7 @@ from youtrack_mcp.llm_error_responses import create_llm_friendly_error
 logger = logging.getLogger(__name__)
 
 
-class CoreProjectsTools:
+class ProjectsTools:
     """Minimal projects tools with clean interfaces."""
 
     def __init__(self):
@@ -355,4 +355,4 @@ class CoreProjectsTools:
         }
 
 
-__all__ = ["CoreProjectsTools"]
+__all__ = ["ProjectsTools"]

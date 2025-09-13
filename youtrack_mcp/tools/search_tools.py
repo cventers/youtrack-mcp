@@ -19,7 +19,7 @@ from youtrack_mcp.tools.ai.ai_tools import AITools
 logger = logging.getLogger(__name__)
 
 
-class CoreSearchTools:
+class SearchTools:
     """Minimal search tools with clean interfaces."""
 
     def __init__(self):
@@ -242,4 +242,4 @@ class CoreSearchTools:
         }
 
 
-__all__ = ["CoreSearchTools"]
+__all__ = ["SearchTools"]

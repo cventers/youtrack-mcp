@@ -7,7 +7,7 @@ Tests the intent planning and analysis functionality.
 import pytest
 import json
 from unittest.mock import Mock, patch
-from youtrack_mcp.tools.core_ai import CoreAITools
+from youtrack_mcp.tools.ai_tools import AITools
 from youtrack_mcp.utils import format_json_response
 
 
@@ -16,7 +16,7 @@ class TestCoreAIPlan:
 
     def setup_method(self):
         """Set up test fixtures."""
-        self.tools = CoreAITools()
+        self.tools = AITools()
         self.tools.ai_tools = Mock()
 
     def test_plan_create_issue_intent(self):

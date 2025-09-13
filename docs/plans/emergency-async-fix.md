@@ -132,7 +132,7 @@ git checkout -- youtrack_mcp/tools/core_projects.py
 ```python
 # Quick test script
 import asyncio
-from youtrack_mcp.tools.core_projects import CoreProjectsTools
+from youtrack_mcp.tools.projects_tools import ProjectsTools
 
 async def test():
     tools = CoreProjectsTools()
@@ -209,8 +209,8 @@ After applying the fix:
 ```python
 # This should work without errors
 import asyncio
-from youtrack_mcp.tools.core_projects import CoreProjectsTools
-from youtrack_mcp.tools.core_issues import CoreIssuesTools
+from youtrack_mcp.tools.projects_tools import ProjectsTools
+from youtrack_mcp.tools.issues_tools import IssuesTools
 
 async def verify():
     projects = CoreProjectsTools()

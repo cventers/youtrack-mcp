@@ -310,9 +310,9 @@ print('✅ All tools are async')
 python -c "
 import asyncio
 import json
-from youtrack_mcp.tools.core_projects import CoreProjectsTools
-from youtrack_mcp.tools.core_search import CoreSearchTools
-from youtrack_mcp.tools.core_users import CoreUsersTools
+from youtrack_mcp.tools.projects_tools import ProjectsTools
+from youtrack_mcp.tools.search_tools import SearchTools
+from youtrack_mcp.tools.users_tools import UsersTools
 
 async def test():
     try:
@@ -475,7 +475,7 @@ if __name__ == "__main__":
 # Quick test
 python -c "
 import asyncio
-from youtrack_mcp.tools.core_[MODULE] import Core[Module]Tools
+from youtrack_mcp.tools.[module]_tools import [Module]Tools
 
 async def test():
     tools = Core[Module]Tools()

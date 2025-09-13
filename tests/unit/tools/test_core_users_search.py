@@ -7,7 +7,7 @@ Tests the user resolution functionality.
 import pytest
 import json
 from unittest.mock import Mock, patch
-from youtrack_mcp.tools.core_users import CoreUsersTools
+from youtrack_mcp.tools.users_tools import UsersTools
 from youtrack_mcp.utils import format_json_response
 
 
@@ -16,7 +16,7 @@ class TestCoreUsersSearch:
 
     def setup_method(self):
         """Set up test fixtures."""
-        self.tools = CoreUsersTools()
+        self.tools = UsersTools()
         self.tools.client = Mock()
         self.tools.users_api = Mock()
 

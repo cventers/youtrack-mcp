@@ -7,7 +7,7 @@ Tests the rich read functionality with expansions for issue retrieval.
 import pytest
 import json
 from unittest.mock import Mock, AsyncMock
-from youtrack_mcp.tools.core_issues import CoreIssuesTools
+from youtrack_mcp.tools.issues_tools import IssuesTools
 
 
 class TestCoreIssuesGet:
@@ -15,7 +15,7 @@ class TestCoreIssuesGet:
 
     def setup_method(self):
         """Set up test fixtures."""
-        self.tools = CoreIssuesTools()
+        self.tools = IssuesTools()
         self.tools.client = Mock()
         self.tools.issues_api = Mock()
 

@@ -1,9 +1,9 @@
-from youtrack_mcp.tools.core_issues import CoreIssuesTools
-from youtrack_mcp.tools.core_projects import CoreProjectsTools
-from youtrack_mcp.tools.core_users import CoreUsersTools
-from youtrack_mcp.tools.core_search import CoreSearchTools
-from youtrack_mcp.tools.core_resources import CoreResourcesTools
-from youtrack_mcp.tools.core_ai import CoreAITools
+from youtrack_mcp.tools.issues_tools import IssuesTools
+from youtrack_mcp.tools.projects_tools import ProjectsTools
+from youtrack_mcp.tools.users_tools import UsersTools
+from youtrack_mcp.tools.search_tools import SearchTools
+from youtrack_mcp.tools.resources_tools import ResourcesTools
+from youtrack_mcp.tools.ai_tools import AITools
 from typing import Dict, Any
 
 
@@ -12,12 +12,12 @@ class MCPServer:
 
     def __init__(self):
         """Initialize the MCP server with core tools."""
-        self.issues_tools = CoreIssuesTools()
-        self.projects_tools = CoreProjectsTools()
-        self.users_tools = CoreUsersTools()
-        self.search_tools = CoreSearchTools()
-        self.resources_tools = CoreResourcesTools()
-        self.ai_tools = CoreAITools()
+        self.issues_tools = IssuesTools()
+        self.projects_tools = ProjectsTools()
+        self.users_tools = UsersTools()
+        self.search_tools = SearchTools()
+        self.resources_tools = ResourcesTools()
+        self.ai_tools = AITools()
 
     def get_all_tool_definitions(self) -> Dict[str, Dict[str, Any]]:
         """Get all core tool definitions."""

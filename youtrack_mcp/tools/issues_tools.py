@@ -32,7 +32,7 @@ error_educator = LLMErrorEducator()
 logger = logging.getLogger(__name__)
 
 
-class CoreIssuesTools:
+class IssuesTools:
     """Minimal issues tools with clean interfaces."""
 
     def __init__(self):
@@ -284,4 +284,4 @@ class CoreIssuesTools:
         }
 
 
-__all__ = ["CoreIssuesTools"]
+__all__ = ["IssuesTools"]

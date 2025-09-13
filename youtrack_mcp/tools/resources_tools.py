@@ -22,7 +22,7 @@ YOUTRACK_URI_SCHEME = "youtrack"
 HELP_URI_SCHEME = "help"
 
 
-class CoreResourcesTools:
+class ResourcesTools:
     """Minimal resources tools with clean interfaces."""
 
     def __init__(self):
@@ -160,4 +160,4 @@ class CoreResourcesTools:
         }
 
 
-__all__ = ["CoreResourcesTools"]
+__all__ = ["ResourcesTools"]

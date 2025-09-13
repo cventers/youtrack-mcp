@@ -63,23 +63,23 @@ def load_all_tools() -> Dict[str, Callable]:
     tools = {}
 
     # Import core tool modules for minimal surface
-    from youtrack_mcp.tools.core_issues import CoreIssuesTools
-    from youtrack_mcp.tools.core_projects import CoreProjectsTools
-    from youtrack_mcp.tools.core_users import CoreUsersTools
-    from youtrack_mcp.tools.core_search import CoreSearchTools
-    from youtrack_mcp.tools.core_resources import CoreResourcesTools
-    from youtrack_mcp.tools.core_ai import CoreAITools
+    from youtrack_mcp.tools.issues_tools import IssuesTools
+    from youtrack_mcp.tools.projects_tools import ProjectsTools
+    from youtrack_mcp.tools.users_tools import UsersTools
+    from youtrack_mcp.tools.search_tools import SearchTools
+    from youtrack_mcp.tools.resources_tools import ResourcesTools
+    from youtrack_mcp.tools.ai_tools import AITools
     # DateTimeTools is not a class, it's a module with functions
     # We'll handle datetime tools separately if needed
 
     # Initialize core tool classes
     tool_classes = [
-        CoreIssuesTools(),
-        CoreProjectsTools(),
-        CoreUsersTools(),
-        CoreSearchTools(),
-        CoreResourcesTools(),
-        CoreAITools(),
+        IssuesTools(),
+        ProjectsTools(),
+        UsersTools(),
+        SearchTools(),
+        ResourcesTools(),
+        AITools(),
     ]
 
     # Load tools from core classes - simplified for minimal surface

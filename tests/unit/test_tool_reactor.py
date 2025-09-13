@@ -8,8 +8,8 @@ import pytest
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from youtrack_mcp.tools.core_projects import CoreProjectsTools
-from youtrack_mcp.tools.core_issues import CoreIssuesTools
+from youtrack_mcp.tools.projects_tools import ProjectsTools
+from youtrack_mcp.tools.issues_tools import IssuesTools
 from youtrack_mcp.tools.loader import load_all_tools
 
 

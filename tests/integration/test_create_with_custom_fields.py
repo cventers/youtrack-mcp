@@ -12,8 +12,8 @@ import os
 # Add the project root to Python path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from youtrack_mcp.tools.core_issues import CoreIssuesTools
-from youtrack_mcp.tools.core_projects import CoreProjectsTools
+from youtrack_mcp.tools.issues_tools import IssuesTools
+from youtrack_mcp.tools.projects_tools import ProjectsTools
 
 async def test_custom_fields_support():
     """Test the new custom fields support in issue creation."""
