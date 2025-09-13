@@ -80,37 +80,103 @@ class IssuesClient:
         """
         self.client = client
 
-    async def get_issue(self, issue_id: str) -> Issue:
+    async def get_issue(self, issue_id: str, include: Optional[List[str]] = None) -> Issue:
         """
-        Get an issue by ID.
+        Get an issue by ID with optional expansions.
 
         Args:
             issue_id: The issue ID or readable ID (e.g., PROJECT-123)
+            include: List of expansions to include (comments, links, work_items, history, activities, time_tracking)
 
         Returns:
             The issue data
         """
         try:
-            # Get issue data
-            response = await self.client.get(f"issues/{issue_id}")
+            # Build fields query based on requested expansions
+            base_fields = "id,idReadable,summary,description,created,updated,project(id,shortName),reporter,assignee,customFields,attachments(id,name,url,mimeType,size)"
 
-            # If the response doesn't have all needed fields, fetch more details
-            if (
-                isinstance(response, dict)
-                and response.get("$type") == "Issue"
-                and "summary" not in response
-            ):
-                # Get additional fields we need including attachments
-                fields = "id,idReadable,summary,description,created,updated,project(id,shortName),reporter,assignee,customFields,attachments(id,name,url,mimeType,size)"
-                try:
-                    detailed_response = await self.client.get(
-                        f"issues/{issue_id}?fields={fields}"
-                    )
-                except Exception as e:
-                    logger.warning(f"Failed to get detailed issue data: {e}")
-                    detailed_response = response
+            expansion_fields = []
+            if include:
+                if "comments" in include:
+                    expansion_fields.append("comments(id,text,author(id,name,login),created,updated,deleted)")
+                if "links" in include:
+                    expansion_fields.append("links(linkType,direction,issues(id,idReadable,summary))")
+                if "work_items" in include:
+                    expansion_fields.append("workItems(id,type(name),author(id,name,login),text,created,updated,duration(minutes,presentation))")
+                if "history" in include:
+                    expansion_fields.append("history(id,author(id,name,login),timestamp,field,value,oldValue)")
+                if "activities" in include:
+                    expansion_fields.append("activities(id,author(id,name,login),timestamp,field,value,oldValue,targetMember)")
+                if "time_tracking" in include:
+                    expansion_fields.append("timeTracking(workItems(id,type(name),author(id,name,login),text,created,updated,duration(minutes,presentation)))")
+
+            # Combine base fields with expansion fields
+            if expansion_fields:
+                fields = base_fields + "," + ",".join(expansion_fields)
             else:
-                detailed_response = response
+                fields = base_fields
+
+            # Get issue data with specified fields
+            try:
+                detailed_response = await self.client.get(
+                    f"issues/{issue_id}?fields={fields}"
+                )
+            except Exception as e:
+                logger.warning(f"Failed to get detailed issue data: {e}")
+                # Fallback to basic request
+                detailed_response = await self.client.get(f"issues/{issue_id}")
+
+            # Ensure the ID field is present
+            if (
+                isinstance(detailed_response, dict)
+                and "id" not in detailed_response
+                and detailed_response.get("$type") == "Issue"
+            ):
+                detailed_response["id"] = issue_id
+
+            try:
+                # Try to validate the model
+                return Issue.model_validate(detailed_response)
+            except Exception as validation_error:
+                # If validation fails, create a more flexible issue object
+                logger.warning(
+                    f"Issue validation error: {validation_error}. Creating issue with minimal data."
+                )
+
+                if isinstance(detailed_response, dict):
+                    # Extract key fields if possible
+                    summary = detailed_response.get(
+                        "summary", "Unknown summary"
+                    )
+                    description = detailed_response.get("description", "")
+
+                    # Create a basic issue with the available data
+                    issue = Issue(
+                        id=issue_id, summary=summary, description=description
+                    )
+
+                    # Add any other fields that might be useful
+                    for field in [
+                        "created",
+                        "updated",
+                        "project",
+                        "reporter",
+                        "assignee",
+                        "attachments",
+                    ]:
+                        if field in detailed_response:
+                            setattr(issue, field, detailed_response[field])
+
+                    return issue
+                else:
+                    # If response is not even a dict, create a minimal issue
+                    return Issue(id=issue_id, summary=f"Issue {issue_id}")
+
+        except Exception as e:
+            # Log the full error with traceback
+            logger.exception(f"Error retrieving issue {issue_id}")
+            # Create minimal issue to avoid breaking calls
+            return Issue(id=issue_id, summary=f"Error: {str(e)[:100]}...")
 
             # Ensure the ID field is present
             if (

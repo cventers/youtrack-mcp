@@ -1,0 +1,175 @@
+title: Fix Tool Schemas and Enable Strict Server by Default
+date: 2025-09-13
+version: 1.0
+status: proposed
+
+objectives:
+  - Make strict JSON-schema validation the default for all MCP tools.
+  - Align published tool schemas with current tool implementations.
+  - Remove ambiguity in parameter handling (no args/kwargs repair in the default path).
+  - Update tests and docs to reflect the canonical invocation shape.
+
+non_goals:
+  - Introduce new tools or expand the default tool surface.
+  - Large behavioral changes in API clients.
+  - Immediate removal of wrapper modules (will follow in Phase 2 after adoption).
+
+background:
+  summary:
+    - Current runtime uses wrappers and server-level repair to accept args/kwargs and alias parameters.
+    - Docs claim strict JSON schemas with additionalProperties: false and a single arguments object.
+    - A strict server and schemas already exist, but main.py wires the flexible server by default.
+
+decisions:
+  - Make StrictYouTrackMCPServer the default in both stdio and http modes.
+  - Validate HTTP tool calls using the same schemas prior to execution.
+  - Adjust schemas to match current tool signatures/behavior (smallest-delta alignment).
+  - Keep wrappers temporarily (Phase 1) — they will be no-ops under strict validation; remove in Phase 2.
+
+work_plan:
+  phases:
+    - name: Phase 1 — Enable strict + align schemas
+      tasks:
+        - id: server.switch
+          desc: Switch main.py to StrictYouTrackMCPServer for stdio and http; register tools via register_tools_from_loader.
+          files:
+            - path: main.py
+              changes:
+                - from: youtrack_mcp.server.YouTrackMCPServer(transport="stdio")
+                  to:   youtrack_mcp.strict_server.StrictYouTrackMCPServer(transport="stdio")
+                - from: server.register_loaded_tools(all_tools)
+                  to:   server.register_tools_from_loader(all_tools)
+                - from: youtrack_mcp.server.YouTrackMCPServer(transport="http")
+                  to:   youtrack_mcp.strict_server.StrictYouTrackMCPServer(transport="http")
+        - id: http.validation
+          desc: Validate HTTP /api/tools/{tool} calls against JSON schemas before execution.
+          files:
+            - path: main.py
+              changes:
+                - add: |
+                    from youtrack_mcp.schemas import validate_tool_call
+                    # ... in execute_tool():
+                    validate_tool_call(tool_name, arguments)
+        - id: schema.align
+          desc: Update schemas in youtrack_mcp/schemas.py to match actual tool signatures/behavior.
+          changes:
+            - tool: issues.get
+              before:
+                include_enum: [customFields, comments, attachments, links, work_items, history, activities, time_tracking]
+              after:
+                include_enum: [customFields, attachments]
+              rationale: Code only fetches customFields and attachments reliably.
+            - tool: issues.patch
+              before:
+                ops.items.properties.op.enum: [add, remove, replace]
+              after:
+                ops.items.properties.op.enum: [set]
+              rationale: Current implementation supports set only; fields{} or ops[] oneOf remains.
+            - tool: projects.list
+              before:
+                arguments: { limit, offset }
+              after:
+                arguments: { include_archived: boolean }
+              rationale: Matches ProjectsTools.list(include_archived=False) and ProjectsClient.get_projects.
+              note: Optionally implement pagination later and restore schema accordingly.
+            - tool: projects.get
+              before:
+                include_enum: [schema, versions, builds, subsystems, assignees, fields]
+              after:
+                include_enum: [customFields, schema, issues]
+              rationale: Matches code-path expansions used today.
+            - tool: projects.patch
+              before:
+                arguments: { project_id, fields{ name, description, leader } }
+              after:
+                arguments: { project_id, ops: [ { op: set, field: string, value: any } ] }
+              rationale: Matches typed ops approach currently implemented.
+            - tool: projects.create
+              before:
+                property: leader_id
+              after:
+                property: lead_id
+              rationale: Parameter name matches ProjectsTools.create and ProjectsClient.create_project.
+            - tool: projects.schema
+              before:
+                arguments: { project_id, field_name? }
+              after:
+                arguments: { project_id }
+              rationale: Tool signature does not accept field_name.
+            - tool: search.autosearch
+              before:
+                arguments: { natural_language_query, project_context?, limit?, confidence_floor?, strict_mode? }
+              after:
+                arguments: { natural_language_query, project_context? }
+              rationale: Only these two are supported in current implementation.
+            - tool: ai.plan
+              before:
+                arguments: { intent }
+              after:
+                arguments: { intent, context? (object, additionalProperties: true) }
+              rationale: Matches AITools.plan signature.
+        - id: descriptions.clean
+          desc: Ensure tool descriptions do not show function-style examples; reference help:// resources instead.
+          actions:
+            - remove inline "Example: tool(arg=...)" suffixes from server-registered descriptions.
+            - ensure help resources (help://issues.get etc.) carry canonical JSON examples.
+        - id: tests.update
+          desc: Update tests to reflected aligned schemas.
+          files:
+            - path: tests/test_tool_calls_refactor.py
+              updates:
+                - issues.patch op enum -> [set]
+                - projects.list args -> include_archived
+                - projects.get include enum -> [customFields, schema, issues]
+                - projects.patch -> ops[] schema (remove fields{})
+                - projects.create -> lead_id
+                - projects.schema -> drop field_name
+                - search.autosearch -> drop extra args
+                - ai.plan -> add context
+        - id: docs.update
+          desc: Align AGENTS.md and README excerpts with strict-by-default behavior and canonical JSON examples only.
+          notes:
+            - Reiterate no positional args, additionalProperties: false, and exact parameter names.
+            - Confirm default is strict validation; legacy repair removed from default path.
+
+    - name: Phase 2 — Remove legacy repair wrappers
+      prereqs:
+        - Phase 1 complete and validated across clients.
+      tasks:
+        - id: wrappers.remove
+          desc: Remove args/kwargs repair from mcp_wrappers.py and server._wrap_tool_function; delete aliasing/normalization.
+        - id: code.cleanup
+          desc: Simplify registration paths; ensure only validated kwargs ever reach tool methods.
+        - id: docs.finalize
+          desc: Remove any lingering references to legacy patterns from docs.
+
+rollout:
+  strategy:
+    - Default to strict server immediately.
+    - Optionally gate with env flag MCP_STRICT=false to temporarily revert during emergency (not recommended long-term). If added, remove flag in Phase 2.
+  risk_mitigation:
+    - Clear schema validation errors guide users to correct parameter names and shapes.
+    - Keep wrappers during Phase 1 to reduce risk if strict server is temporarily bypassed in dev.
+
+acceptance_criteria:
+  - main.py uses StrictYouTrackMCPServer in both stdio and http modes.
+  - HTTP endpoint rejects invalid calls with schema-derived messages.
+  - Schemas in youtrack_mcp/schemas.py match tool signatures and enforced behavior.
+  - Tests updated and passing locally (schema validation paths and negative cases).
+  - Tool descriptions do not show function-style examples; help:// resources provide canonical JSON examples.
+
+open_questions:
+  - Do we want pagination for projects.list now? If yes, add $top/$skip support in ProjectsClient.get_projects and keep limit/offset in schema instead of include_archived.
+  - Should issues.get support comments/links expansions immediately, or limit schema to what we truly return today?
+
+owner: core-maintainers
+reviewers:
+  - architecture
+  - tooling
+  - docs
+  - QA
+
+timeline:
+  - Phase 1: 1–2 days (code + schemas + tests + docs touch-ups)
+  - Phase 2: 1 day (wrapper removal and cleanup) after a short bake period
+

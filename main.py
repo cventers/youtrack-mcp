@@ -31,8 +31,9 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from youtrack_mcp.config import Config, config
-from youtrack_mcp.server import YouTrackMCPServer
+from youtrack_mcp.strict_server import StrictYouTrackMCPServer
 from youtrack_mcp.utils.loader import load_all_tools
+from youtrack_mcp.schemas import validate_tool_call
 
 # Check if structlog is available
 structlog_available = False
@@ -160,14 +161,14 @@ async def lifespan(app: FastAPI):
         app.state.http_client = http_client
 
         # Initialize MCP server with HTTP transport
-        server = YouTrackMCPServer(transport="http")
+        server = StrictYouTrackMCPServer(transport="http")
 
         # Load all tools
         all_tools = load_all_tools()
         tools = all_tools
 
         # Register the tools with the server
-        server.register_loaded_tools(all_tools)
+        server.register_tools_from_loader(all_tools)
 
         logger.info(f"HTTP server started with {len(all_tools)} tools")
 
@@ -224,6 +225,16 @@ async def execute_tool(tool_name: str, request: Request):
         # Parse request body
         body = await request.json()
         arguments = body.get("arguments", {})
+
+        # Validate tool call against JSON schema
+        try:
+            validate_tool_call(tool_name, arguments)
+        except ValueError as e:
+            logger.warning(f"Tool call validation failed for {tool_name}: {e}")
+            return JSONResponse(
+                status_code=400,
+                content={"error": f"Tool call validation failed: {str(e)}"}
+            )
 
         # Execute tool (now async)
         logger.info(f"Executing tool: {tool_name} with arguments: {arguments}")
@@ -444,7 +455,7 @@ def handle_signal(signum: int, frame) -> None:
     global server
     if server:
         try:
-            server.close()
+            server.stop()
         except Exception as e:
             logger.warning(f"Error closing server: {e}")
     
@@ -485,13 +496,13 @@ def main():
     else:
         # Initialize MCP server with stdio transport
         global server
-        server = YouTrackMCPServer(transport="stdio")
-        
+        server = StrictYouTrackMCPServer(transport="stdio")
+
         # Load all tools just once
         all_tools = load_all_tools()
-        
+
         # Register the tools with the server
-        server.register_loaded_tools(all_tools)
+        server.register_tools_from_loader(all_tools)
         
         # Run the server directly in stdio mode
         logger.info("Starting in stdio mode for Cursor/Claude integration")

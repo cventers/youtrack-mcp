@@ -114,7 +114,7 @@ class TestSchemaValidation:
             "arguments": {
                 "issue_id": "DEMO-123",
                 "ops": [
-                    {"op": "replace", "path": "/fields/summary", "value": "New title"}
+                    {"op": "set", "path": "/fields/summary", "value": "New title"}
                 ]
             }
         }
@@ -131,6 +131,92 @@ class TestSchemaValidation:
         }
         with pytest.raises(ValueError):
             validate_tool_call("issues.patch", invalid_call["arguments"])
+
+    def test_projects_list_schema_validation(self):
+        """Test projects.list schema with pagination and include_archived."""
+        # Valid call with pagination
+        valid_call = {
+            "tool_name": "projects.list",
+            "arguments": {
+                "include_archived": False,
+                "limit": 50,
+                "offset": 0
+            }
+        }
+        validate_tool_call("projects.list", valid_call["arguments"])
+
+    def test_projects_get_schema_validation(self):
+        """Test projects.get schema with expanded include options."""
+        # Valid call with expanded includes
+        valid_call = {
+            "tool_name": "projects.get",
+            "arguments": {
+                "project_id": "DEMO",
+                "include": ["customFields", "schema", "issues", "versions", "builds", "subsystems", "assignees", "fields"]
+            }
+        }
+        validate_tool_call("projects.get", valid_call["arguments"])
+
+    def test_projects_patch_schema_validation(self):
+        """Test projects.patch schema with ops instead of fields."""
+        # Valid call with ops
+        valid_call = {
+            "tool_name": "projects.patch",
+            "arguments": {
+                "project_id": "DEMO",
+                "ops": [
+                    {"op": "set", "field": "name", "value": "New Name"}
+                ]
+            }
+        }
+        validate_tool_call("projects.patch", valid_call["arguments"])
+
+    def test_projects_create_schema_validation(self):
+        """Test projects.create schema with lead_id."""
+        # Valid call with lead_id
+        valid_call = {
+            "tool_name": "projects.create",
+            "arguments": {
+                "name": "Test Project",
+                "short_name": "TEST",
+                "lead_id": "admin"
+            }
+        }
+        validate_tool_call("projects.create", valid_call["arguments"])
+
+    def test_projects_schema_validation(self):
+        """Test projects.schema without field_name parameter."""
+        # Valid call without field_name
+        valid_call = {
+            "tool_name": "projects.schema",
+            "arguments": {
+                "project_id": "DEMO"
+            }
+        }
+        validate_tool_call("projects.schema", valid_call["arguments"])
+
+    def test_search_autosearch_schema_validation(self):
+        """Test search.autosearch with minimal parameters."""
+        # Valid call with minimal params
+        valid_call = {
+            "tool_name": "search.autosearch",
+            "arguments": {
+                "natural_language_query": "bugs assigned to me"
+            }
+        }
+        validate_tool_call("search.autosearch", valid_call["arguments"])
+
+    def test_ai_plan_schema_validation(self):
+        """Test ai.plan with context parameter."""
+        # Valid call with context
+        valid_call = {
+            "tool_name": "ai.plan",
+            "arguments": {
+                "intent": "Create a bug report",
+                "context": {"project": "DEMO"}
+            }
+        }
+        validate_tool_call("ai.plan", valid_call["arguments"])
 
 
 class TestErrorHandling:
@@ -185,6 +271,27 @@ if __name__ == "__main__":
 
         test_instance.test_issues_patch_schema_validation()
         print("   ✓ issues_patch_schema_validation passed")
+
+        test_instance.test_projects_list_schema_validation()
+        print("   ✓ projects_list_schema_validation passed")
+
+        test_instance.test_projects_get_schema_validation()
+        print("   ✓ projects_get_schema_validation passed")
+
+        test_instance.test_projects_patch_schema_validation()
+        print("   ✓ projects_patch_schema_validation passed")
+
+        test_instance.test_projects_create_schema_validation()
+        print("   ✓ projects_create_schema_validation passed")
+
+        test_instance.test_projects_schema_validation()
+        print("   ✓ projects_schema_validation passed")
+
+        test_instance.test_search_autosearch_schema_validation()
+        print("   ✓ search_autosearch_schema_validation passed")
+
+        test_instance.test_ai_plan_schema_validation()
+        print("   ✓ ai_plan_schema_validation passed")
 
         # Run error handling tests
         print("\n2. Testing error handling...")

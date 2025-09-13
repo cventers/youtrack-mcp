@@ -39,12 +39,14 @@ class ProjectsClient:
         """
         self.client = client
 
-    async def get_projects(self, include_archived: bool = False) -> List[Project]:
+    async def get_projects(self, include_archived: bool = False, limit: int = 50, offset: int = 0) -> List[Project]:
         """
-        Get all projects.
+        Get all projects with pagination support.
 
         Args:
             include_archived: Whether to include archived projects
+            limit: Maximum number of projects to return (1-100)
+            offset: Number of projects to skip
 
         Returns:
             List of projects
@@ -52,8 +54,15 @@ class ProjectsClient:
         params = {
             "fields": "id,name,shortName,description,archived,created,updated,lead(id,name,login)"
         }
+
         if not include_archived:
             params["$filter"] = "archived eq false"
+
+        # Add pagination parameters
+        if limit > 0:
+            params["$top"] = min(limit, 100)  # Cap at 100 to prevent excessive requests
+        if offset > 0:
+            params["$skip"] = offset
 
         response = await self.client.get("admin/projects", params=params)
         return [Project.model_validate(project) for project in response]

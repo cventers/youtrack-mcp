@@ -307,18 +307,18 @@ result = call_tool({
 ```
 
 ### Available Tools and Schemas
-- `issues.get` - Rich issue read with expansions
+- `issues.get` - Rich issue read with full expansions (comments, links, work_items, history, activities, time_tracking)
 - `issues.create` - Schema-aware issue creation
-- `issues.patch` - Update with fields{} or ops[] (oneOf validation)
-- `projects.list` - List projects with pagination
-- `projects.get` - Project details with include expansions
-- `projects.schema` - Get project custom field schema
-- `projects.patch` - Update project fields
-- `projects.create` - Create new project
+- `issues.patch` - Update with fields{} or ops[] (oneOf validation, ops use "set" operation)
+- `projects.list` - List projects with pagination (limit/offset) and include_archived support
+- `projects.get` - Project details with expanded include options (customFields, schema, issues, versions, builds, subsystems, assignees, fields)
+- `projects.schema` - Get project custom field schema (no field_name parameter)
+- `projects.patch` - Update project with ops[] pattern (set operation)
+- `projects.create` - Create new project (uses lead_id parameter)
 - `users.search` - Search users by name/login
 - `search.query` - Execute YQL queries
-- `search.autosearch` - Natural language to YQL translation
-- `ai.plan` - Generate operation plans
+- `search.autosearch` - Natural language to YQL translation (minimal parameters: natural_language_query, project_context)
+- `ai.plan` - Generate operation plans with optional context parameter
 - `resources.read` - Read MCP resources
 
 ### Error Handling
@@ -329,7 +329,8 @@ result = call_tool({
 
 ### Environment Flags
 
-- Default: Strict validation only (legacy router disabled)
+- **Default: Strict validation only** (legacy router disabled)
+- **MCP_STRICT=false**: Emergency flag to temporarily revert to flexible validation (not recommended for production)
 
 ### Benefits
 - **Predictable**: Same input always produces same behavior
@@ -344,11 +345,12 @@ result = call_tool({
 
 ### DO
 - **Use the default pack (12 tools)** unless capability flags explicitly enable more.
-- **Make reads rich via `include[]`**, not by inventing new read tools. Example: `issues.get(include=["comments","attachments","links","work_items","history","activities","time_tracking"])` and `projects.get(include=["schema","versions","builds","subsystems"])`.
+- **Make reads rich via `include[]`**, not by inventing new read tools. Example: `issues.get(include=["comments","attachments","links","work_items","history","activities","time_tracking"])` and `projects.get(include=["customFields","schema","issues","versions","builds","subsystems","assignees","fields"])`.
 - **Make all writes go through `issues.patch`** using a **typed subpath grammar**:
-  - `/fields/<FieldName>` for custom/system fields (schema-aware enum/state/user/period coercion).
+  - `/fields/<FieldName>` for custom/system fields (schema-aware enum/state/user/period coercion, use "set" operation).
   - `/comments`, `/attachments`, `/links`, `/work_items` add/replace/remove.
-- **Expose planning, not auto-exec**: `ai.plan` returns change plans; human/agent must call `issues.patch` explicitly.
+- **Use pagination for large result sets**: `projects.list(limit=50, offset=0, include_archived=false)`.
+- **Expose planning, not auto-exec**: `ai.plan` returns change plans with optional context; human/agent must call `issues.patch` explicitly.
 
 ### DON’T
 - **DON’T add narrow, single-purpose tools** (e.g., `projects.custom_fields`, `issues.update_custom_fields`, `comments.update_comment`).

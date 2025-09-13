@@ -94,7 +94,7 @@ ISSUES_PATCH_SCHEMA = {
                             "items": {
                                 "type": "object",
                                 "properties": {
-                                    "op": {"type": "string", "enum": ["add", "remove", "replace"]},
+                                    "op": {"type": "string", "enum": ["set"]},
                                     "path": {"type": "string", "pattern": "^/fields/"},
                                     "value": {}  # Any type for value
                                 },
@@ -122,6 +122,7 @@ PROJECTS_LIST_SCHEMA = {
         "arguments": {
             "type": "object",
             "properties": {
+                "include_archived": {"type": "boolean", "description": "Whether to include archived projects", "default": False},
                 "limit": {"type": "integer", "minimum": 1, "maximum": 100, "default": 50},
                 "offset": {"type": "integer", "minimum": 0, "default": 0}
             },
@@ -142,7 +143,7 @@ PROJECTS_GET_SCHEMA = {
                 "project_id": {"type": "string", "description": "Project ID or short name"},
                 "include": {
                     "type": "array",
-                    "items": {"type": "string", "enum": ["schema", "versions", "builds", "subsystems", "assignees", "fields"]},
+                    "items": {"type": "string", "enum": ["customFields", "schema", "issues", "versions", "builds", "subsystems", "assignees", "fields"]},
                     "description": "List of expansions to include"
                 }
             },
@@ -161,8 +162,7 @@ PROJECTS_SCHEMA_SCHEMA = {
         "arguments": {
             "type": "object",
             "properties": {
-                "project_id": {"type": "string", "description": "Project ID or short name"},
-                "field_name": {"type": "string", "description": "Optional specific field name to get schema for"}
+                "project_id": {"type": "string", "description": "Project ID or short name"}
             },
             "required": ["project_id"],
             "additionalProperties": False
@@ -180,17 +180,22 @@ PROJECTS_PATCH_SCHEMA = {
             "type": "object",
             "properties": {
                 "project_id": {"type": "string", "description": "Project ID to update"},
-                "fields": {
-                    "type": "object",
-                    "properties": {
-                        "name": {"type": "string"},
-                        "description": {"type": "string"},
-                        "leader": {"type": "string"}
+                "ops": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "op": {"type": "string", "enum": ["set"]},
+                            "field": {"type": "string"},
+                            "value": {}  # Any type for value
+                        },
+                        "required": ["op", "field"],
+                        "additionalProperties": False
                     },
-                    "additionalProperties": False
+                    "description": "Typed patch operations"
                 }
             },
-            "required": ["project_id", "fields"],
+            "required": ["project_id", "ops"],
             "additionalProperties": False
         }
     },
@@ -208,9 +213,9 @@ PROJECTS_CREATE_SCHEMA = {
                 "name": {"type": "string", "description": "Project name"},
                 "short_name": {"type": "string", "description": "Project short name/ID"},
                 "description": {"type": "string", "description": "Optional project description"},
-                "leader_id": {"type": "string", "description": "User ID of project leader"}
+                "lead_id": {"type": "string", "description": "User ID of project leader"}
             },
-            "required": ["name", "short_name", "leader_id"],
+            "required": ["name", "short_name", "lead_id"],
             "additionalProperties": False
         }
     },
@@ -266,10 +271,7 @@ SEARCH_AUTOSEARCH_SCHEMA = {
             "type": "object",
             "properties": {
                 "natural_language_query": {"type": "string", "description": "Natural language description of the search"},
-                "project_context": {"type": "string", "description": "Optional project ID for context-aware translation"},
-                "limit": {"type": "integer", "minimum": 1, "maximum": 100, "default": 10},
-                "confidence_floor": {"type": "number", "minimum": 0.0, "maximum": 1.0, "default": 0.6},
-                "strict_mode": {"type": "boolean", "default": True}
+                "project_context": {"type": "string", "description": "Optional project ID for context-aware translation"}
             },
             "required": ["natural_language_query"],
             "additionalProperties": False
@@ -287,7 +289,12 @@ AI_PLAN_SCHEMA = {
         "arguments": {
             "type": "object",
             "properties": {
-                "intent": {"type": "string", "description": "Natural language description of the intended operation"}
+                "intent": {"type": "string", "description": "Natural language description of the intended operation"},
+                "context": {
+                    "type": "object",
+                    "description": "Optional additional context for planning",
+                    "additionalProperties": True
+                }
             },
             "required": ["intent"],
             "additionalProperties": False

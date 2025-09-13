@@ -10,16 +10,30 @@ The YouTrack MCP provides 12 core tools organized into 6 functional areas, imple
 
 #### `search.query`
 Execute explicit YouTrack Query Language (YQL) searches.
-```python
-search.query(query="project: DEMO #Unresolved", limit=10, sort_by="created", sort_order="desc")
+```json
+{
+  "tool_name": "search.query",
+  "arguments": {
+    "query": "project: DEMO #Unresolved",
+    "limit": 10,
+    "sort_by": "created",
+    "sort_order": "desc"
+  }
+}
 ```
 - **Parameters**: `query` (YQL string), `limit` (max results), `sort_by`, `sort_order`
 - **Returns**: JSON with search results and metadata
 
 #### `search.autosearch`
 Translate natural language queries to YQL with confidence scoring.
-```python
-search.autosearch(natural_language_query="bugs assigned to me this week", project_context="DEMO")
+```json
+{
+  "tool_name": "search.autosearch",
+  "arguments": {
+    "natural_language_query": "bugs assigned to me this week",
+    "project_context": "DEMO"
+  }
+}
 ```
 - **Parameters**: `natural_language_query`, `project_context` (optional)
 - **Returns**: YQL query, confidence score, search results, and translation notes
@@ -28,81 +42,123 @@ search.autosearch(natural_language_query="bugs assigned to me this week", projec
 
 #### `issues.get`
 Rich issue read with optional expansions.
-```python
-issues.get(issue_id="DEMO-123", include=["customFields", "comments", "attachments", "links"])
+```json
+{
+  "tool_name": "issues.get",
+  "arguments": {
+    "issue_id": "DEMO-123",
+    "include": ["customFields", "comments", "attachments", "links", "work_items", "history", "activities", "time_tracking"]
+  }
+}
 ```
 - **Parameters**: `issue_id`, `include` (list of expansions)
 - **Returns**: Full issue data with requested expansions
 
 #### `issues.create`
 Schema-aware issue creation with custom field support.
-```python
-issues.create(
-    project="DEMO",
-    summary="Bug report",
-    description="Details...",
-    custom_fields={"Type": "Bug", "Priority": "High"}
-)
+```json
+{
+  "tool_name": "issues.create",
+  "arguments": {
+    "project": "DEMO",
+    "summary": "Bug report",
+    "description": "Details...",
+    "custom_fields": {"Type": "Bug", "Priority": "High"}
+  }
+}
 ```
 - **Parameters**: `project`, `summary`, `description` (optional), `custom_fields` (dict)
 - **Returns**: Created issue data
 
 #### `issues.patch`
 Primary writer for issue updates with schema-aware coercion.
-```python
-# Using fields format (converted internally to ops)
-issues.patch(issue_id="DEMO-123", fields={"summary": "New title", "Priority": "Critical"})
-
-# Using ops format for advanced operations
-issues.patch(issue_id="DEMO-123", ops=[
-    {"op": "set", "path": "/fields/State", "value": "Fixed"},
-    {"op": "set", "path": "/fields/Priority", "value": "High"}
-])
+```json
+{
+  "tool_name": "issues.patch",
+  "arguments": {
+    "issue_id": "DEMO-123",
+    "ops": [
+      {"op": "set", "path": "/fields/summary", "value": "New title"},
+      {"op": "set", "path": "/fields/Priority", "value": "Critical"}
+    ]
+  }
+}
 ```
-- **Parameters**: `issue_id`, `fields` (dict) OR `ops` (list of operations)
+- **Parameters**: `issue_id`, `fields` (dict) OR `ops` (list of operations with "set")
 - **Returns**: Updated issue data with operation results
 
 ### **🏗️ Projects Tools**
 
 #### `projects.list`
-Discover accessible projects.
-```python
-projects.list(include_archived=False)
+Discover accessible projects with pagination.
+```json
+{
+  "tool_name": "projects.list",
+  "arguments": {
+    "include_archived": false,
+    "limit": 50,
+    "offset": 0
+  }
+}
 ```
-- **Parameters**: `include_archived` (boolean)
+- **Parameters**: `include_archived` (boolean), `limit` (pagination), `offset` (pagination)
 - **Returns**: List of accessible projects
 
 #### `projects.get`
 Project details with optional expansions.
-```python
-projects.get(project_id="DEMO", include=["customFields", "schema", "issues"])
+```json
+{
+  "tool_name": "projects.get",
+  "arguments": {
+    "project_id": "DEMO",
+    "include": ["customFields", "schema", "issues", "versions", "builds", "subsystems", "assignees", "fields"]
+  }
+}
 ```
 - **Parameters**: `project_id`, `include` (list of expansions)
 - **Returns**: Full project data with requested expansions
 
 #### `projects.schema`
 Get project schema with custom fields and validation rules.
-```python
-projects.schema(project_id="DEMO")
+```json
+{
+  "tool_name": "projects.schema",
+  "arguments": {
+    "project_id": "DEMO"
+  }
+}
 ```
 - **Parameters**: `project_id`
 - **Returns**: Custom field schemas, required/optional fields, usage guide
 
 #### `projects.patch`
 Project property updates with typed operations.
-```python
-projects.patch(project_id="DEMO", ops=[
-    {"op": "set", "field": "name", "value": "New Name"},
-    {"op": "set", "field": "description", "value": "Updated description"}
-])
+```json
+{
+  "tool_name": "projects.patch",
+  "arguments": {
+    "project_id": "DEMO",
+    "ops": [
+      {"op": "set", "field": "name", "value": "New Name"},
+      {"op": "set", "field": "description", "value": "Updated description"}
+    ]
+  }
+}
 ```
-- **Parameters**: `project_id`, `ops` (list of operations)
+- **Parameters**: `project_id`, `ops` (list of operations with "set")
 - **Returns**: Updated project data
 
 #### `projects.create`
 Create new projects.
-```python
-projects.create(name="Demo Project", short_name="DEMO", lead_id="admin")
+```json
+{
+  "tool_name": "projects.create",
+  "arguments": {
+    "name": "Demo Project",
+    "short_name": "DEMO",
+    "lead_id": "admin"
+  }
+}
 ```
 - **Parameters**: `name`, `short_name`, `lead_id`
 - **Returns**: Created project data
@@ -111,8 +167,14 @@ projects.create(name="Demo Project", short_name="DEMO", lead_id="admin")
 
 #### `users.search`
 Resolve users by name or login.
-```python
-users.search(query="admin", limit=10)
+```json
+{
+  "tool_name": "users.search",
+  "arguments": {
+    "query": "admin",
+    "limit": 10
+  }
+}
 ```
 - **Parameters**: `query` (search term), `limit` (max results)
 - **Returns**: List of matching users
@@ -121,10 +183,17 @@ users.search(query="admin", limit=10)
 
 #### `ai.plan`
 LLM-powered intent planning and analysis.
-```python
-ai.plan(intent="Create a bug report for login issues", context={"project": "DEMO"})
+```json
+{
+  "tool_name": "ai.plan",
+  "arguments": {
+    "intent": "Create a bug report for login issues",
+    "context": {"project": "DEMO"}
+  }
+}
 ```
-- **Parameters**: `intent` (natural language description), `context` (optional dict)
+- **Parameters**: `intent` (natural language description), `context` (optional object)
+- **Returns**: Operation plan with steps and validation
 - **Returns**: Execution plan with suggested tools and explanations
 
 ### **📁 Resources Tools**
