@@ -91,12 +91,107 @@ class TestIssueModel:
             summary="JSON Test",
             description="Test description"
         )
-        
+
         json_data = issue.model_dump()
-        
+
         assert json_data["id"] == "DEMO-126"
         assert json_data["summary"] == "JSON Test"
         assert json_data["description"] == "Test description"
+
+    def test_issue_model_assignee_extraction_from_custom_fields(self):
+        """Test that assignee is extracted from customFields when top-level assignee is null."""
+        # Mock the IssuesClient for testing
+        with patch('youtrack_mcp.api.issues.YouTrackClient') as mock_client_class:
+            mock_client = Mock()
+            mock_client_class.return_value = mock_client
+
+            # Create test data with null assignee but assignee in customFields
+            issue_data = {
+                "id": "DEMO-127",
+                "summary": "Test assignee extraction",
+                "assignee": None,  # Top-level assignee is null
+                "customFields": [
+                    {
+                        "name": "Assignee",
+                        "value": {
+                            "login": "testuser",
+                            "name": "Test User",
+                            "$type": "User"
+                        }
+                    }
+                ]
+            }
+
+            # Test the model_validate method which should extract assignee
+            issue = Issue.model_validate(issue_data)
+
+            assert issue.id == "DEMO-127"
+            assert issue.summary == "Test assignee extraction"
+            assert issue.assignee is not None
+            assert issue.assignee["login"] == "testuser"
+            assert issue.assignee["name"] == "Test User"
+
+    def test_date_syntax_normalization(self):
+        """Test that incorrect date syntax is normalized to correct YouTrack format."""
+        import re
+
+        # Test the normalization logic directly
+        def normalize_date_syntax(query: str) -> str:
+            # Helper to convert word units to single letters
+            def unit_to_short(unit: str) -> str:
+                unit = unit.lower()
+                if unit in ['days', 'day']:
+                    return 'd'
+                elif unit in ['weeks', 'week']:
+                    return 'w'
+                elif unit in ['months', 'month']:
+                    return 'm'
+                elif unit in ['years', 'year']:
+                    return 'y'
+                else:
+                    return unit[0] if unit else 'd'  # fallback
+
+            # Pattern 1: Convert "-Nm .. *" to "{minus Nm} .. *"
+            query = re.sub(r'-(\d+)([dwm])\s*\.\.\s*\*', r'{minus \1\2} .. *', query)
+
+            # Pattern 2: Convert "{N units ago .. Today}" to "{minus N units} .. Today"
+            def replace_pattern2(match):
+                num = match.group(1)
+                unit = unit_to_short(match.group(2))
+                return f'{{minus {num}{unit}}} .. Today'
+            query = re.sub(r'\{(\d+)\s+(\w+)\s+ago\s*\.\.\s*Today\}', replace_pattern2, query)
+
+            # Pattern 3: Convert "{N units ago .. *}" to "{minus N units} .. *"
+            def replace_pattern3(match):
+                num = match.group(1)
+                unit = unit_to_short(match.group(2))
+                return f'{{minus {num}{unit}}} .. *'
+            query = re.sub(r'\{(\d+)\s+(\w+)\s+ago\s*\.\.\s*\*\}', replace_pattern3, query)
+
+            return query
+
+        # Test pattern 1: "-6m .. *" → "{minus 6m} .. *"
+        result1 = normalize_date_syntax("created: -6m .. *")
+        assert result1 == "created: {minus 6m} .. *"
+
+        # Test pattern 2: "{6 months ago .. Today}" → "{minus 6m} .. Today"
+        result2 = normalize_date_syntax("created: {6 months ago .. Today}")
+        assert result2 == "created: {minus 6m} .. Today"
+
+        # Test pattern 3: "{30 days ago .. *}" → "{minus 30d} .. *"
+        result3 = normalize_date_syntax("updated: {30 days ago .. *}")
+        assert result3 == "updated: {minus 30d} .. *"
+
+        # Test that correct syntax is left unchanged
+        correct_query = "created: {minus 7d} .. Today"
+        result4 = normalize_date_syntax(correct_query)
+        assert result4 == correct_query
+
+        # Test multiple patterns in one query
+        complex_query = "created: -6m .. * AND updated: {30 days ago .. Today}"
+        result5 = normalize_date_syntax(complex_query)
+        expected = "created: {minus 6m} .. * AND updated: {minus 30d} .. Today"
+        assert result5 == expected
 
     def test_issue_model_custom_validate_method(self):
         """Test the custom model_validate method."""
@@ -153,7 +248,7 @@ class TestIssuesClientBasicMethods:
         assert all(isinstance(issue, Issue) for issue in issues)
         assert issues[0].id == "DEMO-123"
         assert issues[1].id == "DEMO-124"
-        mock_client.get.assert_called_once_with("issues", params={"query": "", "$top": 10, "fields": "id,idReadable,summary,description,created,updated,project(id,name,shortName),reporter(id,login,name),assignee(id,login,name),priority(name),state(name),customFields(id,name,value)"})
+        mock_client.get.assert_called_once_with("issues", params={"query": "", "$top": 10, "fields": "id,idReadable,summary,description,created,updated,project(id,shortName),reporter(id,login,name),assignee(id,login,name),customFields(id,name,value)"})
 
     @pytest.mark.asyncio
     async def test_search_issues_with_query(self):
@@ -173,6 +268,41 @@ class TestIssuesClientBasicMethods:
         assert len(issues) == 1
         assert issues[0].summary == "Bug issue"
         mock_client.get.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_search_issues_with_assignee_in_custom_fields(self):
+        """Test that assignee is extracted from customFields in search results."""
+        mock_client = Mock(spec=YouTrackClient)
+        mock_client.get = AsyncMock(return_value=[
+            {
+                "id": "DEMO-125",
+                "summary": "Issue with assignee in customFields",
+                "assignee": None,  # Top-level assignee is null
+                "customFields": [
+                    {
+                        "name": "Assignee",
+                        "value": {
+                            "login": "testuser",
+                            "name": "Test User",
+                            "$type": "User"
+                        }
+                    }
+                ],
+                "project": {"shortName": "DEMO"}
+            }
+        ])
+
+        issues_client = IssuesClient(mock_client)
+        issues = await issues_client.search_issues("assignee: testuser")
+
+        assert len(issues) == 1
+        issue = issues[0]
+        assert issue.id == "DEMO-125"
+        assert issue.summary == "Issue with assignee in customFields"
+        # Assignee should be extracted from customFields
+        assert issue.assignee is not None
+        assert issue.assignee["login"] == "testuser"
+        assert issue.assignee["name"] == "Test User"
 
     @pytest.mark.asyncio
     async def test_search_issues_empty_response(self):

@@ -28,6 +28,86 @@ class SearchTools:
         self.issues_api = IssuesClient(self.client)
         self.ai_tools = AITools()
 
+    def _detect_date_syntax_errors(self, query: str) -> Optional[Dict[str, Any]]:
+        """
+        Detect incorrect date syntax patterns and provide suggestions.
+
+        Detects incorrect patterns like:
+        - "-6m .. *" (should be "{minus 6m} .. *")
+        - "{6 months ago .. Today}" (should be "{minus 6m} .. Today")
+
+        Args:
+            query: The original query string
+
+        Returns:
+            Dict with error details and suggestions if incorrect syntax found, None if syntax is correct
+        """
+        import re
+
+        # Helper to convert word units to single letters
+        def unit_to_short(unit: str) -> str:
+            unit = unit.lower()
+            if unit in ['days', 'day']:
+                return 'd'
+            elif unit in ['weeks', 'week']:
+                return 'w'
+            elif unit in ['months', 'month']:
+                return 'm'
+            elif unit in ['years', 'year']:
+                return 'y'
+            else:
+                return unit[0] if unit else 'd'  # fallback
+
+        errors = []
+        suggestions = []
+
+        # Pattern 1: Detect "-Nm .. *" format
+        pattern1_matches = re.findall(r'-(\d+)([dwm])\s*\.\.\s*\*', query)
+        if pattern1_matches:
+            for match in pattern1_matches:
+                num, unit = match
+                incorrect = f"-{num}{unit} .. *"
+                correct = f"{{minus {num}{unit}}} .. *"
+                errors.append(f"Incorrect date range syntax: '{incorrect}'")
+                suggestions.append(f"Use: '{correct}' instead of '{incorrect}'")
+
+        # Pattern 2: Detect "{N units ago .. Today}" format
+        pattern2_matches = re.findall(r'\{(\d+)\s+(\w+)\s+ago\s*\.\.\s*Today\}', query)
+        if pattern2_matches:
+            for match in pattern2_matches:
+                num, unit_word = match
+                unit = unit_to_short(unit_word)
+                incorrect = f"{{{num} {unit_word} ago .. Today}}"
+                correct = f"{{minus {num}{unit}}} .. Today"
+                errors.append(f"Incorrect date range syntax: '{incorrect}'")
+                suggestions.append(f"Use: '{correct}' instead of '{incorrect}'")
+
+        # Pattern 3: Detect "{N units ago .. *}" format
+        pattern3_matches = re.findall(r'\{(\d+)\s+(\w+)\s+ago\s*\.\.\s*\*\}', query)
+        if pattern3_matches:
+            for match in pattern3_matches:
+                num, unit_word = match
+                unit = unit_to_short(unit_word)
+                incorrect = f"{{{num} {unit_word} ago .. *}}"
+                correct = f"{{minus {num}{unit}}} .. *"
+                errors.append(f"Incorrect date range syntax: '{incorrect}'")
+                suggestions.append(f"Use: '{correct}' instead of '{incorrect}'")
+
+        if errors:
+            return {
+                "error": "Invalid date range syntax detected",
+                "explanation": "YouTrack requires specific date range syntax. " + " ".join(errors),
+                "suggestions": suggestions,
+                "learn_from_this": "Use {minus Nd} format for relative dates. Examples: {minus 7d}, {minus 30d}, {minus 6m}",
+                "examples": [
+                    "created: {minus 7d} .. Today",
+                    "updated: {minus 30d} .. *",
+                    "created: 2025-01-01 .. 2025-12-31"
+                ]
+            }
+
+        return None
+
     @async_wrapper
     async def query(self, query: str, limit: int = 10, sort_by: Optional[str] = None, sort_order: Optional[str] = None) -> str:
         """
@@ -45,6 +125,23 @@ class SearchTools:
             JSON with search results
         """
         try:
+            # Check for date syntax errors
+            syntax_error = self._detect_date_syntax_errors(query)
+            if syntax_error:
+                return format_json_response({
+                    "query": query,
+                    "error": syntax_error["error"],
+                    "explanation": syntax_error["explanation"],
+                    "suggestions": syntax_error["suggestions"],
+                    "learn_from_this": syntax_error["learn_from_this"],
+                    "examples": syntax_error["examples"],
+                    "results": [],
+                    "count": 0,
+                    "limit": limit,
+                    "sort_by": sort_by,
+                    "sort_order": sort_order
+                })
+
             # Build sort parameter if provided
             sort_param = None
             if sort_by:
@@ -125,6 +222,19 @@ class SearchTools:
             # Execute the translated query
             search_result = await self.query(yql_query, limit=10)
             search_response = json.loads(search_result)
+
+            # Check if the query execution returned an error due to date syntax
+            if "error" in search_response and "date" in search_response.get("explanation", "").lower():
+                return format_json_response({
+                    "yql": yql_query,
+                    "confidence": confidence,
+                    "results": [],
+                    "notes": f"Query contains date syntax error: {search_response.get('explanation', '')}",
+                    "degraded": True,
+                    "suggestions": search_response.get("suggestions", []),
+                    "examples": search_response.get("examples", []),
+                    "detected_entities": ai_response.get("detected_entities", [])
+                })
 
             return format_json_response({
                 "yql": yql_query,

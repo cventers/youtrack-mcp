@@ -40,6 +40,19 @@ class Issue(BaseModel):
     @classmethod
     def model_validate(cls, obj, *args, **kwargs):
         """Override model_validate to handle various input formats."""
+        # Pre-process the object to extract assignee from customFields
+        if isinstance(obj, dict):
+            # Extract assignee from customFields if top-level assignee is null
+            assignee = obj.get("assignee")
+            custom_fields = obj.get("customFields", [])
+
+            if assignee is None and custom_fields:
+                # Extract assignee directly from customFields
+                extracted_assignee = cls._extract_assignee_from_custom_fields_static(custom_fields)
+                if extracted_assignee:
+                    obj = obj.copy()  # Don't modify the original
+                    obj["assignee"] = extracted_assignee
+
         try:
             # Try standard validation
             return super().model_validate(obj, *args, **kwargs)
@@ -68,6 +81,69 @@ class Issue(BaseModel):
 
             # If obj isn't even a dict, raise the original error
             raise
+
+    @classmethod
+    def _extract_assignee_from_custom_fields_static(cls, custom_fields: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        """
+        Extract assignee information from customFields array (static version).
+
+        YouTrack stores assignee information in customFields with project-specific field IDs.
+        This method looks for fields that contain assignee information.
+
+        Args:
+            custom_fields: List of custom field dictionaries
+
+        Returns:
+            Assignee data in the format expected by the Issue model, or None if not found
+        """
+        if not custom_fields:
+            return None
+
+        # Look for assignee-related fields in customFields
+        # Common patterns: fields with names containing "assignee" or specific field IDs
+        assignee_keywords = ["assignee", "assigned to", "assigned"]
+
+        for field in custom_fields:
+            field_name = field.get("name", "").lower()
+
+            # Check if this field contains assignee information
+            if any(keyword in field_name for keyword in assignee_keywords):
+                field_value = field.get("value")
+                if field_value:
+                    # If it's already a dict with user info, return it directly
+                    if isinstance(field_value, dict) and ("login" in field_value or "name" in field_value):
+                        return field_value
+                    # Extract the assignee value using static method
+                    assignee_value = cls._extract_custom_field_value_static(field_value)
+
+                    # If we got a string (login/name), create proper assignee object
+                    if isinstance(assignee_value, str) and assignee_value:
+                        return {
+                            "login": assignee_value,
+                            "name": assignee_value,  # Use login as name fallback
+                            "$type": "User"
+                        }
+
+        return None
+
+    @classmethod
+    def _extract_custom_field_value_static(cls, field_value_data: Any) -> Any:
+        """Extract readable value from YouTrack custom field value data (static version)."""
+        if not field_value_data:
+            return None
+
+        if isinstance(field_value_data, dict):
+            # Try different value formats
+            if "name" in field_value_data:
+                return field_value_data["name"]
+            elif "login" in field_value_data:
+                return field_value_data["login"]
+            elif "text" in field_value_data:
+                return field_value_data["text"]
+            elif "id" in field_value_data:
+                return field_value_data["id"]
+
+        return field_value_data
 
 
 class IssuesClient:
@@ -1088,8 +1164,8 @@ class IssuesClient:
         Returns:
             List of matching issues
         """
-        # Request additional fields to ensure we get summary
-        fields = "id,idReadable,summary,description,created,updated,project,reporter,assignee,customFields"
+        # Request additional fields to ensure we get summary and expanded assignee info
+        fields = "id,idReadable,summary,description,created,updated,project(id,shortName),reporter(id,login,name),assignee(id,login,name),customFields(id,name,value)"
         params = {"query": query, "$top": limit, "fields": fields}
         response = await self.client.get("issues", params=params)
 
@@ -1680,7 +1756,7 @@ class IssuesClient:
         """Extract readable value from YouTrack custom field value data."""
         if not field_value_data:
             return None
-        
+
         if isinstance(field_value_data, dict):
             # Try different value formats
             if "name" in field_value_data:
@@ -1691,8 +1767,114 @@ class IssuesClient:
                 return field_value_data["text"]
             elif "id" in field_value_data:
                 return field_value_data["id"]
-        
+
         return field_value_data
+
+    @classmethod
+    def _extract_assignee_from_custom_fields_static(cls, custom_fields: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        """
+        Extract assignee information from customFields array (static version).
+
+        YouTrack stores assignee information in customFields with project-specific field IDs.
+        This method looks for fields that contain assignee information.
+
+        Args:
+            custom_fields: List of custom field dictionaries
+
+        Returns:
+            Assignee data in the format expected by the Issue model, or None if not found
+        """
+        if not custom_fields:
+            return None
+
+        # Look for assignee-related fields in customFields
+        # Common patterns: fields with names containing "assignee" or specific field IDs
+        assignee_keywords = ["assignee", "assigned to", "assigned"]
+
+        for field in custom_fields:
+            field_name = field.get("name", "").lower()
+
+            # Check if this field contains assignee information
+            if any(keyword in field_name for keyword in assignee_keywords):
+                field_value = field.get("value")
+                if field_value:
+                    # If it's already a dict with user info, return it directly
+                    if isinstance(field_value, dict) and ("login" in field_value or "name" in field_value):
+                        return field_value
+                    # Extract the assignee value using static method
+                    assignee_value = cls._extract_custom_field_value_static(field_value)
+
+                    # If we got a string (login/name), create proper assignee object
+                    if isinstance(assignee_value, str) and assignee_value:
+                        return {
+                            "login": assignee_value,
+                            "name": assignee_value,  # Use login as name fallback
+                            "$type": "User"
+                        }
+
+        return None
+
+    @classmethod
+    def _extract_custom_field_value_static(cls, field_value_data: Any) -> Any:
+        """Extract readable value from YouTrack custom field value data (static version)."""
+        if not field_value_data:
+            return None
+
+        if isinstance(field_value_data, dict):
+            # Try different value formats
+            if "name" in field_value_data:
+                return field_value_data["name"]
+            elif "login" in field_value_data:
+                return field_value_data["login"]
+            elif "text" in field_value_data:
+                return field_value_data["text"]
+            elif "id" in field_value_data:
+                return field_value_data["id"]
+
+        return field_value_data
+
+    def _extract_assignee_from_custom_fields(self, custom_fields: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        """
+        Extract assignee information from customFields array.
+
+        YouTrack stores assignee information in customFields with project-specific field IDs.
+        This method looks for fields that contain assignee information.
+
+        Args:
+            custom_fields: List of custom field dictionaries
+
+        Returns:
+            Assignee data in the format expected by the Issue model, or None if not found
+        """
+        if not custom_fields:
+            return None
+
+        # Look for assignee-related fields in customFields
+        # Common patterns: fields with names containing "assignee" or specific field IDs
+        assignee_keywords = ["assignee", "assigned to", "assigned"]
+
+        for field in custom_fields:
+            field_name = field.get("name", "").lower()
+
+            # Check if this field contains assignee information
+            if any(keyword in field_name for keyword in assignee_keywords):
+                field_value = field.get("value")
+                if field_value:
+                    # If it's already a dict with user info, return it directly
+                    if isinstance(field_value, dict) and ("login" in field_value or "name" in field_value):
+                        return field_value
+                    # Extract the assignee value
+                    assignee_value = self._extract_custom_field_value(field_value)
+
+                    # If we got a string (login/name), create proper assignee object
+                    if isinstance(assignee_value, str) and assignee_value:
+                        return {
+                            "login": assignee_value,
+                            "name": assignee_value,  # Use login as name fallback
+                            "$type": "User"
+                        }
+
+        return None
 
     async def _normalize_field_value(self, field_value: Any) -> str:
         """
@@ -2383,52 +2565,6 @@ class IssuesClient:
                 })
 
         return results
-
-    async def search_issues(self, query: str, limit: int = 10) -> List[Issue]:
-        """
-        Search for issues using YouTrack query language.
-
-        Args:
-            query: YouTrack query string
-            limit: Maximum number of issues to return
-
-        Returns:
-            List of matching issues
-        """
-        try:
-            # Build search parameters
-            params = {
-                "query": query,
-                "$top": limit,
-                "fields": "id,idReadable,summary,description,created,updated,project(id,name,shortName),reporter(id,login,name),assignee(id,login,name),priority(name),state(name),customFields(id,name,value)"
-            }
-
-            logger.info(f"Searching issues with query: {query}, limit: {limit}")
-
-            # Perform search
-            response = await self.client.get("issues", params=params)
-
-            issues = []
-            if isinstance(response, list):
-                for item in response:
-                    try:
-                        issues.append(Issue.model_validate(item))
-                    except Exception as e:
-                        logger.warning(f"Failed to validate issue: {e}")
-                        # Create a basic issue if validation fails
-                        if isinstance(item, dict):
-                            issues.append(Issue(
-                                id=item.get("id", "unknown"),
-                                summary=item.get("summary", "Unknown"),
-                                description=item.get("description", "")
-                            ))
-
-            logger.info(f"Found {len(issues)} issues")
-            return issues
-
-        except Exception as e:
-            logger.exception(f"Error searching issues with query: {query}")
-            raise
 
     async def add_comment(self, issue_id: str, text: str) -> Dict[str, Any]:
         """
