@@ -11,17 +11,17 @@ from typing import Any, Dict, Optional
 
 from youtrack_mcp.mcp_wrappers import async_wrapper
 from youtrack_mcp.utils import format_json_response
-from youtrack_mcp.tools.ai.ai_tools import AITools
+from youtrack_mcp.tools.ai.ai_tools import AITools as AIToolsImpl
 
 logger = logging.getLogger(__name__)
 
 
-class AIPlanningTools:
+class AITools:
     """Minimal AI tools with clean interfaces."""
 
     def __init__(self):
         """Initialize AI planning tools."""
-        self.ai_tools = AITools()
+        self.ai_tools = AIToolsImpl()
 
     @async_wrapper
     async def plan(self, intent: str, context: Optional[Dict[str, Any]] = None) -> str:
@@ -167,4 +167,4 @@ class AIPlanningTools:
         }
 
 
-__all__ = ["AIPlanningTools"]
+__all__ = ["AITools"]

@@ -13,7 +13,7 @@ from urllib.parse import urlparse
 from youtrack_mcp.api.client import YouTrackClient
 from youtrack_mcp.mcp_wrappers import async_wrapper
 from youtrack_mcp.utils import format_json_response
-from youtrack_mcp.tools.help_resources import get_help_resource
+from youtrack_mcp.utils.help_resources import get_help_resource
 
 logger = logging.getLogger(__name__)
 

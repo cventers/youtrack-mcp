@@ -24,7 +24,7 @@ from youtrack_mcp.api.client import (
 from youtrack_mcp.api.projects import ProjectsClient
 from youtrack_mcp.mcp_wrappers import async_wrapper
 from youtrack_mcp.utils import format_json_response
-from youtrack_mcp.llm_error_responses import create_llm_friendly_error
+from youtrack_mcp.utils.error_educator import create_llm_friendly_error
 
 logger = logging.getLogger(__name__)
 
