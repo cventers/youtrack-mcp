@@ -321,7 +321,7 @@ npx @tonyzorin/youtrack-mcp
 
 ## 🏗️ Architecture
 
-The YouTrack MCP server features a modern, modular architecture designed for enhanced maintainability and scalability. See **[Architecture Documentation](docs/ARCHITECTURE.md)** for comprehensive details about the modular design, testing coverage, and development benefits.
+The YouTrack MCP server features a modern, modular architecture designed for enhanced maintainability and scalability. See **[Architecture Documentation](docs/architecture.md)** for comprehensive details about the modular design, testing coverage, and development benefits.
 
 ## Development
 
@@ -339,7 +339,7 @@ This project maintains high code quality with comprehensive testing and CI/CD au
 - **[Automation Scripts Guide](automations/README.md)**: Build, test, and deployment automation
 - **[Release Process](automations/RELEASE_INSTRUCTIONS.md)**: Version management and publishing
 - **[Testing Guide](tests/README.md)**: Comprehensive testing documentation
-- **[Refactoring Tracker](REFACTORING_TRACKER.md)**: Details of the modular architecture refactoring
+- **[Refactoring Tracker](refactoring_tracker.md)**: Details of the modular architecture refactoring
 
 ## Configuration
 
@@ -360,9 +360,9 @@ export YOUTRACK_VERIFY_SSL="true"
 ## Documentation
 
 ### Architecture & Development
-- [Architecture Documentation](docs/ARCHITECTURE.md) - Comprehensive modular architecture overview
-- [Refactoring Tracker](REFACTORING_TRACKER.md) - Modular architecture implementation details
-- [Development Workflow & Release Process](automations/RELEASE_INSTRUCTIONS.md)
+- [Architecture Documentation](docs/architecture.md) - Comprehensive modular architecture overview
+- [Refactoring Tracker](refactoring_tracker.md) - Modular architecture implementation details
+- [Development Workflow & Release Process](automations/release_instructions.md)
 - [Docker Tagging Strategy](automations/DOCKER_TAGGING.md)
 - [Testing Guide](tests/README.md)
 - [Automation Scripts](automations/README.md)
@@ -382,32 +382,3 @@ For issues and questions:
 4. Contact directly: [t.me/tonyzorin](https://t.me/tonyzorin)
 
 ---
-
-*Latest update: Modular architecture refactoring with 120+ unit tests and enhanced maintainability.*
-
-## Version 1.17.2 Released
-
-🎉 **LATEST RELEASE** - Enhanced Stability and Performance
-- ✅ **Modular Architecture**: 8 focused modules with 120+ unit tests
-- ✅ **Async Migration Complete**: Full httpx.AsyncClient implementation
-- ✅ **MCP Compliance**: Full MCP protocol compliance with Claude Code CLI
-- ✅ **Enhanced Error Handling**: LLM-optimized error responses with educational context
-- ✅ **Custom Fields Support**: Complete CRUD operations for all field types
-- ✅ **Activity Tracking**: User activity search and analysis capabilities
-- ✅ **Performance Optimization**: Multi-layer caching and rate limiting
-- ✅ **Security Hardening**: Token management and input validation
-
-### Architecture Highlights
-- **8 Focused Modules**: Clean separation of concerns with single-responsibility design
-- **120+ Unit Tests**: Comprehensive test coverage across all modules
-- **Async-First**: Full async/await implementation with httpx.AsyncClient
-- **LLM-Optimized**: Error messages designed to help AI models learn and improve
-- **Multi-Registry Support**: Docker Hub, GitHub Container Registry, npm registries
-
-### Core Features
-- **Issue Management**: Complete CRUD operations with custom fields support
-- **Project Management**: Schema-aware operations with field validation
-- **Search Capabilities**: YQL queries with natural language translation
-- **User Management**: Activity tracking and permission management
-- **Resource Access**: MCP resources for documentation and configuration
-- **AI Integration**: Planning tools and intelligent error handling
