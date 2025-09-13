@@ -10,7 +10,8 @@ from typing import Any, Dict, Optional, Union
 from cachetools import TTLCache
 
 from .openai_client import OpenAIClient
-from ..utils import ErrorEnhancementResult, QueryTranslationResult
+from ..utils import ErrorEnhancementResult
+from . import QueryTranslationResult
 
 logger = logging.getLogger(__name__)
 

@@ -4,7 +4,8 @@ Tests for AIService.
 
 import pytest
 from unittest.mock import Mock, patch
-from youtrack_mcp.ai.service import AIService, QueryTranslationResult, ErrorEnhancementResult
+from youtrack_mcp.ai.service import AIService, ErrorEnhancementResult
+from youtrack_mcp.ai import QueryTranslationResult
 
 
 class TestAIService:
