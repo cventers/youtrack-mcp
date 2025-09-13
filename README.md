@@ -4,71 +4,144 @@ A Model Context Protocol (MCP) server that provides access to YouTrack functiona
 
 ## 🚀 Core Tool Surface
 
-The YouTrack MCP provides 12 core tools organized into 6 functional areas:
+The YouTrack MCP provides 12 core tools organized into 6 functional areas, implementing a minimal but powerful interface for YouTrack operations.
 
 ### **🔍 Search Tools**
+
+#### `search.query`
+Execute explicit YouTrack Query Language (YQL) searches.
 ```python
-# Execute YouTrack Query Language (YQL)
-search.query(query="project: DEMO #Unresolved", limit=10)
-
-# Natural language to YQL translation with confidence scoring
-search.autosearch(natural_language_query="bugs assigned to me this week")
+search.query(query="project: DEMO #Unresolved", limit=10, sort_by="created", sort_order="desc")
 ```
+- **Parameters**: `query` (YQL string), `limit` (max results), `sort_by`, `sort_order`
+- **Returns**: JSON with search results and metadata
 
-### **📋 Issues Tools** (Modular Architecture)
+#### `search.autosearch`
+Translate natural language queries to YQL with confidence scoring.
 ```python
-# Get issue with optional expansions
-issues.get(issue_id="DEMO-123", include=["customFields", "comments"])
-
-# Create new issue
-issues.create(project="DEMO", summary="Bug report", description="Details...")
-
-# Update issue with typed operations
-issues.patch(issue_id="DEMO-123", ops=[{"op": "set", "field": "state", "value": "Fixed"}])
-
-# Modular operations available:
-# - Custom fields management (validation, batch updates)
-# - Dedicated updates (state, priority, assignee, type, estimation)
-# - Issue linking and dependencies
-# - Workflow diagnostics and help
-# - Attachment and comment operations
+search.autosearch(natural_language_query="bugs assigned to me this week", project_context="DEMO")
 ```
+- **Parameters**: `natural_language_query`, `project_context` (optional)
+- **Returns**: YQL query, confidence score, search results, and translation notes
+
+### **📋 Issues Tools**
+
+#### `issues.get`
+Rich issue read with optional expansions.
+```python
+issues.get(issue_id="DEMO-123", include=["customFields", "comments", "attachments", "links"])
+```
+- **Parameters**: `issue_id`, `include` (list of expansions)
+- **Returns**: Full issue data with requested expansions
+
+#### `issues.create`
+Schema-aware issue creation with custom field support.
+```python
+issues.create(
+    project="DEMO",
+    summary="Bug report",
+    description="Details...",
+    custom_fields={"Type": "Bug", "Priority": "High"}
+)
+```
+- **Parameters**: `project`, `summary`, `description` (optional), `custom_fields` (dict)
+- **Returns**: Created issue data
+
+#### `issues.patch`
+Primary writer for issue updates with schema-aware coercion.
+```python
+# Using fields format (converted internally to ops)
+issues.patch(issue_id="DEMO-123", fields={"summary": "New title", "Priority": "Critical"})
+
+# Using ops format for advanced operations
+issues.patch(issue_id="DEMO-123", ops=[
+    {"op": "set", "path": "/fields/State", "value": "Fixed"},
+    {"op": "set", "path": "/fields/Priority", "value": "High"}
+])
+```
+- **Parameters**: `issue_id`, `fields` (dict) OR `ops` (list of operations)
+- **Returns**: Updated issue data with operation results
 
 ### **🏗️ Projects Tools**
+
+#### `projects.list`
+Discover accessible projects.
 ```python
-# List accessible projects
 projects.list(include_archived=False)
+```
+- **Parameters**: `include_archived` (boolean)
+- **Returns**: List of accessible projects
 
-# Get project details
-projects.get(project_id="DEMO", include=["customFields"])
+#### `projects.get`
+Project details with optional expansions.
+```python
+projects.get(project_id="DEMO", include=["customFields", "schema", "issues"])
+```
+- **Parameters**: `project_id`, `include` (list of expansions)
+- **Returns**: Full project data with requested expansions
 
-# Update project properties
-projects.patch(project_id="DEMO", ops=[{"op": "set", "field": "name", "value": "New Name"}])
+#### `projects.schema`
+Get project schema with custom fields and validation rules.
+```python
+projects.schema(project_id="DEMO")
+```
+- **Parameters**: `project_id`
+- **Returns**: Custom field schemas, required/optional fields, usage guide
 
-# Create new project
+#### `projects.patch`
+Project property updates with typed operations.
+```python
+projects.patch(project_id="DEMO", ops=[
+    {"op": "set", "field": "name", "value": "New Name"},
+    {"op": "set", "field": "description", "value": "Updated description"}
+])
+```
+- **Parameters**: `project_id`, `ops` (list of operations)
+- **Returns**: Updated project data
+
+#### `projects.create`
+Create new projects.
+```python
 projects.create(name="Demo Project", short_name="DEMO", lead_id="admin")
 ```
+- **Parameters**: `name`, `short_name`, `lead_id`
+- **Returns**: Created project data
 
 ### **👥 Users Tools**
+
+#### `users.search`
+Resolve users by name or login.
 ```python
-# Search users by name or login
 users.search(query="admin", limit=10)
 ```
+- **Parameters**: `query` (search term), `limit` (max results)
+- **Returns**: List of matching users
 
 ### **🤖 AI Tools**
+
+#### `ai.plan`
+LLM-powered intent planning and analysis.
 ```python
-# Plan user intent actions
 ai.plan(intent="Create a bug report for login issues", context={"project": "DEMO"})
 ```
+- **Parameters**: `intent` (natural language description), `context` (optional dict)
+- **Returns**: Execution plan with suggested tools and explanations
 
 ### **📁 Resources Tools**
+
+#### `resources.read`
+Secured URI proxy for YouTrack resources and help documentation.
 ```python
-# Read YouTrack resources by URI
+# Read YouTrack resources
 resources.read(uri="youtrack://issues/DEMO-123")
+resources.read(uri="youtrack://projects/DEMO")
+resources.read(uri="youtrack://users/admin")
 
 # Access help documentation
 resources.read(uri="help://issues.get")
 ```
+- **Parameters**: `uri` (youtrack:// or help:// format)
+- **Returns**: Resource content or help documentation
 
 ## 🚀 Quick Reference - Common Operations
 
