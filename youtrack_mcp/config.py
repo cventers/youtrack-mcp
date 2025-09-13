@@ -66,7 +66,6 @@ class Config:
     MCP_TIMEOUT: int = int(os.getenv("MCP_TIMEOUT", "15000"))  # Default 15 seconds
     YOUTRACK_CAPS: str = os.getenv("YOUTRACK_CAPS", "")
     # AI Mode Configuration
-    YOUTRACK_AI_MODE: str = os.getenv("YOUTRACK_AI_MODE", "rule")
 
     # OpenAI Configuration
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
@@ -237,7 +236,6 @@ class Config:
     MCP_TIMEOUT: int = int(os.getenv("MCP_TIMEOUT", "15000"))  # Default 15 seconds
     YOUTRACK_CAPS: str = os.getenv("YOUTRACK_CAPS", "")
     # AI Mode Configuration
-    YOUTRACK_AI_MODE: str = os.getenv("YOUTRACK_AI_MODE", "rule")
 
     # OpenAI Configuration
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")

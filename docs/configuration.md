@@ -136,11 +136,9 @@ features:
 | `mcp_debug` | `MCP_DEBUG` | `"false"` | Enable debug logging |
 | `mcp_transport` | `MCP_TRANSPORT` | `"stdio"` | Transport mode (stdio/http) |
 
-### AI Mode Configuration
+### AI Configuration
 
-| Setting | Environment Variable | Default | Description |
-|---------|---------------------|---------|-------------|
-| `youttrack_ai_mode` | `YOUTRACK_AI_MODE` | `"rule"` | AI processing mode: `off`, `rule`, `llm` |
+Error enhancement is always rule-based. NL to YQL translation (ai.plan, search autosearch) requires OpenAI configuration.
 
 ### OpenAI Configuration
 
@@ -269,18 +267,12 @@ youtrack_token_file: "/path/to/token/file"
 
 ## AI Integration
 
-### AI Mode Configuration
-The server supports three AI processing modes:
-
-- **`off`**: Disable all AI features, return structured disabled responses
-- **`rule`**: Use rule-based processing only (deterministic, no API keys required)
-- **`llm`**: Use LLM-powered processing only (requires OpenAI API key)
+### AI Configuration
+- **Error Enhancement**: Always rule-based (no configuration required)
+- **NL to YQL Translation**: Requires OpenAI configuration for ai.plan and search autosearch
 
 ```yaml
-# AI Mode
-youttrack_ai_mode: "rule"  # off, rule, llm
-
-# OpenAI (required for llm mode)
+# OpenAI (required for ai.plan and search autosearch)
 openai_api_key: "sk-..."
 openai_base_url: "https://api.openai.com/v1"
 openai_model: "gpt-4o-mini"
@@ -289,7 +281,6 @@ openai_temperature: 0.7
 
 ### OpenAI Setup
 ```yaml
-youttrack_ai_mode: "llm"
 openai_api_key: "sk-..."
 openai_model: "gpt-4"
 ```

@@ -44,26 +44,19 @@ class ErrorEnhancementResult:
 
 class AIService:
     """
-    Unified AI service with mode switching.
+    Unified AI service.
 
-    Modes:
-    - off: Return structured disabled responses
-    - rule: Use rule-based processing only (deterministic)
-    - llm: Use LLM adapter only (no rule fallback)
+    Error enhancement is always rule-based.
+    NL to YQL translation requires LLM for ai.plan and search autosearch.
     """
 
-    def __init__(self, mode: str = "rule", openai_client: Optional[OpenAIClient] = None):
+    def __init__(self, openai_client: Optional[OpenAIClient] = None):
         """
         Initialize AI service.
 
         Args:
-            mode: AI mode ('off', 'rule', 'llm')
-            openai_client: Optional OpenAIClient instance
+            openai_client: Optional OpenAIClient instance for NL to YQL
         """
-        if mode not in {"off", "rule", "llm"}:
-            raise ValueError(f"Invalid mode: {mode}. Must be 'off', 'rule', or 'llm'")
-
-        self.mode = mode
         self.openai_client = openai_client
 
         # Caches
@@ -73,7 +66,7 @@ class AIService:
         # Load error patterns
         self.error_patterns = self._load_error_patterns()
 
-        logger.info(f"AIService initialized in {mode} mode")
+        logger.info("AIService initialized (error enhancement: rule-based, NL to YQL: LLM required)")
 
     def _load_error_patterns(self) -> List[Dict[str, Any]]:
         """Load error patterns from YAML file."""
@@ -106,7 +99,7 @@ class AIService:
 
     def translate_nl_to_yql(self, natural_query: str, project_context: Optional[str] = None) -> QueryTranslationResult:
         """
-        Translate natural language to YQL.
+        Translate natural language to YQL using LLM.
 
         Args:
             natural_query: Natural language query
@@ -115,28 +108,21 @@ class AIService:
         Returns:
             Translation result
         """
-        if self.mode == "off":
+        if not self.openai_client:
             return QueryTranslationResult(
                 yql_query="",
                 confidence=0.0,
-                reasoning="AI features are disabled",
+                reasoning="LLM client not configured for natural language queries",
                 original_input=natural_query,
                 detected_entities={},
-                suggestions=["Enable AI features to use natural language queries"]
+                suggestions=["Configure OpenAI client for ai.plan and search autosearch"]
             )
 
-        if self.mode == "rule":
-            return self._rule_translate_nl_to_yql(natural_query, project_context)
-
-        if self.mode == "llm":
-            return self._llm_translate_nl_to_yql(natural_query, project_context)
-
-        # Should not reach here
-        raise ValueError(f"Invalid mode: {self.mode}")
+        return self._llm_translate_nl_to_yql(natural_query, project_context)
 
     def enhance_error_message(self, error: Union[Exception, str], context: Dict[str, Any]) -> ErrorEnhancementResult:
         """
-        Enhance error message.
+        Enhance error message using rule-based processing (always).
 
         Args:
             error: Error exception or string
@@ -145,23 +131,7 @@ class AIService:
         Returns:
             Enhanced error result
         """
-        if self.mode == "off":
-            return ErrorEnhancementResult(
-                enhanced_explanation="AI error enhancement is disabled",
-                fix_suggestion="Check the error message for details",
-                example_correction="",
-                learning_tip="Enable AI features for enhanced error messages",
-                confidence=0.0
-            )
-
-        if self.mode == "rule":
-            return self._rule_enhance_error(error, context)
-
-        if self.mode == "llm":
-            return self._llm_enhance_error(error, context)
-
-        # Should not reach here
-        raise ValueError(f"Invalid mode: {self.mode}")
+        return self._rule_enhance_error(error, context)
 
     def _rule_translate_nl_to_yql(self, natural_query: str, project_context: Optional[str]) -> QueryTranslationResult:
         """Rule-based NL to YQL translation."""

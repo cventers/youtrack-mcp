@@ -10,23 +10,16 @@ from youtrack_mcp.ai.service import AIService, QueryTranslationResult, ErrorEnha
 class TestAIService:
     """Test AIService functionality."""
 
-    def test_init_rule_mode(self):
-        """Test initialization in rule mode."""
-        service = AIService(mode="rule")
-        assert service.mode == "rule"
+    def test_init_without_client(self):
+        """Test initialization without OpenAI client."""
+        service = AIService()
         assert service.openai_client is None
 
-    def test_init_llm_mode(self):
-        """Test initialization in llm mode."""
+    def test_init_with_client(self):
+        """Test initialization with OpenAI client."""
         mock_client = Mock()
-        service = AIService(mode="llm", openai_client=mock_client)
-        assert service.mode == "llm"
+        service = AIService(openai_client=mock_client)
         assert service.openai_client == mock_client
-
-    def test_init_invalid_mode(self):
-        """Test initialization with invalid mode."""
-        with pytest.raises(ValueError, match="Invalid mode"):
-            AIService(mode="invalid")
 
     @patch('youtrack_mcp.ai.service.Path')
     def test_load_error_patterns(self, mock_path):
@@ -49,33 +42,23 @@ patterns:
       - "Fix test"
 """
 
-            service = AIService(mode="rule")
+            service = AIService()
             patterns = service.error_patterns
             assert len(patterns) == 1
             assert patterns[0]['id'] == 'test'
 
-    def test_translate_nl_to_yql_off_mode(self):
-        """Test NL to YQL in off mode."""
-        service = AIService(mode="off")
+    def test_translate_nl_to_yql_without_client(self):
+        """Test NL to YQL without OpenAI client."""
+        service = AIService()
         result = service.translate_nl_to_yql("test query")
 
         assert isinstance(result, QueryTranslationResult)
         assert result.yql_query == ""
         assert result.confidence == 0.0
-        assert "disabled" in result.reasoning
+        assert "not configured" in result.reasoning
 
-    def test_translate_nl_to_yql_rule_mode(self):
-        """Test NL to YQL in rule mode."""
-        service = AIService(mode="rule")
-        result = service.translate_nl_to_yql("bugs assigned to me")
-
-        assert isinstance(result, QueryTranslationResult)
-        assert "assignee: me" in result.yql_query
-        assert result.confidence >= 0.0
-        assert result.reasoning == "Rule-based translation"
-
-    def test_translate_nl_to_yql_llm_mode(self):
-        """Test NL to YQL in llm mode."""
+    def test_translate_nl_to_yql_with_client(self):
+        """Test NL to YQL with OpenAI client."""
         mock_client = Mock()
         mock_client.complete.return_value = {
             "content": "assignee: me",
@@ -83,7 +66,7 @@ patterns:
             "confidence": 0.8
         }
 
-        service = AIService(mode="llm", openai_client=mock_client)
+        service = AIService(openai_client=mock_client)
         result = service.translate_nl_to_yql("bugs assigned to me")
 
         assert isinstance(result, QueryTranslationResult)
@@ -92,38 +75,11 @@ patterns:
         assert result.reasoning == "LLM translation"
         mock_client.complete.assert_called_once()
 
-    def test_enhance_error_message_off_mode(self):
-        """Test error enhancement in off mode."""
-        service = AIService(mode="off")
-        result = service.enhance_error_message("test error", {})
-
-        assert isinstance(result, ErrorEnhancementResult)
-        assert "disabled" in result.enhanced_explanation
-        assert result.confidence == 0.0
-
-    def test_enhance_error_message_rule_mode(self):
-        """Test error enhancement in rule mode."""
-        service = AIService(mode="rule")
+    def test_enhance_error_message_rule_based(self):
+        """Test error enhancement (always rule-based)."""
+        service = AIService()
         result = service.enhance_error_message("Invalid token provided", {})
 
         assert isinstance(result, ErrorEnhancementResult)
         assert "authentication" in result.enhanced_explanation.lower()
         assert result.confidence == 0.8
-
-    def test_enhance_error_message_llm_mode(self):
-        """Test error enhancement in llm mode."""
-        mock_client = Mock()
-        mock_client.complete.return_value = {
-            "content": "Authentication failed\nCheck token\n\nNext steps",
-            "usage": {"total_tokens": 20},
-            "confidence": 0.9
-        }
-
-        service = AIService(mode="llm", openai_client=mock_client)
-        result = service.enhance_error_message("Invalid token", {})
-
-        assert isinstance(result, ErrorEnhancementResult)
-        assert result.enhanced_explanation == "Authentication failed"
-        assert result.fix_suggestion == "Check token"
-        assert result.confidence == 0.9
-        mock_client.complete.assert_called_once()

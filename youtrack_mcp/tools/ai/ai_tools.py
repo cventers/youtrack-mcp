@@ -24,19 +24,17 @@ class AITools:
 
     def __init__(self):
         """Initialize AI tools with AIService."""
-        # Initialize AI service based on mode
-        mode = os.getenv("YOUTRACK_AI_MODE", "rule")
+        # Initialize OpenAI client for NL to YQL (ai.plan, search autosearch)
         openai_client = None
+        try:
+            openai_client = OpenAIClient()
+            logger.info("OpenAI client initialized for NL to YQL")
+        except Exception as e:
+            logger.warning(f"Failed to initialize OpenAI client: {e}. NL to YQL will be unavailable.")
 
-        if mode == "llm":
-            try:
-                openai_client = OpenAIClient()
-            except Exception as e:
-                logger.warning(f"Failed to initialize OpenAI client: {e}. Falling back to rule mode.")
-                mode = "rule"
-
-        self.ai_service = AIService(mode=mode, openai_client=openai_client)
-        logger.info(f"AITools initialized in {mode} mode")
+        # AIService: error enhancement always rule-based, NL to YQL requires LLM
+        self.ai_service = AIService(openai_client=openai_client)
+        logger.info("AITools initialized (error enhancement: rule-based, NL to YQL: LLM required)")
 
 
 
@@ -67,7 +65,7 @@ class AITools:
                 "reasoning": result.reasoning,
                 "detected_entities": result.detected_entities,
                 "suggestions": result.suggestions,
-                "ai_mode": self.ai_service.mode
+                "ai_provider": "llm" if self.ai_service.openai_client else "none"
             })
         except Exception as e:
             logger.exception(f"Error translating to YQL: {e}")
@@ -103,7 +101,7 @@ class AITools:
                 "example_correction": result.example_correction,
                 "learning_tip": result.learning_tip,
                 "confidence": result.confidence,
-                "ai_mode": self.ai_service.mode
+                "ai_provider": "rule_based"
             })
         except Exception as e:
             logger.exception(f"Error enhancing message: {e}")
