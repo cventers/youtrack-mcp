@@ -84,13 +84,35 @@ class AIProcessor:
         self.query_model = None
         self.error_model = None
         self.pattern_model = None
-        
+
         # Knowledge bases for rule-based fallbacks
-        self.yql_patterns = self._initialize_yql_patterns()
         self.error_patterns = self._initialize_error_patterns()
-        
+
         logger.info(f"AIProcessor initialized (AI {'enabled' if enable_ai else 'disabled'}, LLM client: {'configured' if llm_client else 'none'})")
-    
+
+    def _initialize_error_patterns(self) -> Dict[str, Dict[str, str]]:
+        """Initialize patterns for error message enhancement."""
+        return {
+            'field_errors': {
+                'pattern': r'unknown field|field.*not found|invalid field',
+                'explanation': 'The query references a field that doesn\'t exist in the project',
+                'fix_template': 'Use get_custom_fields() to see available fields for this project',
+                'learning_tip': 'Field names in YouTrack are case-sensitive and project-specific'
+            },
+            'syntax_errors': {
+                'pattern': r'syntax error|parse error|invalid query',
+                'explanation': 'The query syntax is not valid YouTrack Query Language',
+                'fix_template': 'Check for proper field:value format and correct operators',
+                'learning_tip': 'YouTrack queries use "field: value" format, not "field = value"'
+            },
+            'date_errors': {
+                'pattern': r'date.*invalid|time.*format|invalid.*date',
+                'explanation': 'The date format is not recognized by YouTrack',
+                'fix_template': 'Use YYYY-MM-DD format or relative dates like "-7d"',
+                'learning_tip': 'YouTrack supports relative dates: -7d (last 7 days), w (this week), m (this month)'
+            }
+        }
+
     def suggest_ticket_attributes(self, title: str, description: str, project_id: Optional[str] = None) -> Dict[str, Any]:
         """Suggest ticket attributes based on title and description."""
         # Simple rule-based suggestions
@@ -257,8 +279,8 @@ class AIProcessor:
                 # Use AI model for translation
                 result = await self._ai_translate_query(natural_query, context_hints, project_schemas)
             else:
-                # Use rule-based fallback
-                result = await self._rule_based_translate_query(natural_query, context_hints, project_schemas)
+                # Rule-based translation not available
+                raise Exception("Natural language to YQL translation is not available")
             
             self.query_cache[cache_key] = result
             return result
@@ -341,8 +363,8 @@ class AIProcessor:
                 # Use AI model for pattern analysis
                 result = await self._ai_analyze_patterns(activity_data, analysis_types)
             else:
-                # Use rule-based analysis
-                result = await self._rule_based_analyze_patterns(activity_data, analysis_types)
+                # Rule-based analysis not available
+                raise Exception("Activity pattern analysis is not available")
             
             self.pattern_cache[cache_key] = result
             return result
@@ -403,60 +425,9 @@ class AIProcessor:
                 'explanation': f"Fix suggestion failed: {str(e)}"
             }
     
-    def _initialize_yql_patterns(self) -> Dict[str, Any]:
-        """Initialize patterns for natural language to YQL translation."""
-        return {
-            'time_patterns': {
-                'last week': '-7d .. *',
-                'this week': 'w .. *', 
-                'yesterday': '-1d .. *',
-                'today': 'd .. *',
-                'last month': '-30d .. *',
-                'this month': 'm .. *'
-            },
-            'priority_patterns': {
-                'critical': 'Priority: Critical',
-                'high': 'Priority: High',
-                'urgent': 'Priority: Critical',
-                'low': 'Priority: Low',
-                'normal': 'Priority: Normal'
-            },
-            'state_patterns': {
-                'open': 'State: Open',
-                'closed': 'State: Fixed',
-                'resolved': 'State: Fixed',
-                'in progress': 'State: {In Progress}',
-                'new': 'State: New'
-            },
-            'user_patterns': {
-                'assigned to me': 'assignee: me',
-                'unassigned': 'assignee: Unassigned',
-                'created by me': 'reporter: me'
-            }
-        }
+
     
-    def _initialize_error_patterns(self) -> Dict[str, Dict[str, str]]:
-        """Initialize patterns for error message enhancement."""
-        return {
-            'field_errors': {
-                'pattern': r'unknown field|field.*not found|invalid field',
-                'explanation': 'The query references a field that doesn\'t exist in the project',
-                'fix_template': 'Use get_custom_fields() to see available fields for this project',
-                'learning_tip': 'Field names in YouTrack are case-sensitive and project-specific'
-            },
-            'syntax_errors': {
-                'pattern': r'syntax error|parse error|invalid query',
-                'explanation': 'The query syntax is not valid YouTrack Query Language',
-                'fix_template': 'Check for proper field:value format and correct operators',
-                'learning_tip': 'YouTrack queries use "field: value" format, not "field = value"'
-            },
-            'date_errors': {
-                'pattern': r'date.*invalid|time.*format|invalid.*date',
-                'explanation': 'The date format is not recognized by YouTrack',
-                'fix_template': 'Use YYYY-MM-DD format or relative dates like "-7d"',
-                'learning_tip': 'YouTrack supports relative dates: -7d (last 7 days), w (this week), m (this month)'
-            }
-        }
+
     
     async def _ensure_query_model(self) -> bool:
         """Ensure query translation model is loaded."""
@@ -470,7 +441,8 @@ class AIProcessor:
             except Exception as e:
                 logger.error(f"Failed to load query model: {e}")
                 return False
-        return True
+
+
     
     async def _ensure_error_model(self) -> bool:
         """Ensure error enhancement model is loaded."""
@@ -496,79 +468,7 @@ class AIProcessor:
                 return False
         return True
     
-    async def _rule_based_translate_query(self, 
-                                        natural_query: str, 
-                                        context_hints: Optional[Dict[str, Any]], 
-                                        project_schemas: Optional[List[Dict[str, Any]]]) -> QueryTranslationResult:
-        """Rule-based natural language to YQL translation."""
-        original_query = natural_query.lower().strip()
-        yql_parts = []
-        detected_entities = {}
-        confidence = 0.6  # Rule-based has moderate confidence
-        
-        # Extract time references
-        for time_phrase, yql_time in self.yql_patterns['time_patterns'].items():
-            if time_phrase in original_query:
-                yql_parts.append(f"created: {yql_time}")
-                detected_entities['time'] = time_phrase
-                confidence += 0.1
-                break
-        
-        # Extract priority references
-        for priority_phrase, yql_priority in self.yql_patterns['priority_patterns'].items():
-            if priority_phrase in original_query:
-                yql_parts.append(yql_priority)
-                detected_entities['priority'] = priority_phrase
-                confidence += 0.1
-                break
-        
-        # Extract state references
-        for state_phrase, yql_state in self.yql_patterns['state_patterns'].items():
-            if state_phrase in original_query:
-                yql_parts.append(yql_state)
-                detected_entities['state'] = state_phrase
-                confidence += 0.1
-                break
-        
-        # Extract assignment references
-        for user_phrase, yql_user in self.yql_patterns['user_patterns'].items():
-            if user_phrase in original_query:
-                yql_parts.append(yql_user)
-                detected_entities['assignment'] = user_phrase
-                confidence += 0.1
-                break
-        
-        # Add project context if available
-        if context_hints and 'project' in context_hints:
-            project = context_hints['project']
-            yql_parts.insert(0, f"project: {project}")
-            detected_entities['project'] = project
-            confidence += 0.1
-        
-        # Look for specific keywords that indicate bug/issue type
-        if any(word in original_query for word in ['bug', 'error', 'issue', 'problem']):
-            # Could add type filter if available
-            detected_entities['type'] = 'bug'
-            confidence += 0.05
-        
-        yql_query = ' '.join(yql_parts) if yql_parts else original_query
-        
-        reasoning = f"Translated using rule-based patterns. Detected: {', '.join(detected_entities.keys())}"
-        
-        suggestions = []
-        if confidence < 0.7:
-            suggestions.append("Consider using more specific terms like 'critical', 'last week', 'assigned to me'")
-        if 'project' not in detected_entities:
-            suggestions.append("Specify a project for more accurate results")
-        
-        return QueryTranslationResult(
-            yql_query=yql_query,
-            confidence=min(confidence, 1.0),
-            reasoning=reasoning,
-            original_input=natural_query,
-            detected_entities=detected_entities,
-            suggestions=suggestions
-        )
+
     
     async def _rule_based_enhance_error(self, 
                                       error: Exception, 
@@ -605,81 +505,7 @@ class AIProcessor:
             confidence=confidence
         )
     
-    async def _rule_based_analyze_patterns(self, 
-                                         activity_data: List[Dict[str, Any]], 
-                                         analysis_types: List[str]) -> PatternAnalysisResult:
-        """Rule-based activity pattern analysis."""
-        patterns = {}
-        insights = []
-        recommendations = []
-        
-        if not activity_data:
-            return PatternAnalysisResult(
-                patterns={'no_data': True},
-                insights=["No activity data available for analysis"],
-                recommendations=["Start tracking activity to see patterns"],
-                productivity_score=0.0,
-                trends={}
-            )
-        
-        # Basic statistical analysis
-        total_activities = len(activity_data)
-        patterns['total_activities'] = total_activities
-        
-        # Time-based patterns
-        if 'productivity_trends' in analysis_types:
-            daily_counts = {}
-            for activity in activity_data:
-                date_str = activity.get('date', activity.get('created', ''))[:10]
-                daily_counts[date_str] = daily_counts.get(date_str, 0) + 1
-            
-            patterns['daily_activity'] = daily_counts
-            avg_daily = sum(daily_counts.values()) / max(len(daily_counts), 1)
-            patterns['average_daily_activity'] = avg_daily
-            
-            if avg_daily > 10:
-                insights.append("High daily activity level detected")
-                productivity_score = 0.8
-            elif avg_daily > 5:
-                insights.append("Moderate daily activity level")
-                productivity_score = 0.6
-            else:
-                insights.append("Low daily activity level")
-                productivity_score = 0.4
-                recommendations.append("Consider increasing daily engagement")
-        
-        # Collaboration patterns
-        if 'collaboration_patterns' in analysis_types:
-            assignees = {}
-            for activity in activity_data:
-                assignee = activity.get('assignee', 'Unknown')
-                assignees[assignee] = assignees.get(assignee, 0) + 1
-            
-            patterns['assignee_distribution'] = assignees
-            if len(assignees) > 3:
-                insights.append("Good collaboration across multiple team members")
-            else:
-                recommendations.append("Consider involving more team members")
-        
-        # Focus areas
-        if 'focus_areas' in analysis_types:
-            projects = {}
-            for activity in activity_data:
-                project = activity.get('project', 'Unknown')
-                projects[project] = projects.get(project, 0) + 1
-            
-            patterns['project_distribution'] = projects
-            top_project = max(projects.items(), key=lambda x: x[1])[0] if projects else None
-            if top_project:
-                insights.append(f"Primary focus on project: {top_project}")
-        
-        return PatternAnalysisResult(
-            patterns=patterns,
-            insights=insights,
-            recommendations=recommendations,
-            productivity_score=productivity_score,
-            trends={'activity_trend': 'stable'}  # Simplified
-        )
+
     
     async def _suggest_field_fixes(self, query: str, project_context: Optional[str]) -> List[str]:
         """Suggest fixes for field-related errors."""
@@ -745,8 +571,8 @@ class AIProcessor:
     async def _ai_translate_query(self, natural_query: str, context_hints: Optional[Dict[str, Any]], project_schemas: Optional[List[Dict[str, Any]]]) -> QueryTranslationResult:
         """AI-powered query translation using LLM client."""
         if not self.llm_client:
-            # Fall back to rule-based if no LLM client
-            return await self._rule_based_translate_query(natural_query, context_hints, project_schemas)
+            # Natural language to YQL translation not available
+            raise Exception("Natural language to YQL translation requires LLM client")
         
         try:
             # Prepare prompt for query translation
@@ -793,19 +619,18 @@ Return only the YQL query, no explanations."""
                         suggestions=[f"Generated with {response.confidence:.1f} confidence"]
                     )
             
-            # If AI response is not valid, fall back to rule-based
-            logger.warning(f"AI translation failed or invalid, falling back to rule-based: {response.content[:100]}")
-            return await self._rule_based_translate_query(natural_query, context_hints, project_schemas)
-            
+            # AI translation failed - natural language to YQL not available
+            raise Exception("Natural language to YQL translation failed and fallback is not available")
+
         except Exception as e:
             logger.error(f"Error in AI query translation: {e}")
-            return await self._rule_based_translate_query(natural_query, context_hints, project_schemas)
+            raise Exception("Natural language to YQL translation is not available")
     
     async def _ai_enhance_error(self, error: Exception, context: Dict[str, Any], user_history: Optional[List[Dict[str, Any]]]) -> ErrorEnhancementResult:
         """AI-powered error enhancement using LLM client."""
         if not self.llm_client:
-            # Fall back to rule-based if no LLM client
-            return await self._rule_based_enhance_error(error, context)
+            # Error enhancement requires LLM client
+            raise Exception("Error enhancement requires LLM client")
         
         try:
             # Prepare prompt for error enhancement
@@ -860,8 +685,8 @@ Please enhance this error with helpful explanations and fix suggestions."""
     async def _ai_analyze_patterns(self, activity_data: List[Dict[str, Any]], analysis_types: List[str]) -> PatternAnalysisResult:
         """AI-powered pattern analysis using LLM client."""
         if not self.llm_client:
-            # Fall back to rule-based if no LLM client
-            return await self._rule_based_analyze_patterns(activity_data, analysis_types)
+            # Activity pattern analysis requires LLM client
+            raise Exception("Activity pattern analysis requires LLM client")
         
         try:
             # Prepare prompt for pattern analysis
@@ -931,23 +756,20 @@ Provide insights and recommendations based on this activity pattern."""
                 if not insights and not recommendations:
                     insights = [content]
                 
-                # Calculate basic productivity score from rule-based analysis for consistency
-                rule_based_result = await self._rule_based_analyze_patterns(activity_data, analysis_types)
-                
+                # Activity pattern analysis completed
                 return PatternAnalysisResult(
                     patterns={'ai_analysis': content, 'activity_summary': activity_summary},
                     insights=insights or ["AI analysis completed"],
                     recommendations=recommendations or ["Continue monitoring activity patterns"],
-                    productivity_score=rule_based_result.productivity_score,  # Use rule-based score
+                    productivity_score=0.7,  # Default productivity score
                     trends={'ai_confidence': response.confidence}
                 )
-            
-            # If AI response is not valid, fall back to rule-based
-            logger.warning(f"AI pattern analysis failed, falling back to rule-based: {response.content[:100]}")
-            return await self._rule_based_analyze_patterns(activity_data, analysis_types)
-            
+
+            # AI pattern analysis failed
+            raise Exception("Activity pattern analysis failed and fallback is not available")
+
         except Exception as e:
             logger.error(f"Error in AI pattern analysis: {e}")
-            return await self._rule_based_analyze_patterns(activity_data, analysis_types)
+            raise Exception("Activity pattern analysis is not available")
 
 

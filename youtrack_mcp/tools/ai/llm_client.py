@@ -257,8 +257,8 @@ class LLMClient:
         # Import here to avoid circular imports
         from youtrack_mcp.tools.ai.ai_processor import AIProcessor
         
-        # Simple rule-based response based on prompt content
-        content = await self._generate_rule_based_response(prompt, system_prompt)
+        # Rule-based response generation not available
+        content = "Rule-based response generation is not available"
         
         return LLMResponse(
             content=content,
@@ -267,39 +267,7 @@ class LLMClient:
             confidence=0.6  # Rule-based has moderate confidence
         )
     
-    async def _generate_rule_based_response(self, prompt: str, system_prompt: Optional[str] = None) -> str:
-        """Generate rule-based response based on prompt analysis."""
-        prompt_lower = prompt.lower()
-        
-        # Query translation patterns
-        if "translate" in prompt_lower and "query" in prompt_lower:
-            if "last week" in prompt_lower:
-                return "created: -7d .. *"
-            elif "critical" in prompt_lower:
-                return "Priority: Critical"
-            elif "assigned to me" in prompt_lower:
-                return "assignee: me"
-            else:
-                return "Please specify a project name for the search query"
-        
-        # Error enhancement patterns
-        elif "enhance" in prompt_lower and "error" in prompt_lower:
-            if "field" in prompt_lower:
-                return "The field name appears to be invalid. Check spelling and case sensitivity."
-            elif "syntax" in prompt_lower:
-                return "Query syntax error. Use 'field: value' format instead of 'field = value'."
-            elif "date" in prompt_lower:
-                return "Date format error. Use YYYY-MM-DD format or relative dates like '-7d'."
-            else:
-                return "Please check your query syntax and field names."
-        
-        # Pattern analysis
-        elif "analyze" in prompt_lower and "pattern" in prompt_lower:
-            return "Based on the activity data, the user shows moderate engagement with focus on specific projects."
-        
-        # Default response
-        else:
-            return "I understand your request but need more specific information to provide a detailed response."
+
 
 
 def create_llm_client_from_config() -> LLMClient:
