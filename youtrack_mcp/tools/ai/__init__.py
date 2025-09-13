@@ -1,15 +1,10 @@
 """
 YouTrack AI Tools Package.
 
-This package provides AI/LLM integration for YouTrack MCP:
-- Natural language to YQL query translation
-- Intelligent ticket attribute suggestions
-- Multi-provider LLM support (OpenAI, Anthropic, Google, Mistral)
-- Context-aware error messages and help
+Internal AI utilities for YouTrack MCP operations.
 """
 
-from .ai_processor import AIProcessor
-from .llm_client import LLMClient
+# AITools is used internally by other tool classes but not exposed as public API
 from .ai_tools import AITools
 
-__all__ = ["AIProcessor", "LLMClient", "AITools"]
+__all__ = []
