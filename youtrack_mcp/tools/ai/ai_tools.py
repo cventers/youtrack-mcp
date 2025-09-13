@@ -148,12 +148,7 @@ class AITools:
 
     def get_tool_definitions(self) -> Dict[str, Dict[str, Any]]:
         """Get tool definitions for this module."""
-        return {
-            "enhance_error_message": {
-                "description": "Enhance error messages with AI explanations",
-                "category": "ai_assistance"
-            }
-        }
+        return {}
 
 
 __all__ = ["AITools"]
