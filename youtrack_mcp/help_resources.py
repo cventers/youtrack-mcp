@@ -308,18 +308,11 @@ def get_all_tool_help() -> Dict[str, Dict[str, Any]]:
 
 # Migration guide for old vs new calling patterns
 MIGRATION_GUIDE = """
-# Tool Calls Migration Guide
+# Tool Calls Usage Guide
 
-## Old Pattern (Deprecated)
+## Recommended Pattern
 ```python
-# Flexible args/kwargs with repair
-result = issues.get("DEMO-123", include=["customFields"])
-result = issues.create(project="DEMO", summary="Bug", custom_fields={"Type": "Bug"})
-```
-
-## New Pattern (Recommended)
-```python
-# Strict JSON schema
+# JSON schema validation
 result = call_tool({
     "tool_name": "issues.get",
     "arguments": {

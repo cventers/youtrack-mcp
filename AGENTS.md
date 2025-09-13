@@ -289,14 +289,14 @@ The project prioritizes practical YouTrack integration over theoretical MCP prot
 ### Migration from Legacy Format
 **OLD (deprecated):**
 ```python
-# Flexible args/kwargs with repair
+# Flexible args/kwargs with repair (deprecated)
 result = issues.get("DEMO-123", include=["customFields"])
 result = issues.create(project="DEMO", summary="Bug")
 ```
 
 **NEW (required):**
 ```python
-# Strict JSON schema
+# Strict JSON schema validation (required)
 result = call_tool({
     "tool_name": "issues.get",
     "arguments": {
@@ -307,19 +307,19 @@ result = call_tool({
 ```
 
 ### Available Tools and Schemas
-- `issues.get` - Rich issue read with full expansions (comments, links, work_items, history, activities, time_tracking)
-- `issues.create` - Schema-aware issue creation
-- `issues.patch` - Update with fields{} or ops[] (oneOf validation, ops use "set" operation)
-- `projects.list` - List projects with pagination (limit/offset) and include_archived support
-- `projects.get` - Project details with expanded include options (customFields, schema, issues, versions, builds, subsystems, assignees, fields)
-- `projects.schema` - Get project custom field schema (no field_name parameter)
-- `projects.patch` - Update project with ops[] pattern (set operation)
-- `projects.create` - Create new project (uses lead_id parameter)
-- `users.search` - Search users by name/login
-- `search.query` - Execute YQL queries
-- `search.autosearch` - Natural language to YQL translation (minimal parameters: natural_language_query, project_context)
-- `ai.plan` - Generate operation plans with optional context parameter
-- `resources.read` - Read MCP resources
+- `issues.get` - Get issue with optional expansions (issue_id: string, include?: string[])
+- `issues.create` - Create new issue (project: string, summary: string, description?: string, custom_fields?: object)
+- `issues.patch` - Update issue fields (issue_id: string, fields?: object | ops?: object[])
+- `projects.list` - List projects (include_archived?: boolean, limit?: number, offset?: number)
+- `projects.get` - Get project details (project_id: string, include?: string[])
+- `projects.schema` - Get project schema (project_id: string)
+- `projects.patch` - Update project (project_id: string, ops: object[])
+- `projects.create` - Create project (name: string, short_name: string, description?: string, lead_id: string)
+- `users.search` - Search users (query: string, limit?: number)
+- `search.query` - Execute YQL (query: string, limit?: number, sort_by?: string, sort_order?: string)
+- `search.autosearch` - Natural language search (natural_language_query: string, project_context?: string)
+- `ai.plan` - Generate plans (intent: string, context?: object)
+- `resources.read` - Read MCP resources (uri: string)
 
 ### Error Handling
 - **Schema validation errors**: Clear messages indicating exactly what's wrong
