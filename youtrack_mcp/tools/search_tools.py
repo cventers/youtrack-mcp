@@ -158,75 +158,9 @@ class SearchTools:
                     "natural_language_query": natural_language_query
                 })
 
-    def _simple_nl_to_yql(self, query: str, project_context: Optional[str] = None) -> str:
-        """Simple rule-based natural language to YQL conversion."""
-        yql_parts = []
 
-        # Add project context if provided
-        if project_context:
-            yql_parts.append(f"project: {project_context}")
 
-        query_lower = query.lower()
 
-        # Time-based patterns
-        if "last week" in query_lower:
-            yql_parts.append("created: -7d .. *")
-        elif "this week" in query_lower:
-            yql_parts.append("created: {This week}")
-        elif "today" in query_lower:
-            yql_parts.append("created: {Today}")
-        elif "yesterday" in query_lower:
-            yql_parts.append("created: {Yesterday}")
-
-        # Assignment patterns
-        if "assigned to me" in query_lower or "my" in query_lower:
-            yql_parts.append("assignee: me")
-
-        # State patterns
-        if "open" in query_lower:
-            yql_parts.append("state: Open")
-        elif "resolved" in query_lower or "closed" in query_lower:
-            yql_parts.append("#Resolved")
-
-        # Priority patterns
-        if "critical" in query_lower or "high priority" in query_lower:
-            yql_parts.append("priority: Critical")
-
-        # Type patterns
-        if "bug" in query_lower:
-            yql_parts.append("type: Bug")
-        elif "feature" in query_lower:
-            yql_parts.append("type: Feature")
-
-        # Free text search for remaining content
-        remaining = query
-        for pattern in ["last week", "this week", "today", "yesterday", "assigned to me", "my",
-                       "open", "resolved", "closed", "critical", "high priority", "bug", "feature"]:
-            remaining = remaining.replace(pattern, "")
-
-        remaining = remaining.strip()
-        if remaining and len(remaining) > 2:
-            yql_parts.append(f"text: {remaining}")
-
-        return " ".join(yql_parts) if yql_parts else "*"
-
-    def _calculate_confidence(self, query: str) -> float:
-        """Calculate confidence score for the translation."""
-        score = 0.5  # Base score
-
-        # Increase for recognized patterns
-        recognized_patterns = [
-            "last week", "this week", "today", "yesterday",
-            "assigned to me", "my", "open", "resolved", "closed",
-            "critical", "high priority", "bug", "feature"
-        ]
-
-        for pattern in recognized_patterns:
-            if pattern in query.lower():
-                score += 0.1
-
-        # Cap at 0.9 for rule-based approach
-        return min(score, 0.9)
 
     def get_tool_definitions(self) -> Dict[str, Dict[str, Any]]:
         """Get core search tool definitions."""

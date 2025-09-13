@@ -1,10 +1,9 @@
 """
 AI Service for YouTrack MCP Server.
 
-Provides unified AI functionality with mode switching:
-- off: Disabled AI features
-- rule: Rule-based processing only
-- llm: LLM-powered processing only
+Provides unified AI functionality:
+- Error enhancement: Always rule-based processing
+- NL to YQL translation: LLM-powered processing only
 """
 
 import json
@@ -133,49 +132,7 @@ class AIService:
         """
         return self._rule_enhance_error(error, context)
 
-    def _rule_translate_nl_to_yql(self, natural_query: str, project_context: Optional[str]) -> QueryTranslationResult:
-        """Rule-based NL to YQL translation."""
-        # Simple rule-based translations
-        query_lower = natural_query.lower()
 
-        yql_parts = []
-
-        # Project context
-        if project_context:
-            yql_parts.append(f"project: {project_context}")
-
-        # Common patterns
-        if "assigned to me" in query_lower or "my issues" in query_lower:
-            yql_parts.append("assignee: me")
-
-        if "unassigned" in query_lower:
-            yql_parts.append("assignee: Unassigned")
-
-        if "open" in query_lower and "not" not in query_lower:
-            yql_parts.append("state: Open")
-
-        if "critical" in query_lower or "high priority" in query_lower:
-            yql_parts.append("priority: Critical")
-
-        if "bugs" in query_lower or "defects" in query_lower:
-            yql_parts.append("type: Bug")
-
-        if "last week" in query_lower:
-            yql_parts.append("created: -7d")
-
-        if "today" in query_lower:
-            yql_parts.append("created: -1d")
-
-        yql_query = " ".join(yql_parts) if yql_parts else f"text: \"{natural_query}\""
-
-        return QueryTranslationResult(
-            yql_query=yql_query,
-            confidence=0.7 if yql_parts else 0.3,
-            reasoning="Rule-based translation",
-            original_input=natural_query,
-            detected_entities={"rule_based": True},
-            suggestions=["Use specific field names for better results"]
-        )
 
     def _llm_translate_nl_to_yql(self, natural_query: str, project_context: Optional[str]) -> QueryTranslationResult:
         """LLM-powered NL to YQL translation."""
