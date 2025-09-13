@@ -11,6 +11,7 @@ from typing import Dict, Any, List, Optional, Union
 
 from youtrack_mcp.api.client import YouTrackClient
 from youtrack_mcp.api.issues import IssuesClient
+from youtrack_mcp.api.projects import ProjectsClient
 from youtrack_mcp.mcp_wrappers import async_wrapper
 
 logger = logging.getLogger(__name__)
@@ -226,9 +227,6 @@ class CustomFieldsTools:
         if project_id:
             # Look up actual field type from project schema
             try:
-                from youtrack_mcp.api.projects import ProjectsClient
-                from youtrack_mcp.api.client import YouTrackClient
-
                 # Get project field schemas
                 projects_client = ProjectsClient(YouTrackClient())
                 all_schemas = projects_client.get_all_custom_fields_schemas(project_id)

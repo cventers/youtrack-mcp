@@ -10,6 +10,8 @@ import re
 from pydantic import BaseModel, Field, ConfigDict
 
 from youtrack_mcp.api.client import YouTrackClient, YouTrackAPIError
+from youtrack_mcp.api.projects import ProjectsClient
+from youtrack_mcp.api.users import UsersClient
 
 logger = logging.getLogger(__name__)
 
@@ -756,9 +758,8 @@ class IssuesClient:
         try:
             # Normalize field value first
             normalized_value = await self._normalize_field_value(field_value)
-            
+
             # Get allowed values to find the actual ID
-            from youtrack_mcp.api.projects import ProjectsClient
             projects_client = ProjectsClient(self.client)
             allowed_values = await projects_client.get_custom_field_allowed_values(project_id, field_name)
             
