@@ -115,7 +115,31 @@ class AITools:
                 "original_error": error_message
             })
 
+    @sync_wrapper
+    def analyze_intent(self, intent: str, context: Optional[Dict[str, Any]] = None) -> str:
+        """
+        LLM-powered intent analysis and planning.
 
+        FORMAT: analyze_intent(intent="Create a bug report for login issues", context={"project": "DEMO"})
+
+        Args:
+            intent: Natural language description of desired action
+            context: Optional context dictionary
+
+        Returns:
+            JSON string with plan, explanations[], requires_confirmation: true
+        """
+        try:
+            result = self.ai_service._llm_analyze_intent(intent, context or {})
+            return format_json_response(result)
+        except Exception as e:
+            logger.exception(f"Error analyzing intent: {e}")
+            return format_json_response({
+                "error": str(e),
+                "error_type": type(e).__name__,
+                "intent": intent,
+                "requires_confirmation": True
+            })
 
     def close(self) -> None:
         """Clean up resources."""
@@ -125,10 +149,6 @@ class AITools:
     def get_tool_definitions(self) -> Dict[str, Dict[str, Any]]:
         """Get tool definitions for this module."""
         return {
-            "translate_to_yql": {
-                "description": "Translate natural language to YouTrack Query Language",
-                "category": "ai_assistance"
-            },
             "enhance_error_message": {
                 "description": "Enhance error messages with AI explanations",
                 "category": "ai_assistance"

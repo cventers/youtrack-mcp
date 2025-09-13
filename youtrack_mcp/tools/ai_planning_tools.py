@@ -5,11 +5,14 @@ Implements the 1 core AI tool:
 - ai.plan: Plan-only translator
 """
 
+import json
 import logging
 from typing import Any, Dict, Optional
 
 from youtrack_mcp.mcp_wrappers import async_wrapper
 from youtrack_mcp.utils import format_json_response
+from youtrack_mcp.tools.ai.ai_tools import AITools
+
 logger = logging.getLogger(__name__)
 
 
@@ -18,11 +21,12 @@ class AIPlanningTools:
 
     def __init__(self):
         """Initialize AI planning tools."""
+        self.ai_tools = AITools()
 
     @async_wrapper
     async def plan(self, intent: str, context: Optional[Dict[str, Any]] = None) -> str:
         """
-        Plan-only intent translator.
+        LLM-powered intent planning and analysis.
 
         FORMAT: ai.plan(intent="Create a bug report for login issues", context={"project": "DEMO"})
 
@@ -34,8 +38,8 @@ class AIPlanningTools:
             JSON with plan, explanations[], requires_confirmation: true
         """
         try:
-            # Analyze intent to determine appropriate tools and actions
-            plan_result = self._analyze_intent(intent, context or {})
+            # Use LLM to analyze intent and create execution plan
+            plan_result = await self._llm_analyze_intent(intent, context or {})
 
             return format_json_response(plan_result)
 
@@ -47,6 +51,23 @@ class AIPlanningTools:
                 "intent": intent,
                 "requires_confirmation": True
             })
+
+    async def _llm_analyze_intent(self, intent: str, context: Dict[str, Any]) -> Dict[str, Any]:
+        """Use LLM to analyze intent and create execution plan."""
+        try:
+            # Use the AI tools analyze_intent method which uses LLM
+            result_str = self.ai_tools.analyze_intent(intent, context)
+            result = json.loads(result_str)
+
+            # Extract the actual plan data from the formatted response
+            if 'error' in result:
+                raise RuntimeError(result['error'])
+
+            return result
+
+        except Exception as e:
+            logger.error(f"LLM analysis failed, falling back to rule-based: {e}")
+            return self._analyze_intent(intent, context)
 
     def _analyze_intent(self, intent: str, context: Dict[str, Any]) -> Dict[str, Any]:
         """Analyze user intent and create execution plan."""

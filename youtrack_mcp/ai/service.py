@@ -164,3 +164,77 @@ Please enhance this error with helpful explanations and fix suggestions."""
         except Exception as e:
             logger.error(f"LLM enhancement error: {e}")
             raise RuntimeError("LLM enhancement unavailable")
+
+    def _llm_analyze_intent(self, intent: str, context: Dict[str, Any]) -> Dict[str, Any]:
+        """Use LLM to analyze intent and create execution plan."""
+        if not self.openai_client:
+            raise RuntimeError("OpenAI client required for LLM mode")
+
+        try:
+            system_prompt = """You are a YouTrack expert assistant. Analyze user intent and create a detailed execution plan.
+
+Available tools:
+- issues.create: Create new issues
+- issues.get: Read issue details
+- issues.patch: Update existing issues
+- issues.delete: Delete issues
+- search.autosearch: Natural language search for issues
+- projects.list: List all projects
+- projects.get: Get project details
+- users.search: Search for users
+
+Return a JSON plan with:
+- intent: Original user intent
+- context: Provided context
+- requires_confirmation: Always true for safety
+- plan: Array of action objects with tool, description, and parameters
+- explanations: Array of human-readable explanations
+- suggested_tools: Array of recommended tool names
+- estimated_complexity: "low", "medium", or "high"
+
+Be specific about which tools to use and what parameters they need."""
+
+            prompt = f"""Analyze this user intent and create an execution plan: "{intent}"
+
+Context: {json.dumps(context, indent=2)}
+
+Return only valid JSON matching the specified format."""
+
+            response = self.openai_client.complete(
+                prompt=prompt,
+                system=system_prompt,
+                max_tokens=1000,
+                temperature=0.3
+            )
+
+            if response and response.get('content'):
+                content = response['content'].strip()
+                # Try to parse as JSON
+                try:
+                    plan_data = json.loads(content)
+                    # Ensure required fields
+                    plan_data.setdefault('intent', intent)
+                    plan_data.setdefault('context', context)
+                    plan_data.setdefault('requires_confirmation', True)
+                    plan_data.setdefault('plan', [])
+                    plan_data.setdefault('explanations', [])
+                    plan_data.setdefault('suggested_tools', [])
+                    plan_data.setdefault('estimated_complexity', 'medium')
+                    return plan_data
+                except json.JSONDecodeError:
+                    # If LLM didn't return valid JSON, create a basic plan
+                    return {
+                        'intent': intent,
+                        'context': context,
+                        'requires_confirmation': True,
+                        'plan': [{'action': 'manual_review', 'description': 'LLM response parsing failed'}],
+                        'explanations': [f'LLM analysis: {content[:200]}...'],
+                        'suggested_tools': [],
+                        'estimated_complexity': 'medium'
+                    }
+
+            raise RuntimeError("LLM analysis failed")
+
+        except Exception as e:
+            logger.error(f"LLM intent analysis error: {e}")
+            raise RuntimeError("LLM intent analysis unavailable")
