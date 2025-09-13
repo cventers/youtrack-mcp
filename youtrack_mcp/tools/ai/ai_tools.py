@@ -12,9 +12,9 @@ import os
 from typing import Any, Dict, Optional
 
 from youtrack_mcp.mcp_wrappers import sync_wrapper
-from youtrack_mcp.utils import format_json_response
-from ..ai.service import AIService
-from ..ai.openai_client import OpenAIClient
+from youtrack_mcp.utils import format_json_response, ErrorHandler
+from youtrack_mcp.ai.service import AIService
+from youtrack_mcp.ai.openai_client import OpenAIClient
 
 logger = logging.getLogger(__name__)
 
@@ -32,8 +32,12 @@ class AITools:
         except Exception as e:
             logger.warning(f"Failed to initialize OpenAI client: {e}. NL to YQL will be unavailable.")
 
-        # AIService: error enhancement always rule-based, NL to YQL requires LLM
+        # AIService: NL to YQL requires LLM
         self.ai_service = AIService(openai_client=openai_client)
+
+        # ErrorHandler: rule-based error enhancement
+        self.error_handler = ErrorHandler()
+
         logger.info("AITools initialized (error enhancement: rule-based, NL to YQL: LLM required)")
 
 
@@ -80,7 +84,7 @@ class AITools:
     @sync_wrapper
     def enhance_error_message(self, error_message: str, context: Optional[Dict[str, Any]] = None) -> str:
         """
-        Enhance error messages with AI-powered explanations and fixes.
+        Enhance error messages with rule-based explanations and fixes.
 
         FORMAT: enhance_error_message(error_message="403 Forbidden", context={"operation": "update_state"})
 
@@ -92,7 +96,7 @@ class AITools:
             JSON string with enhanced error information
         """
         try:
-            result = self.ai_service.enhance_error_message(error_message, context or {})
+            result = self.error_handler.enhance_error(error_message, context or {})
 
             return format_json_response({
                 "original_error": error_message,
