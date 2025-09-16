@@ -1,6 +1,17 @@
 # YouTrack MCP
 
-A Model Context Protocol (MCP) server that provides access to YouTrack functionality through a streamlined 12-tool interface, built with a modern modular architecture for enhanced maintainability and scalability.
+A modern Model Context Protocol (MCP) server that provides access to YouTrack functionality through a streamlined 12-tool interface, built with **FastMCP architecture** for enhanced performance, maintainability, and scalability.
+
+## 🚀 **Modern FastMCP Architecture**
+
+This project has been completely refactored to use the modern **FastMCP** framework, providing:
+
+- **⚡ Performance**: Full async/await support with httpx.AsyncClient
+- **🔧 Type Safety**: Complete type hint coverage with Pydantic models
+- **📦 Schema Auto-generation**: Automatic JSON schema generation from type hints
+- **🧪 Testability**: 120+ unit tests with comprehensive coverage
+- **🔄 Maintainability**: Clean modular architecture with single-responsibility modules
+- **⚙️ Future-Proof**: Modern MCP SDK with Claude Code CLI auto-resume support
 
 ## 🚀 Core Tool Surface
 
@@ -388,27 +399,80 @@ npx @tonyzorin/youtrack-mcp
 - **Multi-Platform Support**: ARM64/Apple Silicon and AMD64 architecture support
 - **Comprehensive API**: Full YouTrack REST API integration
 
-## 🏗️ Architecture
+## 🏗️ **Modern FastMCP Architecture**
 
-The YouTrack MCP server features a modern, modular architecture designed for enhanced maintainability and scalability. See **[Architecture Documentation](docs/architecture.md)** for comprehensive details about the modular design, testing coverage, and development benefits.
+The YouTrack MCP server features a **modern FastMCP architecture** with:
+
+### **Core Architecture**
+- **FastMCP Framework**: Modern MCP server implementation with typed tool registration
+- **Async-First Design**: Full httpx.AsyncClient integration for optimal performance
+- **Type-Safe Tools**: All tools use `@mcp.tool()` decorators with complete type hints
+- **Auto-Generated Schemas**: JSON schemas automatically generated from Python type hints
+
+### **Modular Design**
+The core `issues` module has been refactored from a monolithic 1,797-line file into **8 focused modules**:
+
+```
+youtrack_mcp/tools/issues/
+├── __init__.py                 # Package initialization and unified interface
+├── basic_operations.py         # Core CRUD operations (get, create, update, search)
+├── custom_fields.py            # Custom field management and validation
+├── dedicated_updates.py        # Specialized update functions (state, priority, assignee)
+├── linking.py                  # Issue relationships and dependencies
+├── diagnostics.py              # Workflow analysis and help systems
+├── attachments.py              # File and raw data operations
+├── comments.py                 # Comment retrieval and management
+└── utilities.py                # Infrastructure and tool definitions
+```
+
+### **Architecture Benefits**
+- **🔧 Maintainability**: Each module has a single responsibility, making code easier to understand and modify
+- **🧪 Testability**: Focused modules enable comprehensive unit testing (120+ tests across all modules)
+- **📈 Scalability**: Clear separation of concerns allows for independent module development
+- **🔄 Backward Compatibility**: Existing API interfaces remain unchanged
+- **📚 Documentation**: Improved code organization with comprehensive docstrings
+- **⚡ Performance**: Async-first design with optimized HTTP client usage
+
+See **[Architecture Documentation](docs/architecture.md)** for comprehensive details about the modular design, testing coverage, and development benefits.
 
 ## Development
 
 This project maintains high code quality with comprehensive testing and CI/CD automation:
 
-### Code Quality Metrics
+### **Modern FastMCP Development**
+
+#### **Architecture Highlights**
+- **FastMCP Framework**: Modern MCP server with typed tool registration
+- **Async/Await Support**: Full async implementation with httpx.AsyncClient
+- **Type Safety**: Complete type hint coverage with Pydantic validation
+- **Schema Auto-generation**: JSON schemas automatically generated from type hints
+- **MCP Compliance**: Full Model Context Protocol compliance with Claude Code CLI support
+
+#### **Code Quality Metrics**
 - **Test Coverage**: 41% overall (continuously improving)
 - **Modular Architecture**: 8 focused modules with 120+ unit tests
 - **CI/CD Pipeline**: Automated testing and Docker builds
 - **Quality Assurance**: Automated testing on every commit
+- **Performance**: Async-first design with optimized HTTP client usage
 
-### Development Resources
+### **Development Resources**
 
-- **[Architecture Documentation](docs/ARCHITECTURE.md)**: Comprehensive modular architecture overview
+#### **Architecture & Implementation**
+- **[Architecture Documentation](docs/architecture.md)**: Comprehensive modular architecture overview
+- **[FastMCP Server Implementation](youtrack_mcp/server_fastmcp.py)**: Modern MCP server with typed tools
+- **[Refactoring Tracker](refactoring_tracker.md)**: Details of the modular architecture refactoring
+- **[Modern MCP Plan](docs/plans/20250913-refactor-to-modern-mcp-plan.md)**: Complete FastMCP migration plan
+
+#### **Development Workflow**
 - **[Automation Scripts Guide](automations/README.md)**: Build, test, and deployment automation
 - **[Release Process](automations/RELEASE_INSTRUCTIONS.md)**: Version management and publishing
 - **[Testing Guide](tests/README.md)**: Comprehensive testing documentation
-- **[Refactoring Tracker](refactoring_tracker.md)**: Details of the modular architecture refactoring
+- **[Tool Loading System](youtrack_mcp/utils/loader.py)**: Modern tool registration system
+
+#### **API Integration**
+- **[YouTrack API Concepts](docs/third-party/youtrack-api-concepts.md)**: Core API patterns and authentication
+- **[Query Language Reference](docs/third-party/youtrack-query-language.md)**: Complete YQL syntax guide
+- **[Custom Fields Guide](docs/third-party/youtrack-custom-fields.md)**: Field types and API endpoints
 
 ## Configuration
 

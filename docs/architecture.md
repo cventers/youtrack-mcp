@@ -1,6 +1,6 @@
-# 🏗️ YouTrack MCP Architecture
+# 🏗️ **YouTrack MCP Architecture - FastMCP Edition**
 
-This document provides a comprehensive overview of the YouTrack MCP server's modern modular architecture.
+This document provides a comprehensive overview of the YouTrack MCP server's **modern FastMCP architecture**, featuring complete async support, type safety, and modular design.
 
 ## Modular Design
 
@@ -19,8 +19,16 @@ youtrack_mcp/tools/issues/
 └── utilities.py                # Infrastructure and tool definitions
 ```
 
-## Architecture Benefits
+## **FastMCP Architecture Benefits**
 
+### **Core Framework Advantages**
+- **⚡ Performance**: Full async/await support with httpx.AsyncClient for optimal HTTP performance
+- **🔒 Type Safety**: Complete type hint coverage with Pydantic models and validation
+- **📦 Schema Auto-generation**: JSON schemas automatically generated from Python type hints
+- **🔄 MCP Compliance**: Full Model Context Protocol compliance with Claude Code CLI auto-resume
+- **🛠️ Modern SDK**: Latest MCP SDK with enhanced error handling and tool registration
+
+### **Modular Design Benefits**
 - **🔧 Maintainability**: Each module has a single responsibility, making code easier to understand and modify
 - **🧪 Testability**: Focused modules enable comprehensive unit testing (120+ tests across all modules)
 - **📈 Scalability**: Clear separation of concerns allows for independent module development
@@ -58,28 +66,55 @@ The modular components are integrated through a unified `IssueTools` class that:
 - Consolidates tool definitions from all modules
 - Enables seamless upgrades and maintenance
 
-## Codebase Organization
+## **FastMCP Codebase Organization**
 
-The codebase is organized into logical modules:
+The codebase is organized into logical modules with modern FastMCP architecture:
 
 ```
 youtrack_mcp/
-├── api/                    # YouTrack API client implementations
-│   ├── client.py          # Base HTTP client with authentication
+├── server_fastmcp.py      # 🚀 FastMCP server with typed tool registration
+├── api/                   # YouTrack API client implementations
+│   ├── client.py          # Base HTTP client with httpx.AsyncClient
 │   ├── issues.py          # Issue operations (CRUD, search, linking)
 │   ├── projects.py        # Project management operations
 │   ├── search.py          # Search and query operations
 │   └── users.py           # User management operations
 ├── tools/                 # MCP tool implementations
-│   ├── issues/            # Modular issue management (8 modules)
-│   ├── core_issues.py     # Core issue operations
-│   ├── core_projects.py   # Project management
-│   ├── core_search.py     # Search functionality
-│   └── core_users.py      # User management
+│   ├── issues/            # 🧩 Modular issue management (8 focused modules)
+│   │   ├── __init__.py                 # Package initialization
+│   │   ├── basic_operations.py         # Core CRUD operations
+│   │   ├── custom_fields.py            # Custom field management
+│   │   ├── dedicated_updates.py        # Specialized updates
+│   │   ├── linking.py                  # Issue relationships
+│   │   ├── diagnostics.py              # Workflow analysis
+│   │   ├── attachments.py              # File operations
+│   │   ├── comments.py                 # Comment management
+│   │   └── utilities.py                # Infrastructure tools
+│   ├── issues_tools.py    # Core issue operations
+│   ├── projects_tools.py  # Project management
+│   ├── search_tools.py    # Search functionality
+│   ├── users_tools.py     # User management
+│   ├── ai_tools.py        # AI planning tools
+│   ├── resources_tools.py # MCP resource management
+│   ├── projects_admin_tools.py  # Project administration
+│   └── users_admin_tools.py     # User administration
 ├── config.py              # Configuration management
-├── utils.py               # Utility functions
-└── mcp_server.py         # MCP server implementation
+├── utils/                 # Utility modules
+│   ├── __init__.py
+│   ├── datetime.py        # Date/time utilities
+│   ├── error_educator.py  # Error handling education
+│   ├── help_resources.py  # Help system resources
+│   ├── loader.py          # 🛠️ Modern tool loading system
+│   └── utils.py           # General utilities
+└── mcp_resources.py       # MCP resource handlers
 ```
+
+### **Key FastMCP Components**
+
+- **`server_fastmcp.py`**: Modern FastMCP server with `@mcp.tool()` decorators and typed signatures
+- **`utils/loader.py`**: Modern tool loading system for dynamic tool registration
+- **`mcp_resources.py`**: MCP resource handlers for documentation and help systems
+- **Modular Tools**: 8 focused modules in `tools/issues/` for maintainable code organization
 
 ## Development Resources
 
