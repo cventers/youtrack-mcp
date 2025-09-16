@@ -14,8 +14,6 @@ import json
 import logging
 from typing import Any, Dict
 
-from youtrack_mcp.mcp_wrappers import sync_wrapper
-from youtrack_mcp.utils import format_json_response
 
 logger = logging.getLogger(__name__)
 
@@ -26,10 +24,7 @@ class Diagnostics:
     def __init__(self, issues_api, projects_api):
         """Initialize with API clients."""
         self.issues_api = issues_api
-        self.projects_api = projects_api
-
-    @sync_wrapper
-    def diagnose_workflow_restrictions(self, issue_id: str) -> str:
+        self.projects_api = projects_api    def diagnose_workflow_restrictions(self, issue_id: str) -> dict:
         """
         Diagnose workflow restrictions and available state transitions for an issue.
         
@@ -49,9 +44,9 @@ class Diagnostics:
         """
         try:
             if not issue_id:
-                return format_json_response({
+                return {
                     "error": "Issue ID is required"
-                })
+                }
             
             # Get current issue state and field information
             issue_data = self.issues_api.get_issue(issue_id)
@@ -69,10 +64,10 @@ class Diagnostics:
                         break
                 
                 if not state_field:
-                    return format_json_response({
+                    return {
                         "error": "No State field found for this issue",
                         "issue_id": issue_id
-                    })
+                    }
                 
                 current_state = state_field.get('value', {}).get('name', 'Unknown')
                 field_type = state_field.get('$type', '')
@@ -139,31 +134,28 @@ class Diagnostics:
                     "Use command-based approach (POST /api/commands) for maximum compatibility"
                 ]
                 
-                return format_json_response({
+                return {
                     "status": "success",
                     "workflow_analysis": workflow_analysis
-                })
+                }
                 
             except Exception as e:
-                return format_json_response({
-                    "error": f"Failed to analyze workflow: {str(e)}",
+                return {
+                    "error": f"Failed to analyze workflow: {str(e}",
                     "issue_id": issue_id,
                     "suggestion": "Try checking issue permissions or contact YouTrack administrator"
                 })
                 
         except Exception as e:
             logger.exception(f"Error diagnosing workflow restrictions for issue {issue_id}")
-            return format_json_response({
-                "error": str(e),
+            return {
+                "error": str(e,
                 "troubleshooting": [
                     "Verify issue ID format and existence",
                     "Check user permissions for the issue",
                     "Ensure proper authentication token"
                 ]
-            })
-
-    @sync_wrapper
-    def get_help(self, topic: str = "all") -> str:
+            })    def get_help(self, topic: str = "all") -> dict:
         """
         Get interactive help with live YouTrack data and working examples.
         
@@ -324,12 +316,12 @@ class Diagnostics:
                     ]
                 }
             
-            return format_json_response(help_content)
+            return help_content
             
         except Exception as e:
             logger.exception(f"Error generating help for topic: {topic}")
-            return format_json_response({
-                "error": str(e),
+            return {
+                "error": str(e,
                 "basic_help": {
                     "most_common_functions": [
                         "update_issue_state(issue_id, new_state)",

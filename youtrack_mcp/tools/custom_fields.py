@@ -12,7 +12,6 @@ from typing import Dict, Any, List, Optional, Union
 from youtrack_mcp.api.client import YouTrackClient
 from youtrack_mcp.api.issues import IssuesClient
 from youtrack_mcp.api.projects import ProjectsClient
-from youtrack_mcp.mcp_wrappers import async_wrapper
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +24,6 @@ class CustomFieldsTools:
         self.client = YouTrackClient()
         self.issues_api = IssuesClient(self.client)
 
-    @async_wrapper
     async def update_custom_field(self, issue_id: str, field_name: str, field_value: Union[str, int, float, bool, List[str]]) -> Dict[str, Any]:
         """
         Update a custom field value for an issue.
@@ -150,7 +148,6 @@ class CustomFieldsTools:
                 "recommendation": "Check field name spelling, ensure field exists, and verify value format matches field type"
             }
 
-    @async_wrapper
     async def get_custom_fields(self, issue_id: str) -> Dict[str, Any]:
         """
         Get all custom fields for an issue with their current values and types.
@@ -202,7 +199,6 @@ class CustomFieldsTools:
                 "issue_id": issue_id
             }
 
-    @async_wrapper
     async def validate_field_value(self, field_name: str, field_value: Union[str, int, float, bool, List[str]], project_id: Optional[str] = None) -> Dict[str, Any]:
         """
         Validate a custom field value without updating the issue.

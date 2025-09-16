@@ -12,8 +12,8 @@ from typing import Any, Dict, Optional
 
 from youtrack_mcp.api.client import YouTrackClient
 from youtrack_mcp.api.issues import IssuesClient
-from youtrack_mcp.mcp_wrappers import async_wrapper
-from youtrack_mcp.utils import format_json_response
+
+
 from youtrack_mcp.tools.ai.ai_tools import AITools
 
 logger = logging.getLogger(__name__)
@@ -108,8 +108,7 @@ class SearchTools:
 
         return None
 
-    @async_wrapper
-    async def query(self, query: str, limit: int = 10, sort_by: Optional[str] = None, sort_order: Optional[str] = None) -> str:
+    async def query(self, query: str, limit: int = 10, sort_by: Optional[str] = None, sort_order: Optional[str] = None) -> dict:
         """
         Execute explicit YouTrack Query Language.
 
@@ -128,7 +127,7 @@ class SearchTools:
             # Check for date syntax errors
             syntax_error = self._detect_date_syntax_errors(query)
             if syntax_error:
-                return format_json_response({
+                return {
                     "query": query,
                     "error": syntax_error["error"],
                     "explanation": syntax_error["explanation"],
@@ -140,7 +139,7 @@ class SearchTools:
                     "limit": limit,
                     "sort_by": sort_by,
                     "sort_order": sort_order
-                })
+                }
 
             # Build sort parameter if provided
             sort_param = None
@@ -165,25 +164,24 @@ class SearchTools:
                     else:
                         result.append(issue)
 
-            return format_json_response({
+            return {
                 "query": query,
                 "results": result,
                 "count": len(result) if isinstance(result, list) else len(result.get("issues", [])),
                 "limit": limit,
                 "sort_by": sort_by,
                 "sort_order": sort_order
-            })
+            }
 
         except Exception as e:
             logger.exception(f"Error in search query: {query}")
-            return format_json_response({
+            return {
                 "error": str(e),
                 "error_type": type(e).__name__,
                 "query": query
-            })
+            }
 
-    @async_wrapper
-    async def autosearch(self, natural_language_query: str, project_context: Optional[str] = None) -> str:
+    async def autosearch(self, natural_language_query: str, project_context: Optional[str] = None) -> dict:
         """
         Natural language to YQL translation.
 
@@ -210,22 +208,21 @@ class SearchTools:
 
             # If confidence is low, return with degraded flag
             if confidence < 0.7:
-                return format_json_response({
+                return {
                     "yql": yql_query,
                     "confidence": confidence,
                     "results": [],
                     "notes": ai_response.get("reasoning", ""),
                     "degraded": True,
                     "suggestions": ai_response.get("suggestions", [])
-                })
+                }
 
             # Execute the translated query
-            search_result = await self.query(yql_query, limit=10)
-            search_response = json.loads(search_result)
+            search_response = await self.query(yql_query, limit=10)
 
             # Check if the query execution returned an error due to date syntax
             if "error" in search_response and "date" in search_response.get("explanation", "").lower():
-                return format_json_response({
+                return {
                     "yql": yql_query,
                     "confidence": confidence,
                     "results": [],
@@ -234,39 +231,38 @@ class SearchTools:
                     "suggestions": search_response.get("suggestions", []),
                     "examples": search_response.get("examples", []),
                     "detected_entities": ai_response.get("detected_entities", [])
-                })
+                }
 
-            return format_json_response({
+            return {
                 "yql": yql_query,
                 "confidence": confidence,
                 "results": search_response.get("results", []),
                 "notes": ai_response.get("reasoning", ""),
                 "degraded": False,
                 "detected_entities": ai_response.get("detected_entities", [])
-            })
+            }
 
         except Exception as e:
             logger.exception(f"Error in autosearch: {natural_language_query}")
             # Fallback to simple text search
             fallback_query = f"text: {natural_language_query}"
             try:
-                fallback_result = await self.query(fallback_query, limit=10)
-                fallback_response = json.loads(fallback_result)
+                fallback_response = await self.query(fallback_query, limit=10)
 
-                return format_json_response({
+                return {
                     "yql": fallback_query,
                     "confidence": 0.0,
                     "results": fallback_response.get("results", []),
                     "notes": f"Fallback to text search due to error: {str(e)}",
                     "degraded": True
-                })
+                }
             except Exception as fallback_error:
-                return format_json_response({
+                return {
                     "error": str(e),
                     "error_type": type(e).__name__,
                     "fallback_error": str(fallback_error),
                     "natural_language_query": natural_language_query
-                })
+                }
 
 
 

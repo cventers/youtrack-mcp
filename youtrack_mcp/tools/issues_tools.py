@@ -22,8 +22,8 @@ from youtrack_mcp.api.client import (
     RateLimitError
 )
 from youtrack_mcp.api.issues import IssuesClient
-from youtrack_mcp.mcp_wrappers import sync_wrapper, async_wrapper
-from youtrack_mcp.utils import format_json_response
+
+
 from youtrack_mcp.utils.error_educator import LLMErrorEducator
 
 # Initialize the error educator
@@ -40,8 +40,7 @@ class IssuesTools:
         self.client = YouTrackClient()
         self.issues_api = IssuesClient(self.client)
 
-    @async_wrapper
-    async def get(self, issue_id: str, include: Optional[List[str]] = None) -> str:
+    async def get(self, issue_id: str, include: Optional[List[str]] = None) -> dict:
         """
         Rich issue read with expansions.
 
@@ -77,11 +76,11 @@ class IssuesTools:
             else:
                 issue_data = issue.__dict__ if hasattr(issue, "__dict__") else str(issue)
 
-            return format_json_response({
+            return {
                 "issue": issue_data,
                 "expansions": include or [],
                 "fields_requested": base_fields
-            })
+            }
 
         except (ResourceNotFoundError, AuthenticationError, PermissionDeniedError,
                 ValidationError, RateLimitError, ServerError, YouTrackAPIError) as e:
@@ -91,7 +90,7 @@ class IssuesTools:
                 error=e,
                 context={"issue_id": issue_id, "include": include}
             )
-            return format_json_response(llm_response)
+            return llm_response
         except Exception as e:
             logger.exception(f"Unexpected error getting issue {issue_id}: {e}")
             llm_response = error_educator.create_educational_error_response(
@@ -99,10 +98,9 @@ class IssuesTools:
                 error=e,
                 context={"issue_id": issue_id, "include": include}
             )
-            return format_json_response(llm_response)
+            return llm_response
 
-    @async_wrapper
-    async def create(self, project: str, summary: str, description: Optional[str] = None, custom_fields: Optional[Dict[str, Any]] = None) -> str:
+    async def create(self, project: str, summary: str, description: Optional[str] = None, custom_fields: Optional[Dict[str, Any]] = None) -> dict:
         """
         Schema-aware issue creation with custom field support.
 
@@ -132,10 +130,10 @@ class IssuesTools:
             else:
                 issue_data = issue.__dict__ if hasattr(issue, "__dict__") else str(issue)
 
-            return format_json_response({
+            return {
                 "issue": issue_data,
                 "created": True
-            })
+            }
 
         except (AuthenticationError, PermissionDeniedError, ValidationError,
                 ResourceNotFoundError, RateLimitError, ServerError, YouTrackAPIError) as e:
@@ -145,7 +143,7 @@ class IssuesTools:
                 error=e,
                 context={"project": project, "summary": summary, "description": description, "custom_fields": custom_fields}
             )
-            return format_json_response(llm_response)
+            return llm_response
         except Exception as e:
             logger.exception(f"Unexpected error creating issue in {project}: {e}")
             llm_response = error_educator.create_educational_error_response(
@@ -153,10 +151,9 @@ class IssuesTools:
                 error=e,
                 context={"project": project, "summary": summary, "description": description, "custom_fields": custom_fields}
             )
-            return format_json_response(llm_response)
+            return llm_response
 
-    @async_wrapper
-    async def patch(self, issue_id: str, fields: Optional[Dict[str, Any]] = None, ops: Optional[List[Dict[str, Any]]] = None) -> str:
+    async def patch(self, issue_id: str, fields: Optional[Dict[str, Any]] = None, ops: Optional[List[Dict[str, Any]]] = None) -> dict:
         """Update issue with /fields/<FieldName> support and schema-aware coercion."""
         try:
             updated_issue = None
@@ -223,9 +220,9 @@ class IssuesTools:
                     )
 
             elif not fields:
-                return format_json_response({
+                return {
                     "error": "Either 'fields' or 'ops' parameter must be provided"
-                })
+                }
 
             # Get the updated issue data for response
             if not updated_issue:
@@ -238,7 +235,7 @@ class IssuesTools:
             else:
                 issue_data = updated_issue.__dict__ if hasattr(updated_issue, "__dict__") else str(updated_issue)
 
-            return format_json_response({
+            return {
                 "issue": issue_data,
                 "updated": True,
                 "regular_fields_updated": regular_fields_updated,
@@ -246,7 +243,7 @@ class IssuesTools:
                 "total_fields_updated": len(regular_fields_updated) + len(custom_fields_updated),
                 "ops_applied": len(ops) if ops else 0,
                 "message": f"Successfully updated issue {issue_id}"
-            })
+            }
 
         except (ResourceNotFoundError, AuthenticationError, PermissionDeniedError,
                 ValidationError, RateLimitError, ServerError, YouTrackAPIError) as e:
@@ -256,7 +253,7 @@ class IssuesTools:
                 error=e,
                 context={"issue_id": issue_id, "fields": fields, "ops": ops}
             )
-            return format_json_response(llm_response)
+            return llm_response
         except Exception as e:
             logger.exception(f"Unexpected error updating issue {issue_id}: {e}")
             llm_response = error_educator.create_educational_error_response(
@@ -264,7 +261,7 @@ class IssuesTools:
                 error=e,
                 context={"issue_id": issue_id, "fields": fields, "ops": ops}
             )
-            return format_json_response(llm_response)
+            return llm_response
 
     def get_tool_definitions(self) -> Dict[str, Dict[str, Any]]:
         """Get core issues tool definitions."""

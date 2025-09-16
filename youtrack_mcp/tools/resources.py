@@ -10,7 +10,6 @@ from urllib.parse import parse_qs, urlparse
 from youtrack_mcp.api.client import YouTrackClient
 from youtrack_mcp.api.issues import IssuesClient
 from youtrack_mcp.api.projects import ProjectsClient
-from youtrack_mcp.mcp_wrappers import sync_wrapper
 
 logger = logging.getLogger(__name__)
 
@@ -41,10 +40,7 @@ class ResourcesTools:
         self.projects_api = ProjectsClient(self.client)
 
         # Cache for resource subscriptions
-        self.subscriptions = set()
-
-    @sync_wrapper
-    def list_resources(self) -> str:
+        self.subscriptions = set()    def list_resources(self) -> dict:
         """
         List available YouTrack resources.
 
@@ -148,10 +144,7 @@ class ResourcesTools:
             )
         except Exception as e:
             logger.exception("Error listing resources")
-            return json.dumps({"error": str(e)})
-
-    @sync_wrapper
-    def read_resource(self, uri: str) -> str:
+            return json.dumps({"error": str(e)})    def read_resource(self, uri: str) -> dict:
         """
         Read a YouTrack resource by URI.
 
@@ -264,10 +257,7 @@ class ResourcesTools:
             logger.exception(f"Error reading resource: {uri}")
             return json.dumps(
                 {"error": f"Error processing resource {uri}: {str(e)}"}
-            )
-
-    @sync_wrapper
-    def subscribe_resource(self, uri: str) -> str:
+            )    def subscribe_resource(self, uri: str) -> dict:
         """
         Subscribe to updates for a resource.
 
@@ -284,10 +274,7 @@ class ResourcesTools:
             return json.dumps({"subscribed": True, "uri": uri})
         except Exception as e:
             logger.exception(f"Error subscribing to resource: {uri}")
-            return json.dumps({"error": str(e)})
-
-    @sync_wrapper
-    def unsubscribe_resource(self, uri: str) -> str:
+            return json.dumps({"error": str(e)})    def unsubscribe_resource(self, uri: str) -> dict:
         """
         Unsubscribe from updates for a resource.
 
@@ -307,7 +294,7 @@ class ResourcesTools:
             logger.exception(f"Error unsubscribing from resource: {uri}")
             return json.dumps({"error": str(e)})
 
-    def get_all_projects(self) -> str:
+    def get_all_projects(self) -> dict:
         """Get all projects as a resource."""
         try:
             # Fetch projects using the API client
@@ -340,7 +327,7 @@ class ResourcesTools:
             logger.exception("Error getting all projects")
             return json.dumps({"error": str(e)})
 
-    def get_project(self, project_id: str) -> str:
+    def get_project(self, project_id: str) -> dict:
         """Get a specific project as a resource."""
         try:
             project = self.projects_api.get_project(project_id)
@@ -368,7 +355,7 @@ class ResourcesTools:
             logger.exception(f"Error getting project: {project_id}")
             return json.dumps({"error": str(e)})
 
-    def get_project_issues(self, project_id: str) -> str:
+    def get_project_issues(self, project_id: str) -> dict:
         """Get issues for a specific project as a resource."""
         try:
             issues = self.projects_api.get_project_issues(project_id)
@@ -390,7 +377,7 @@ class ResourcesTools:
             logger.exception(f"Error getting issues for project: {project_id}")
             return json.dumps({"error": str(e)})
 
-    def get_all_issues(self) -> str:
+    def get_all_issues(self) -> dict:
         """Get all issues as a resource."""
         try:
             # This would typically use a search with no filters
@@ -411,7 +398,7 @@ class ResourcesTools:
             logger.exception("Error getting all issues")
             return json.dumps({"error": str(e)})
 
-    def get_issue(self, issue_id: str) -> str:
+    def get_issue(self, issue_id: str) -> dict:
         """Get a specific issue as a resource."""
         try:
             try:
@@ -462,7 +449,7 @@ class ResourcesTools:
             logger.exception(f"Error getting issue: {issue_id}")
             return json.dumps({"error": str(e)})
 
-    def get_issue_comments(self, issue_id: str) -> str:
+    def get_issue_comments(self, issue_id: str) -> dict:
         """
         Get comments for a specific issue as a resource.
 
@@ -517,7 +504,7 @@ class ResourcesTools:
             logger.exception(f"Error getting comments for issue: {issue_id}")
             return json.dumps({"error": str(e)})
 
-    def get_all_users(self) -> str:
+    def get_all_users(self) -> dict:
         """Get all users as a resource."""
         try:
             users = self.client.get("users")
@@ -537,7 +524,7 @@ class ResourcesTools:
             logger.exception("Error getting all users")
             return json.dumps({"error": str(e)})
 
-    def get_user(self, user_id: str) -> str:
+    def get_user(self, user_id: str) -> dict:
         """Get a specific user as a resource."""
         try:
             user = self.client.get(f"users/{user_id}")
@@ -559,7 +546,7 @@ class ResourcesTools:
             logger.exception(f"Error getting user: {user_id}")
             return json.dumps({"error": str(e)})
 
-    def search_issues(self, query: str) -> str:
+    def search_issues(self, query: str) -> dict:
         """Search issues as a resource."""
         try:
             results = self.client.get(

@@ -10,8 +10,6 @@ from typing import Any, Dict, Optional
 
 from youtrack_mcp.api.client import YouTrackClient
 from youtrack_mcp.api.users import UsersClient
-from youtrack_mcp.mcp_wrappers import async_wrapper
-from youtrack_mcp.utils import format_json_response
 
 logger = logging.getLogger(__name__)
 
@@ -24,8 +22,7 @@ class UsersTools:
         self.client = YouTrackClient()
         self.users_api = UsersClient(self.client)
 
-    @async_wrapper
-    async def search(self, query: str, limit: int = 10) -> str:
+    async def search(self, query: str, limit: int = 10) -> dict:
         """
         Resolve users by name/login.
 
@@ -49,20 +46,20 @@ class UsersTools:
                 else:
                     result.append(user)
 
-            return format_json_response({
+            return {
                 "users": result,
                 "count": len(result),
                 "query": query,
                 "limit": limit
-            })
+            }
 
         except Exception as e:
             logger.exception(f"Error searching users with query: {query}")
-            return format_json_response({
+            return {
                 "error": str(e),
                 "error_type": type(e).__name__,
                 "query": query
-            })
+            }
 
     def get_tool_definitions(self) -> Dict[str, Dict[str, Any]]:
         """Get core users tool definitions."""

@@ -13,8 +13,6 @@ from typing import Any, Dict, Optional
 
 from youtrack_mcp.api.client import YouTrackClient
 from youtrack_mcp.api.users import UsersClient
-from youtrack_mcp.mcp_wrappers import async_wrapper
-from youtrack_mcp.utils import format_json_response
 
 logger = logging.getLogger(__name__)
 
@@ -38,8 +36,7 @@ class UsersAdminTools:
             logger.warning(f"Admin permission check failed: {e}")
             return False
 
-    @async_wrapper
-    async def create(self, login: str, name: str, email: Optional[str] = None) -> str:
+    async def create(self, login: str, name: str, email: Optional[str] = None) -> dict:
         """
         Create a new user (admin only).
 
@@ -56,10 +53,10 @@ class UsersAdminTools:
         try:
             # Check admin permissions
             if not await self._check_admin_permissions():
-                return format_json_response({
+                return {
                     "error": "Admin permissions required for user creation",
                     "login": login
-                })
+                }
 
             # Create the user
             user_data = {
@@ -71,24 +68,23 @@ class UsersAdminTools:
 
             result = await self.client.post("admin/users", json=user_data)
 
-            return format_json_response({
+            return {
                 "success": True,
                 "user": result,
                 "login": login,
                 "name": name,
                 "email": email
-            })
+            }
 
         except Exception as e:
             logger.exception(f"Error creating user {login}")
-            return format_json_response({
+            return {
                 "error": str(e),
                 "error_type": type(e).__name__,
                 "login": login
-            })
+            }
 
-    @async_wrapper
-    async def patch(self, user_id: str, updates: Dict[str, Any]) -> str:
+    async def patch(self, user_id: str, updates: Dict[str, Any]) -> dict:
         """
         Update user properties (admin only).
 
@@ -104,31 +100,30 @@ class UsersAdminTools:
         try:
             # Check admin permissions
             if not await self._check_admin_permissions():
-                return format_json_response({
+                return {
                     "error": "Admin permissions required for user updates",
                     "user_id": user_id
-                })
+                }
 
             # Update the user
             result = await self.client.put(f"admin/users/{user_id}", json_data=updates)
 
-            return format_json_response({
+            return {
                 "success": True,
                 "user": result,
                 "user_id": user_id,
                 "updates": updates
-            })
+            }
 
         except Exception as e:
             logger.exception(f"Error updating user {user_id}")
-            return format_json_response({
+            return {
                 "error": str(e),
                 "error_type": type(e).__name__,
                 "user_id": user_id
-            })
+            }
 
-    @async_wrapper
-    async def deactivate(self, user_id: str, deactivate: bool = True) -> str:
+    async def deactivate(self, user_id: str, deactivate: bool = True) -> dict:
         """
         Deactivate or reactivate a user (admin only).
 
@@ -144,30 +139,30 @@ class UsersAdminTools:
         try:
             # Check admin permissions
             if not await self._check_admin_permissions():
-                return format_json_response({
+                return {
                     "error": "Admin permissions required for user deactivation",
                     "user_id": user_id
-                })
+                }
 
             # Deactivate/reactivate the user
             action = "deactivate" if deactivate else "reactivate"
             result = await self.client.post(f"admin/users/{user_id}/{action}")
 
-            return format_json_response({
+            return {
                 "success": True,
                 "user_id": user_id,
                 "action": action,
                 "deactivated": deactivate,
                 "result": result
-            })
+            }
 
         except Exception as e:
             logger.exception(f"Error deactivating user {user_id}")
-            return format_json_response({
+            return {
                 "error": str(e),
                 "error_type": type(e).__name__,
                 "user_id": user_id
-            })
+            }
 
     def get_tool_definitions(self) -> Dict[str, Dict[str, Any]]:
         """Get admin user tool definitions."""

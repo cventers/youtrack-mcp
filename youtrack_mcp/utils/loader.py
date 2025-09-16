@@ -9,7 +9,7 @@ import logging
 from typing import Dict, Callable, Any
 from collections import defaultdict
 
-from youtrack_mcp.mcp_wrappers import create_bound_tool
+
 
 # Set up logger
 logger = logging.getLogger(__name__)
@@ -170,5 +170,3 @@ def _get_tools_from_class(tool_class: Any) -> Dict[str, Callable]:
         # Only include if it's a callable
         if callable(attr):
             result[name] = attr
-
-    return result

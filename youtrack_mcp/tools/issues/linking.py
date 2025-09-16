@@ -15,8 +15,6 @@ import json
 import logging
 from typing import Any, Dict
 
-from youtrack_mcp.mcp_wrappers import sync_wrapper
-from youtrack_mcp.utils import format_json_response
 
 logger = logging.getLogger(__name__)
 
@@ -28,12 +26,9 @@ class Linking:
         """Initialize with API clients."""
         self.issues_api = issues_api
         self.projects_api = projects_api
-        self.client = issues_api.client  # Direct access for complex operations
-
-    @sync_wrapper
-    def link_issues(
+        self.client = issues_api.client  # Direct access for complex operations    def link_issues(
         self, source_issue_id: str, target_issue_id: str, link_type: str
-    ) -> str:
+    ) -> dict:
         """
         Link two issues together.
 
@@ -51,15 +46,12 @@ class Linking:
             result = self.issues_api.link_issues(
                 source_issue_id, target_issue_id, link_type
             )
-            return format_json_response(result)
+            return result
         except Exception as e:
             logger.exception(
                 f"Error linking issues {source_issue_id} -> {target_issue_id}"
             )
-            return format_json_response({"error": str(e), "status": "error"})
-
-    @sync_wrapper
-    def get_issue_links(self, issue_id: str) -> str:
+            return {"error": str(e, "status": "error"})    def get_issue_links(self, issue_id: str) -> dict:
         """
         Get all links for an issue.
 
@@ -73,13 +65,10 @@ class Linking:
         """
         try:
             result = self.issues_api.get_issue_links(issue_id)
-            return format_json_response(result)
+            return result
         except Exception as e:
             logger.exception(f"Error getting links for issue {issue_id}")
-            return format_json_response({"error": str(e), "status": "error"})
-
-    @sync_wrapper
-    def get_available_link_types(self) -> str:
+            return {"error": str(e, "status": "error"})    def get_available_link_types(self) -> dict:
         """
         Get all available issue link types.
 
@@ -90,15 +79,12 @@ class Linking:
         """
         try:
             result = self.issues_api.get_available_link_types()
-            return format_json_response(result)
+            return result
         except Exception as e:
             logger.exception("Error getting available link types")
-            return format_json_response({"error": str(e), "status": "error"})
-
-    @sync_wrapper
-    def add_dependency(
+            return {"error": str(e, "status": "error"})    def add_dependency(
         self, dependent_issue_id: str, dependency_issue_id: str
-    ) -> str:
+    ) -> dict:
         """
         Add a dependency relationship where one issue depends on another.
 
@@ -120,12 +106,9 @@ class Linking:
             logger.exception(
                 f"Error adding dependency between {dependent_issue_id} and {dependency_issue_id}"
             )
-            return format_json_response({"error": str(e), "status": "error"})
-
-    @sync_wrapper
-    def remove_dependency(
+            return {"error": str(e, "status": "error"})    def remove_dependency(
         self, dependent_issue_id: str, dependency_issue_id: str
-    ) -> str:
+    ) -> dict:
         """
         Remove a dependency relationship between two issues.
 
@@ -162,25 +145,22 @@ class Linking:
             response = self.client.post("commands", data=command_data)
 
             if isinstance(response, dict):
-                return format_json_response(
+                return 
                     {
                         "status": "success",
                         "message": f"Successfully removed dependency between {dependent_issue_id} and {dependency_issue_id}",
                         "command": command,
                     }
-                )
+                
 
-            return format_json_response(response)
+            return response
         except Exception as e:
             logger.exception(
                 f"Error removing dependency between {dependent_issue_id} and {dependency_issue_id}"
             )
-            return format_json_response({"error": str(e), "status": "error"})
-
-    @sync_wrapper
-    def add_relates_link(
+            return {"error": str(e, "status": "error"})    def add_relates_link(
         self, source_issue_id: str, target_issue_id: str
-    ) -> str:
+    ) -> dict:
         """
         Add a 'Relates' relationship between two issues.
 
@@ -202,12 +182,9 @@ class Linking:
             logger.exception(
                 f"Error adding relates link between {source_issue_id} and {target_issue_id}"
             )
-            return format_json_response({"error": str(e), "status": "error"})
-
-    @sync_wrapper
-    def add_duplicate_link(
+            return {"error": str(e, "status": "error"})    def add_duplicate_link(
         self, duplicate_issue_id: str, original_issue_id: str
-    ) -> str:
+    ) -> dict:
         """
         Mark one issue as a duplicate of another.
 
@@ -229,7 +206,7 @@ class Linking:
             logger.exception(
                 f"Error adding duplicate link between {duplicate_issue_id} and {original_issue_id}"
             )
-            return format_json_response({"error": str(e), "status": "error"})
+            return {"error": str(e, "status": "error"})
 
     def get_tool_definitions(self) -> Dict[str, Dict[str, Any]]:
         """Get tool definitions for linking functions."""

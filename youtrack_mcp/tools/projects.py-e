@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional, Union
 from youtrack_mcp.api.client import YouTrackClient
 from youtrack_mcp.api.issues import IssuesClient
 from youtrack_mcp.api.projects import ProjectsClient
-from youtrack_mcp.mcp_wrappers import sync_wrapper
+
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +24,7 @@ class ProjectTools:
         # Also initialize the issues API for fetching issue details
         self.issues_api = IssuesClient(self.client)
     
-    @sync_wrapper
+
     def get_projects(self, include_archived: bool = False) -> str:
         """
         Get a list of all projects.
@@ -53,7 +53,7 @@ class ProjectTools:
             logger.exception("Error getting projects")
             return json.dumps({"error": str(e)})
     
-    @sync_wrapper
+
     def get_project(self, project_id: str = None, project: str = None) -> str:
         """
         Get information about a specific project.
@@ -86,7 +86,7 @@ class ProjectTools:
             logger.exception(f"Error getting project {project_id or project}")
             return json.dumps({"error": str(e)})
     
-    @sync_wrapper
+
     def get_project_by_name(self, project_name: str) -> str:
         """
         Find a project by its name.
@@ -115,7 +115,7 @@ class ProjectTools:
             logger.exception(f"Error finding project by name {project_name}")
             return json.dumps({"error": str(e)})
     
-    @sync_wrapper
+
     def get_project_issues(self, project_id: str = None, project: str = None, limit: int = 50) -> str:
         """
         Get issues for a specific project.
@@ -162,7 +162,7 @@ class ProjectTools:
             logger.exception(f"Error processing get_project_issues({project_id or project}, {limit})")
             return json.dumps({"error": str(e)})
     
-    @sync_wrapper
+
     def get_custom_fields(self, project_id: str = None, project: str = None) -> str:
         """
         Get custom fields for a project.
@@ -213,7 +213,7 @@ class ProjectTools:
             logger.exception(f"Error getting custom fields for project {project_id or project}")
             return json.dumps({"error": str(e)})
     
-    @sync_wrapper
+
     def create_project(self, name: str, short_name: str, lead_id: str, description: Optional[str] = None) -> str:
         """
         Create a new project with a required leader.
@@ -256,7 +256,7 @@ class ProjectTools:
             logger.exception(f"Error creating project {name}")
             return json.dumps({"error": str(e)})
     
-    @sync_wrapper
+
     def update_project(self, project_id: str = None, project: str = None, name: Optional[str] = None, 
                    description: Optional[str] = None, archived: Optional[bool] = None, 
                    lead_id: Optional[str] = None, short_name: Optional[str] = None) -> str:
@@ -408,4 +408,4 @@ class ProjectTools:
                     "short_name": "The new short name for the project (optional) - used as prefix for issue IDs"
                 }
             }
-        } 
+        }

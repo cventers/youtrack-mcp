@@ -7,8 +7,6 @@ from typing import Any, Dict, Optional
 
 from youtrack_mcp.api.client import YouTrackClient
 from youtrack_mcp.api.users import UsersClient
-from youtrack_mcp.mcp_wrappers import sync_wrapper
-from youtrack_mcp.utils import format_json_response
 
 logger = logging.getLogger(__name__)
 
@@ -24,10 +22,7 @@ class UserTools:
     def close(self) -> None:
         """Close the user tools."""
         if hasattr(self.client, "close"):
-            self.client.close()
-
-    @sync_wrapper
-    def get_current_user(self) -> str:
+            self.client.close()    def get_current_user(self) -> dict:
         """
         Get information about the current user.
 
@@ -43,13 +38,10 @@ class UserTools:
                 result = user.model_dump()
             else:
                 result = user  # Assume it's already a dict
-            return format_json_response(result)
+            return result
         except Exception as e:
             logger.exception("Error getting current user")
-            return format_json_response({"error": str(e)})
-
-    @sync_wrapper
-    def get_user_by_id(self, user_id: str) -> str:
+            return {"error": str(e})    def get_user_by_id(self, user_id: str) -> dict:
         """
         Get information about a specific user by ID or login.
 
@@ -63,20 +55,17 @@ class UserTools:
         """
         try:
             if not user_id:
-                return format_json_response({"error": "User ID is required"})
+                return {"error": "User ID is required"}
 
             user_obj = self.users_api.get_user(user_id)
             if hasattr(user_obj, "model_dump"):
                 result = user_obj.model_dump()
             else:
                 result = user_obj  # Assume it's already a dict
-            return format_json_response(result)
+            return result
         except Exception as e:
             logger.exception(f"Error getting user {user_id}")
-            return format_json_response({"error": str(e)})
-
-    @sync_wrapper
-    def search_users(self, query: str = "", limit: int = 10) -> str:
+            return {"error": str(e})    def search_users(self, query: str = "", limit: int = 10) -> dict:
         """
         Search for users by name or login.
 
@@ -100,13 +89,10 @@ class UserTools:
                 else:
                     result.append(user)  # Assume it's already a dict
 
-            return format_json_response(result)
+            return result
         except Exception as e:
             logger.exception(f"Error searching users with query: {query}")
-            return format_json_response({"error": str(e)})
-
-    @sync_wrapper
-    def get_user_permissions(self, user_id: str = None) -> str:
+            return {"error": str(e})    def get_user_permissions(self, user_id: str = None) -> dict:
         """
         Get permissions for a specific user.
 
@@ -147,10 +133,10 @@ class UserTools:
                 "user_details": user_details_dict,
                 "note": "User permissions shown through user details. Full group permissions API not available in YouTrack Cloud."
             }
-            return format_json_response(permissions)
+            return permissions
         except Exception as e:
             logger.exception(f"Error getting permissions for user {user_id}")
-            return format_json_response({"error": str(e)})
+            return {"error": str(e})
 
     def get_tool_definitions(self) -> Dict[str, Dict[str, Any]]:
         """Get tool definitions with descriptions."""

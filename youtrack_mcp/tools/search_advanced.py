@@ -24,8 +24,6 @@ from cachetools import TTLCache, LRUCache
 from youtrack_mcp.api.client import YouTrackClient
 from youtrack_mcp.api.issues import IssuesClient
 from youtrack_mcp.api.projects import ProjectsClient
-from youtrack_mcp.mcp_wrappers import async_wrapper
-from youtrack_mcp.utils import format_json_response
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +52,7 @@ class SearchCondition:
     value: Any
     negated: bool = False
     
-    def to_query_string(self) -> str:
+    def to_query_string(self) -> dict:
         """Convert condition to YouTrack query string."""
         # Handle negation
         op = f"!{self.operator.value}" if self.negated and self.operator != SearchOperator.NOT_EQUALS else self.operator.value
@@ -109,16 +107,13 @@ class AdvancedSearchTools:
         # Initialize analytics
         self.stats = SearchStats()
         
-        logger.info("AdvancedSearchTools initialized with caching and analytics")
-    
-    @async_wrapper
-    async def intelligent_search(
+        logger.info("AdvancedSearchTools initialized with caching and analytics")    async def intelligent_search(
         self,
         natural_query: str,
         project: Optional[str] = None,
         limit: int = 10,
         include_suggestions: bool = True
-    ) -> str:
+    ) -> dict:
         """
         Perform intelligent search with natural language-like queries.
         
@@ -145,7 +140,7 @@ class AdvancedSearchTools:
                 self.stats.cache_hits += 1
                 cached_result = self.query_cache[cache_key]
                 cached_result["from_cache"] = True
-                return format_json_response(cached_result)
+                return cached_result
             
             self.stats.cache_misses += 1
             
@@ -189,19 +184,16 @@ class AdvancedSearchTools:
             # Cache the result
             self.query_cache[cache_key] = response
             
-            return format_json_response(response)
+            return response
             
         except Exception as e:
             self.stats.error_count += 1
             logger.exception(f"Error in intelligent search: {e}")
-            return format_json_response({
-                "error": str(e),
+            return {
+                "error": str(e,
                 "error_type": type(e).__name__,
                 "query": natural_query
-            })
-    
-    @async_wrapper
-    async def search_by_query_builder(
+            })    async def search_by_query_builder(
         self,
         conditions: List[Dict[str, Any]],
         text_search: Optional[str] = None,
@@ -209,7 +201,7 @@ class AdvancedSearchTools:
         limit: int = 50,
         sort_by: Optional[str] = None,
         sort_order: str = "desc"
-    ) -> str:
+    ) -> dict:
         """
         Build and execute complex searches using structured conditions.
         
@@ -263,12 +255,12 @@ class AdvancedSearchTools:
                 limit=limit
             )
             
-            return format_json_response({
+            return {
                 "query": final_query,
                 "conditions": conditions,
                 "results": results,
                 "metadata": {
-                    "total_conditions": len(conditions),
+                    "total_conditions": len(conditions,
                     "projects": projects,
                     "sort": {"field": sort_by, "order": sort_order} if sort_by else None
                 }
@@ -276,14 +268,11 @@ class AdvancedSearchTools:
             
         except Exception as e:
             logger.exception(f"Error in query builder search: {e}")
-            return format_json_response({
-                "error": str(e),
+            return {
+                "error": str(e,
                 "error_type": type(e).__name__,
                 "conditions": conditions
-            })
-    
-    @async_wrapper
-    async def search_suggestions(self, partial_query: str, context: Optional[str] = None) -> str:
+            })    async def search_suggestions(self, partial_query: str, context: Optional[str] = None) -> dict:
         """
         Get search suggestions and auto-completions.
         
@@ -300,7 +289,7 @@ class AdvancedSearchTools:
             # Check cache
             cache_key = f"{partial_query}:{context}"
             if cache_key in self.suggestion_cache:
-                return format_json_response(self.suggestion_cache[cache_key])
+                return self.suggestion_cache[cache_key]
             
             suggestions = []
             
@@ -334,18 +323,15 @@ class AdvancedSearchTools:
             # Cache result
             self.suggestion_cache[cache_key] = result
             
-            return format_json_response(result)
+            return result
             
         except Exception as e:
             logger.exception(f"Error generating suggestions: {e}")
-            return format_json_response({
-                "error": str(e),
+            return {
+                "error": str(e,
                 "error_type": type(e).__name__,
                 "query": partial_query
-            })
-    
-    @async_wrapper
-    async def search_analytics(self) -> str:
+            })    async def search_analytics(self) -> dict:
         """
         Get search analytics and performance metrics.
         
@@ -380,7 +366,7 @@ class AdvancedSearchTools:
                 reverse=True
             )[:10]
             
-            return format_json_response({
+            return {
                 "performance": {
                     "total_searches": self.stats.total_searches,
                     "total_results": self.stats.total_results,
@@ -391,7 +377,7 @@ class AdvancedSearchTools:
                     "hits": self.stats.cache_hits,
                     "misses": self.stats.cache_misses,
                     "hit_rate": cache_hit_rate,
-                    "current_size": len(self.query_cache)
+                    "current_size": len(self.query_cache
                 },
                 "usage": {
                     "top_queries": [{"query": q, "count": c} for q, c in top_queries],
@@ -405,13 +391,10 @@ class AdvancedSearchTools:
             
         except Exception as e:
             logger.exception(f"Error getting analytics: {e}")
-            return format_json_response({
-                "error": str(e),
+            return {
+                "error": str(e,
                 "error_type": type(e).__name__
-            })
-    
-    @async_wrapper
-    async def clear_search_cache(self) -> str:
+            })    async def clear_search_cache(self) -> dict:
         """
         Clear search caches and optionally reset analytics.
         
@@ -427,22 +410,22 @@ class AdvancedSearchTools:
             self.query_cache.clear()
             self.suggestion_cache.clear()
             
-            return format_json_response({
+            return {
                 "cleared": {
                     "query_cache": query_cache_size,
                     "suggestion_cache": suggestion_cache_size
                 },
                 "status": "success"
-            })
+            }
             
         except Exception as e:
             logger.exception(f"Error clearing cache: {e}")
-            return format_json_response({
-                "error": str(e),
+            return {
+                "error": str(e,
                 "error_type": type(e).__name__
             })
     
-    def _natural_to_yql(self, natural_query: str, project: Optional[str] = None) -> str:
+    def _natural_to_yql(self, natural_query: str, project: Optional[str] = None) -> dict:
         """Convert natural language to YouTrack Query Language."""
         query = natural_query.lower()
         parts = []

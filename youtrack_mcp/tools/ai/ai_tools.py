@@ -11,7 +11,6 @@ import logging
 import os
 from typing import Any, Dict, Optional
 
-from youtrack_mcp.mcp_wrappers import sync_wrapper
 from youtrack_mcp.utils import format_json_response, ErrorHandler
 from youtrack_mcp.ai.service import AIService
 from youtrack_mcp.ai.openai_client import OpenAIClient
@@ -51,10 +50,7 @@ class AITools:
 
         logger.info("AITools initialized (error enhancement: rule-based, NL to YQL: LLM required)")
 
-
-
-    @sync_wrapper
-    def translate_to_yql(self, natural_language_query: str, project_context: Optional[str] = None) -> str:
+    def translate_to_yql(self, natural_language_query: str, project_context: Optional[str] = None) -> dict:
         """
         Translate natural language to YouTrack Query Language (YQL).
 
@@ -73,7 +69,7 @@ class AITools:
                 project_context
             )
 
-            return format_json_response({
+            return {
                 "original_query": result.original_input,
                 "yql_query": result.yql_query,
                 "confidence": result.confidence,
@@ -81,19 +77,16 @@ class AITools:
                 "detected_entities": result.detected_entities,
                 "suggestions": result.suggestions,
                 "ai_provider": "llm" if self.ai_service.openai_client else "none"
-            })
+            }
         except Exception as e:
             logger.exception(f"Error translating to YQL: {e}")
-            return format_json_response({
+            return {
                 "error": str(e),
                 "error_type": type(e).__name__,
                 "fallback_query": f"text: {natural_language_query}"
-            })
+            }
 
-
-
-    @sync_wrapper
-    def enhance_error_message(self, error_message: str, context: Optional[Dict[str, Any]] = None) -> str:
+    def enhance_error_message(self, error_message: str, context: Optional[Dict[str, Any]] = None) -> dict:
         """
         Enhance error messages with rule-based explanations and fixes.
 
@@ -109,7 +102,7 @@ class AITools:
         try:
             result = self.error_handler.enhance_error(error_message, context or {})
 
-            return format_json_response({
+            return {
                 "original_error": error_message,
                 "enhanced_explanation": result.enhanced_explanation,
                 "fix_suggestion": result.fix_suggestion,
@@ -117,17 +110,16 @@ class AITools:
                 "learning_tip": result.learning_tip,
                 "confidence": result.confidence,
                 "ai_provider": "rule_based"
-            })
+            }
         except Exception as e:
             logger.exception(f"Error enhancing message: {e}")
-            return format_json_response({
+            return {
                 "error": str(e),
                 "error_type": type(e).__name__,
                 "original_error": error_message
-            })
+            }
 
-    @sync_wrapper
-    def analyze_intent(self, intent: str, context: Optional[Dict[str, Any]] = None) -> str:
+    def analyze_intent(self, intent: str, context: Optional[Dict[str, Any]] = None) -> dict:
         """
         LLM-powered intent analysis and planning.
 
@@ -142,15 +134,15 @@ class AITools:
         """
         try:
             result = self.ai_service._llm_analyze_intent(intent, context or {})
-            return format_json_response(result)
+            return result
         except Exception as e:
             logger.exception(f"Error analyzing intent: {e}")
-            return format_json_response({
+            return {
                 "error": str(e),
                 "error_type": type(e).__name__,
                 "intent": intent,
                 "requires_confirmation": True
-            })
+            }
 
     def close(self) -> None:
         """Clean up resources."""

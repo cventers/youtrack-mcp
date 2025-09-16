@@ -22,7 +22,7 @@ from youtrack_mcp.api.client import (
     RateLimitError
 )
 from youtrack_mcp.api.projects import ProjectsClient
-from youtrack_mcp.mcp_wrappers import async_wrapper
+
 from youtrack_mcp.utils import format_json_response
 from youtrack_mcp.utils.error_educator import create_llm_friendly_error
 
@@ -37,8 +37,7 @@ class ProjectsTools:
         self.client = YouTrackClient()
         self.projects_api = ProjectsClient(self.client)
 
-    @async_wrapper
-    async def list(self, include_archived: bool = False) -> str:
+    async def list(self, include_archived: bool = False) -> dict:
         """
         Discover accessible projects.
 
@@ -61,11 +60,11 @@ class ProjectsTools:
                 else:
                     result.append(project)
 
-            return format_json_response({
+            return {
                 "projects": result,
                 "count": len(result),
                 "include_archived": include_archived
-            })
+            }
 
         except (ResourceNotFoundError, AuthenticationError, PermissionDeniedError,
                 ValidationError, RateLimitError, ServerError, YouTrackAPIError) as e:
@@ -75,7 +74,7 @@ class ProjectsTools:
                 error=e,
                 context={"include_archived": include_archived}
             )
-            return format_json_response(llm_response)
+            return llm_response
         except Exception as e:
             logger.exception("Unexpected error listing projects")
             llm_response = create_llm_friendly_error(
@@ -83,10 +82,9 @@ class ProjectsTools:
                 error=e,
                 context={"include_archived": include_archived}
             )
-            return format_json_response(llm_response)
+            return llm_response
 
-    @async_wrapper
-    async def get(self, project_id: str, include: Optional[List[str]] = None) -> str:
+    async def get(self, project_id: str, include: Optional[List[str]] = None) -> dict:
         """
         Project details with expansions.
 
@@ -153,8 +151,7 @@ class ProjectsTools:
                 "project_id": project_id
             })
 
-    @async_wrapper
-    async def patch(self, project_id: str, ops: Optional[List[Dict[str, Any]]] = None) -> str:
+    async def patch(self, project_id: str, ops: Optional[List[Dict[str, Any]]] = None) -> dict:
         """
         Project mutations with typed operations.
 
@@ -169,9 +166,9 @@ class ProjectsTools:
         """
         try:
             if not ops:
-                return format_json_response({
+                return {
                     "error": "Operations list is required"
-                })
+                }
 
             # Get current project data
             current_project = await self.projects_api.get_project(project_id)
@@ -233,7 +230,7 @@ class ProjectsTools:
                 "operations_requested": len(ops) if ops else 0
             })
 
-    @async_wrapper
+
     async def schema(self, project_id: str) -> str:
         """Get project schema with custom fields and validation rules."""
         try:
@@ -286,7 +283,7 @@ class ProjectsTools:
                 "suggestion": "Check project ID/name and ensure you have permission to view custom fields"
             })
 
-    @async_wrapper
+
     async def create(self, name: str, short_name: str, lead_id: str) -> str:
         """
         Create new projects.

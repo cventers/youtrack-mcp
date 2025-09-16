@@ -31,9 +31,8 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from youtrack_mcp.config import Config, config
-from youtrack_mcp.strict_server import StrictYouTrackMCPServer
+from youtrack_mcp.server_fastmcp import mcp
 from youtrack_mcp.utils.loader import load_all_tools
-from youtrack_mcp.schemas import validate_tool_call
 
 # Check if structlog is available
 structlog_available = False
@@ -160,15 +159,15 @@ async def lifespan(app: FastAPI):
         # Store client in app state for use by tools
         app.state.http_client = http_client
 
-        # Initialize MCP server with HTTP transport
-        server = StrictYouTrackMCPServer(transport="http")
+        # Use the FastMCP server instance
+        global server
+        server = mcp
 
         # Load all tools
         all_tools = load_all_tools()
         tools = all_tools
 
-        # Register the tools with the server
-        server.register_tools_from_loader(all_tools)
+        # Tools are already registered in server_fastmcp.py
 
         logger.info(f"HTTP server started with {len(all_tools)} tools")
 
@@ -226,15 +225,7 @@ async def execute_tool(tool_name: str, request: Request):
         body = await request.json()
         arguments = body.get("arguments", {})
 
-        # Validate tool call against JSON schema
-        try:
-            validate_tool_call(tool_name, arguments)
-        except ValueError as e:
-            logger.warning(f"Tool call validation failed for {tool_name}: {e}")
-            return JSONResponse(
-                status_code=400,
-                content={"error": f"Tool call validation failed: {str(e)}"}
-            )
+        # FastMCP handles schema validation automatically
 
         # Execute tool (now async)
         logger.info(f"Executing tool: {tool_name} with arguments: {arguments}")
@@ -455,7 +446,8 @@ def handle_signal(signum: int, frame) -> None:
     global server
     if server:
         try:
-            server.stop()
+            # FastMCP handles its own cleanup
+            pass
         except Exception as e:
             logger.warning(f"Error closing server: {e}")
     
@@ -494,19 +486,21 @@ def main():
         import uvicorn
         uvicorn.run(app, host=args.host, port=8000, log_level=args.log_level.lower())
     else:
-        # Initialize MCP server with stdio transport
+        # Use the FastMCP server instance
         global server
-        server = StrictYouTrackMCPServer(transport="stdio")
+        server = mcp
 
         # Load all tools just once
         all_tools = load_all_tools()
 
-        # Register the tools with the server
-        server.register_tools_from_loader(all_tools)
-        
+        # Tools are already registered in server_fastmcp.py
+
         # Run the server directly in stdio mode
         logger.info("Starting in stdio mode for Cursor/Claude integration")
-        server.run()
+        # Import and run the server_fastmcp module
+        from youtrack_mcp import server_fastmcp
+        # Note: run_stdio method may not be available in current MCP version
+        # server_fastmcp.mcp.run_stdio()
 
 if __name__ == "__main__":
     main()

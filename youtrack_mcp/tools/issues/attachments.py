@@ -15,8 +15,6 @@ import base64
 import logging
 from typing import Any, Dict
 
-from youtrack_mcp.mcp_wrappers import sync_wrapper
-from youtrack_mcp.utils import format_json_response
 
 logger = logging.getLogger(__name__)
 
@@ -28,10 +26,7 @@ class Attachments:
         """Initialize with API clients."""
         self.issues_api = issues_api
         self.projects_api = projects_api
-        self.client = issues_api.client  # Direct access for raw API calls
-
-    @sync_wrapper
-    def get_issue_raw(self, issue_id: str) -> str:
+        self.client = issues_api.client  # Direct access for raw API calls    def get_issue_raw(self, issue_id: str) -> dict:
         """
         Get raw information about a specific issue, bypassing the Pydantic model.
 
@@ -45,13 +40,10 @@ class Attachments:
             # Request comprehensive fields for raw issue data
             fields = "id,idReadable,summary,description,created,updated,project(id,name,shortName),reporter(id,login,name),assignee(id,login,name),customFields(id,name,value(id,name)),attachments(id,name,size,url),comments(id,text,author(login,name),created)"
             raw_issue = self.client.get(f"issues/{issue_id}?fields={fields}")
-            return format_json_response(raw_issue)
+            return raw_issue
         except Exception as e:
             logger.exception(f"Error getting raw issue {issue_id}")
-            return format_json_response({"error": str(e)})
-
-    @sync_wrapper
-    def get_attachment_content(self, issue_id: str, attachment_id: str) -> str:
+            return {"error": str(e})    def get_attachment_content(self, issue_id: str, attachment_id: str) -> dict:
         """
         Get the content of an attachment as a base64-encoded string.
 
@@ -105,7 +97,7 @@ class Attachments:
             logger.exception(
                 f"Error getting attachment content for issue {issue_id}, attachment {attachment_id}"
             )
-            return format_json_response({"error": str(e), "status": "error"})
+            return {"error": str(e, "status": "error"})
 
     def get_tool_definitions(self) -> Dict[str, Dict[str, Any]]:
         """Get tool definitions for attachment functions."""

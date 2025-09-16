@@ -16,8 +16,6 @@ import json
 import logging
 from typing import Any, Dict
 
-from youtrack_mcp.mcp_wrappers import sync_wrapper
-from youtrack_mcp.utils import format_json_response
 
 logger = logging.getLogger(__name__)
 
@@ -29,10 +27,7 @@ class DedicatedUpdates:
         """Initialize with API clients."""
         self.issues_api = issues_api
         self.projects_api = projects_api
-        self.custom_fields = custom_fields
-
-    @sync_wrapper
-    def update_issue_state(self, issue_id: str, new_state: str) -> str:
+        self.custom_fields = custom_fields    def update_issue_state(self, issue_id: str, new_state: str) -> dict:
         """
         Update an issue's state using the proven working REST API approach.
         
@@ -63,9 +58,9 @@ class DedicatedUpdates:
         """
         try:
             if not issue_id or not new_state:
-                return format_json_response({
+                return {
                     "error": "Both issue ID and new state are required"
-                })
+                }
             
             logger.info(f"Updating issue {issue_id} state to '{new_state}' using proven Direct Field Update API")
             
@@ -76,14 +71,14 @@ class DedicatedUpdates:
                 # Get the updated issue to return current state
                 updated_issue = self.issues_api.get_issue(issue_id)
                 
-                return format_json_response({
+                return {
                     "status": "success",
                     "message": f"Successfully updated issue {issue_id} state to '{new_state}'",
                     "issue_id": issue_id,
                     "new_state": new_state,
                     "api_method": "Direct Field Update API",
                     "issue_data": updated_issue
-                })
+                }
             else:
                 # If direct method fails, try command-based approach as fallback
                 logger.info(f"Direct API failed, trying command-based approach for issue {issue_id}")
@@ -99,12 +94,12 @@ class DedicatedUpdates:
                     # Get the updated issue
                     updated_issue = self.issues_api.get_issue(issue_id)
                     
-                    return format_json_response({
+                    return {
                         "status": "success",
                         "message": f"Successfully updated issue {issue_id} state to '{new_state}' using fallback method",
                         "issue_id": issue_id,
                         "new_state": new_state,
-                        "api_method": "Commands API (fallback)",
+                        "api_method": "Commands API (fallback",
                         "issue_data": updated_issue
                     })
                     
@@ -186,7 +181,7 @@ class DedicatedUpdates:
                                     "✅ TRY: Different target states that may be allowed"
                                 ]
                     
-                    return format_json_response({
+                    return {
                         "error": f"State transition failed: {workflow_reason}",
                         "issue_id": issue_id,
                         "target_state": new_state,
@@ -197,21 +192,18 @@ class DedicatedUpdates:
                             "Verify you have permissions to change issue states",
                             "Some transitions require intermediate steps or conditions"
                         ],
-                        "diagnostic_help": f"Use diagnose_workflow_restrictions('{issue_id}') for detailed workflow analysis",
+                        "diagnostic_help": f"Use diagnose_workflow_restrictions('{issue_id}' for detailed workflow analysis",
                         "alternative_suggestion": "Try forward transitions like 'In Progress' or 'Fixed' instead of backward ones"
                     })
                 
         except Exception as e:
             logger.exception(f"Error updating state for issue {issue_id}")
-            return format_json_response({
-                "error": str(e),
+            return {
+                "error": str(e,
                 "issue_id": issue_id,
                 "target_state": new_state,
                 "suggestion": "Check issue ID format and verify it exists in YouTrack"
-            })
-
-    @sync_wrapper
-    def update_issue_priority(self, issue_id: str, new_priority: str) -> str:
+            })    def update_issue_priority(self, issue_id: str, new_priority: str) -> dict:
         """
         Update an issue's priority using the proven working REST API approach.
         
@@ -242,9 +234,9 @@ class DedicatedUpdates:
         """
         try:
             if not issue_id or not new_priority:
-                return format_json_response({
+                return {
                     "error": "Both issue ID and new priority are required"
-                })
+                }
             
             logger.info(f"Updating issue {issue_id} priority to '{new_priority}' using proven simple string format")
             
@@ -262,19 +254,19 @@ class DedicatedUpdates:
             result_data = json.loads(result) if isinstance(result, str) else result
             
             if result_data.get("status") == "success":
-                return format_json_response({
+                return {
                     "status": "success",
                     "message": f"Successfully updated issue {issue_id} priority to '{new_priority}'",
                     "issue_id": issue_id,
                     "new_priority": new_priority,
                     "api_method": "Direct Field Update API",
-                    "updated_fields": result_data.get("updated_fields", ["Priority"]),
+                    "updated_fields": result_data.get("updated_fields", ["Priority"],
                     "issue_data": result_data.get("issue_data", {})
                 })
             else:
                 # Handle error case with priority-specific guidance
                 error_msg = result_data.get("error", "Unknown error")
-                return format_json_response({
+                return {
                     "error": f"Priority update failed: {error_msg}",
                     "issue_id": issue_id,
                     "target_priority": new_priority,
@@ -282,22 +274,19 @@ class DedicatedUpdates:
                         "Check if the priority value exists in your YouTrack project",
                         "Verify you have permissions to change issue priorities",
                         "Common priority values: Critical, Major, Normal, Minor",
-                        "Use get_available_custom_field_values() to see available priorities"
+                        "Use get_available_custom_field_values( to see available priorities"
                     ],
                     "field_help": f"Use get_available_custom_field_values('Priority') to see valid options"
                 })
                 
         except Exception as e:
             logger.exception(f"Error updating priority for issue {issue_id}")
-            return format_json_response({
-                "error": str(e),
+            return {
+                "error": str(e,
                 "issue_id": issue_id,
                 "target_priority": new_priority,
                 "suggestion": "Check issue ID format and verify it exists in YouTrack"
-            })
-
-    @sync_wrapper
-    def update_issue_assignee(self, issue_id: str, assignee: str) -> str:
+            })    def update_issue_assignee(self, issue_id: str, assignee: str) -> dict:
         """
         Update an issue's assignee using the proven working REST API approach.
         
@@ -328,9 +317,9 @@ class DedicatedUpdates:
         """
         try:
             if not issue_id or not assignee:
-                return format_json_response({
+                return {
                     "error": "Both issue ID and assignee are required"
-                })
+                }
             
             logger.info(f"Updating issue {issue_id} assignee to '{assignee}' using proven simple string format")
             
@@ -347,26 +336,26 @@ class DedicatedUpdates:
             result_data = json.loads(result) if isinstance(result, str) else result
             
             if result_data.get("status") == "success":
-                return format_json_response({
+                return {
                     "status": "success",
                     "message": f"Successfully assigned issue {issue_id} to '{assignee}'",
                     "issue_id": issue_id,
                     "assignee": assignee,
                     "api_method": "Direct Field Update API",
-                    "updated_fields": result_data.get("updated_fields", ["Assignee"]),
+                    "updated_fields": result_data.get("updated_fields", ["Assignee"],
                     "issue_data": result_data.get("issue_data", {})
                 })
             else:
                 # Handle error case with assignee-specific guidance
                 error_msg = result_data.get("error", "Unknown error")
-                return format_json_response({
+                return {
                     "error": f"Assignee update failed: {error_msg}",
                     "issue_id": issue_id,
                     "target_assignee": assignee,
                     "troubleshooting": [
                         "Check if the user exists in your YouTrack instance",
                         "Verify the user has access to this project",
-                        "Use login names like 'admin', 'john.doe' (not display names)",
+                        "Use login names like 'admin', 'john.doe' (not display names",
                         "Use get_current_user() to see your login format"
                     ],
                     "user_help": "Use get_current_user() or search_users() to find valid login names"
@@ -374,15 +363,12 @@ class DedicatedUpdates:
                 
         except Exception as e:
             logger.exception(f"Error updating assignee for issue {issue_id}")
-            return format_json_response({
-                "error": str(e),
+            return {
+                "error": str(e,
                 "issue_id": issue_id,
                 "target_assignee": assignee,
                 "suggestion": "Check issue ID format and verify user exists in YouTrack"
-            })
-
-    @sync_wrapper
-    def update_issue_type(self, issue_id: str, issue_type: str) -> str:
+            })    def update_issue_type(self, issue_id: str, issue_type: str) -> dict:
         """
         Update an issue's type using the proven working REST API approach.
         
@@ -413,9 +399,9 @@ class DedicatedUpdates:
         """
         try:
             if not issue_id or not issue_type:
-                return format_json_response({
+                return {
                     "error": "Both issue ID and issue type are required"
-                })
+                }
             
             logger.info(f"Updating issue {issue_id} type to '{issue_type}' using proven simple string format")
             
@@ -432,19 +418,19 @@ class DedicatedUpdates:
             result_data = json.loads(result) if isinstance(result, str) else result
             
             if result_data.get("status") == "success":
-                return format_json_response({
+                return {
                     "status": "success",
                     "message": f"Successfully updated issue {issue_id} type to '{issue_type}'",
                     "issue_id": issue_id,
                     "issue_type": issue_type,
                     "api_method": "Direct Field Update API",
-                    "updated_fields": result_data.get("updated_fields", ["Type"]),
+                    "updated_fields": result_data.get("updated_fields", ["Type"],
                     "issue_data": result_data.get("issue_data", {})
                 })
             else:
                 # Handle error case with type-specific guidance
                 error_msg = result_data.get("error", "Unknown error")
-                return format_json_response({
+                return {
                     "error": f"Type update failed: {error_msg}",
                     "issue_id": issue_id,
                     "target_type": issue_type,
@@ -452,22 +438,19 @@ class DedicatedUpdates:
                         "Check if the issue type exists in your YouTrack project",
                         "Verify you have permissions to change issue types",
                         "Common types: Bug, Feature, Task, Story, Epic",
-                        "Use get_available_custom_field_values() to see available types"
+                        "Use get_available_custom_field_values( to see available types"
                     ],
                     "type_help": f"Use get_available_custom_field_values('Type') to see valid options"
                 })
                 
         except Exception as e:
             logger.exception(f"Error updating type for issue {issue_id}")
-            return format_json_response({
-                "error": str(e),
+            return {
+                "error": str(e,
                 "issue_id": issue_id,
                 "target_type": issue_type,
                 "suggestion": "Check issue ID format and verify type exists in YouTrack"
-            })
-
-    @sync_wrapper
-    def update_issue_estimation(self, issue_id: str, estimation: str) -> str:
+            })    def update_issue_estimation(self, issue_id: str, estimation: str) -> dict:
         """
         Update an issue's time estimation using the proven working REST API approach.
         
@@ -498,9 +481,9 @@ class DedicatedUpdates:
         """
         try:
             if not issue_id or not estimation:
-                return format_json_response({
+                return {
                     "error": "Both issue ID and estimation are required"
-                })
+                }
             
             logger.info(f"Updating issue {issue_id} estimation to '{estimation}' using proven simple string format")
             
@@ -520,19 +503,19 @@ class DedicatedUpdates:
             result_data = json.loads(result) if isinstance(result, str) else result
             
             if result_data.get("status") == "success":
-                return format_json_response({
+                return {
                     "status": "success",
                     "message": f"Successfully updated issue {issue_id} estimation to '{estimation}'",
                     "issue_id": issue_id,
                     "estimation": estimation,
                     "api_method": "Direct Field Update API",
-                    "updated_fields": result_data.get("updated_fields", ["Estimation"]),
+                    "updated_fields": result_data.get("updated_fields", ["Estimation"],
                     "issue_data": result_data.get("issue_data", {})
                 })
             else:
                 # Handle error case with estimation-specific guidance
                 error_msg = result_data.get("error", "Unknown error")
-                return format_json_response({
+                return {
                     "error": f"Estimation update failed: {error_msg}",
                     "issue_id": issue_id,
                     "target_estimation": estimation,
@@ -543,7 +526,7 @@ class DedicatedUpdates:
                         "Verify you have permissions to update time estimates"
                     ],
                     "format_examples": [
-                        "30m (30 minutes)",
+                        "30m (30 minutes",
                         "4h (4 hours)", 
                         "2d (2 days)",
                         "1w (1 week)",
@@ -553,8 +536,8 @@ class DedicatedUpdates:
                 
         except Exception as e:
             logger.exception(f"Error updating estimation for issue {issue_id}")
-            return format_json_response({
-                "error": str(e),
+            return {
+                "error": str(e,
                 "issue_id": issue_id,
                 "target_estimation": estimation,
                 "suggestion": "Check issue ID format and use simple time format like '4h' or '2d'"

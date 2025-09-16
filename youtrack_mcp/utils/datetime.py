@@ -10,7 +10,7 @@ import logging
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, Optional
 
-from youtrack_mcp.mcp_wrappers import async_wrapper
+
 
 logger = logging.getLogger(__name__)
 

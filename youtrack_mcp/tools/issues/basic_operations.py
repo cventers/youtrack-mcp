@@ -16,8 +16,6 @@ import json
 import logging
 from typing import Any, Dict, Optional
 
-from youtrack_mcp.mcp_wrappers import sync_wrapper
-from youtrack_mcp.utils import format_json_response
 
 logger = logging.getLogger(__name__)
 
@@ -29,10 +27,7 @@ class BasicOperations:
         """Initialize with API clients."""
         self.issues_api = issues_api
         self.projects_api = projects_api
-        self.client = issues_api.client  # Direct access for complex queries
-
-    @sync_wrapper
-    def get_issue(self, issue_id: str) -> str:
+        self.client = issues_api.client  # Direct access for complex queries    def get_issue(self, issue_id: str) -> dict:
         """
         Get information about a specific issue.
 
@@ -60,14 +55,11 @@ class BasicOperations:
                 )
 
             # Return the raw issue data directly - avoid model validation issues
-            return format_json_response(raw_issue)
+            return raw_issue
 
         except Exception as e:
             logger.exception(f"Error getting issue {issue_id}")
-            return format_json_response({"error": str(e)})
-
-    @sync_wrapper
-    def search_issues(self, query: str, limit: int = 10) -> str:
+            return {"error": str(e})    def search_issues(self, query: str, limit: int = 10) -> dict:
         """
         Search for issues using YouTrack query language.
 
@@ -87,16 +79,13 @@ class BasicOperations:
             raw_issues = self.client.get("issues", params=params)
 
             # Return the raw issues data directly
-            return format_json_response(raw_issues)
+            return raw_issues
 
         except Exception as e:
             logger.exception(f"Error searching issues with query: {query}")
-            return format_json_response({"error": str(e)})
-
-    @sync_wrapper
-    def create_issue(
+            return {"error": str(e})    def create_issue(
         self, project: str, summary: str, description: Optional[str] = None
-    ) -> str:
+    ) -> dict:
         """
         Create a new issue in YouTrack.
 
@@ -117,13 +106,13 @@ class BasicOperations:
 
             # Validate required parameters
             if not project:
-                return format_json_response(
+                return 
                     {"error": "Project is required", "status": "error"}
-                )
+                
             if not summary:
-                return format_json_response(
+                return 
                     {"error": "Summary is required", "status": "error"}
-                )
+                
 
             # Check if project is a project ID or short name
             project_id = project
@@ -165,7 +154,7 @@ class BasicOperations:
                 # Check if we got an issue with an ID
                 if isinstance(issue, dict) and issue.get("error"):
                     # Handle error returned as a dict
-                    return format_json_response(issue)
+                    return issue
 
                 # Try to get full issue details right after creation
                 if hasattr(issue, "id"):
@@ -175,19 +164,19 @@ class BasicOperations:
                         detailed_issue = self.issues_api.get_issue(issue_id)
 
                         if hasattr(detailed_issue, "model_dump"):
-                            return format_json_response(
-                                detailed_issue.model_dump()
+                            return 
+                                detailed_issue.model_dump(
                             )
                         else:
-                            return format_json_response(detailed_issue)
+                            return detailed_issue
                     except Exception as e:
                         logger.warning(
                             f"Could not retrieve detailed issue: {str(e)}"
                         )
                 if hasattr(issue, "model_dump"):
-                    return format_json_response(issue.model_dump())
+                    return issue.model_dump()
                 else:
-                    return format_json_response(issue)
+                    return issue
             except Exception as e:
                 error_msg = str(e)
                 if hasattr(e, "response") and e.response:
@@ -200,22 +189,19 @@ class BasicOperations:
                     except Exception:
                         pass
                 logger.error(f"API error creating issue: {error_msg}")
-                return format_json_response(
+                return 
                     {"error": error_msg, "status": "error"}
-                )
+                
 
         except Exception as e:
             logger.exception(f"Error creating issue in project {project}")
-            return format_json_response({"error": str(e), "status": "error"})
-
-    @sync_wrapper
-    def update_issue(
+            return {"error": str(e, "status": "error"})    def update_issue(
         self,
         issue_id: str,
         summary: Optional[str] = None,
         description: Optional[str] = None,
         additional_fields: Optional[Dict[str, Any]] = None,
-    ) -> str:
+    ) -> dict:
         """
         Update an existing issue with new information.
 
@@ -242,13 +228,10 @@ class BasicOperations:
                 result = result.model_dump()
             elif hasattr(result, "__dict__"):
                 result = result.__dict__
-            return format_json_response(result)
+            return result
         except Exception as e:
             logger.exception(f"Error updating issue {issue_id}")
-            return format_json_response({"error": str(e), "status": "error"})
-
-    @sync_wrapper
-    def add_comment(self, issue_id: str, text: str) -> str:
+            return {"error": str(e, "status": "error"})    def add_comment(self, issue_id: str, text: str) -> dict:
         """
         Add a comment to an issue.
 
@@ -263,10 +246,10 @@ class BasicOperations:
         """
         try:
             result = self.issues_api.add_comment(issue_id, text)
-            return format_json_response(result)
+            return result
         except Exception as e:
             logger.exception(f"Error adding comment to issue {issue_id}")
-            return format_json_response({"error": str(e)})
+            return {"error": str(e})
 
     def get_tool_definitions(self) -> Dict[str, Dict[str, Any]]:
         """Get tool definitions for basic operation functions."""

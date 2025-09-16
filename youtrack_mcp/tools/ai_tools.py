@@ -9,8 +9,6 @@ import json
 import logging
 from typing import Any, Dict, Optional
 
-from youtrack_mcp.mcp_wrappers import async_wrapper
-from youtrack_mcp.utils import format_json_response
 from youtrack_mcp.tools.ai.ai_tools import AITools as AIToolsImpl
 
 logger = logging.getLogger(__name__)
@@ -23,8 +21,7 @@ class AITools:
         """Initialize AI planning tools."""
         self.ai_tools = AIToolsImpl()
 
-    @async_wrapper
-    async def plan(self, intent: str, context: Optional[Dict[str, Any]] = None) -> str:
+    async def plan(self, intent: str, context: Optional[Dict[str, Any]] = None) -> dict:
         """
         LLM-powered intent planning and analysis.
 
@@ -41,16 +38,16 @@ class AITools:
             # Use LLM to analyze intent and create execution plan
             plan_result = await self._llm_analyze_intent(intent, context or {})
 
-            return format_json_response(plan_result)
+            return plan_result
 
         except Exception as e:
             logger.exception(f"Error planning intent: {intent}")
-            return format_json_response({
+            return {
                 "error": str(e),
                 "error_type": type(e).__name__,
                 "intent": intent,
                 "requires_confirmation": True
-            })
+            }
 
     async def _llm_analyze_intent(self, intent: str, context: Dict[str, Any]) -> Dict[str, Any]:
         """Use LLM to analyze intent and create execution plan."""

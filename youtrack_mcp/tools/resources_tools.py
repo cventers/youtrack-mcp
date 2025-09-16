@@ -11,8 +11,6 @@ from typing import Any, Dict
 from urllib.parse import urlparse
 
 from youtrack_mcp.api.client import YouTrackClient
-from youtrack_mcp.mcp_wrappers import async_wrapper
-from youtrack_mcp.utils import format_json_response
 from youtrack_mcp.utils.help_resources import get_help_resource
 
 logger = logging.getLogger(__name__)
@@ -36,8 +34,7 @@ class ResourcesTools:
             self._client = YouTrackClient()
         return self._client
 
-    @async_wrapper
-    async def read(self, uri: str) -> str:
+    async def read(self, uri: str) -> dict:
         """
         Proxy read for secured URIs.
 
@@ -58,21 +55,21 @@ class ResourcesTools:
             if parsed.scheme == HELP_URI_SCHEME:
                 help_content = get_help_resource(uri)
                 if help_content:
-                    return format_json_response({
+                    return {
                         "uri": uri,
                         "resource_type": "help",
                         "content": help_content
-                    })
+                    }
                 else:
-                    return format_json_response({
+                    return {
                         "error": f"Help resource not found: {uri}"
-                    })
+                    }
 
             # Validate the scheme for YouTrack URIs
             if parsed.scheme != YOUTRACK_URI_SCHEME:
-                return format_json_response({
+                return {
                     "error": f"Invalid URI scheme: {parsed.scheme}. Expected: {YOUTRACK_URI_SCHEME} or {HELP_URI_SCHEME}"
-                })
+                }
 
             # Extract path components
             path_parts = parsed.path.strip('/').split('/') if parsed.path.strip('/') else []
@@ -84,29 +81,29 @@ class ResourcesTools:
                 if resource_type == "issues":
                     # Get issue data
                     issue_data = await self.client.get(f"issues/{resource_id}")
-                    return format_json_response({
+                    return {
                         "uri": uri,
                         "resource_type": "issue",
                         "content": issue_data
-                    })
+                    }
 
                 elif resource_type == "projects":
                     # Get project data
                     project_data = await self.client.get(f"admin/projects/{resource_id}")
-                    return format_json_response({
+                    return {
                         "uri": uri,
                         "resource_type": "project",
                         "content": project_data
-                    })
+                    }
 
                 elif resource_type == "users":
                     # Get user data
                     user_data = await self.client.get(f"users/{resource_id}")
-                    return format_json_response({
+                    return {
                         "uri": uri,
                         "resource_type": "user",
                         "content": user_data
-                    })
+                    }
 
             elif len(path_parts) == 1:
                 resource_type = path_parts[0]
@@ -114,41 +111,41 @@ class ResourcesTools:
                 if resource_type == "projects":
                     # List all projects
                     projects_data = await self.client.get("admin/projects")
-                    return format_json_response({
+                    return {
                         "uri": uri,
                         "resource_type": "projects_list",
                         "content": projects_data
-                    })
+                    }
 
                 elif resource_type == "issues":
                     # List recent issues
                     issues_data = await self.client.get("issues", params={"$top": 50})
-                    return format_json_response({
+                    return {
                         "uri": uri,
                         "resource_type": "issues_list",
                         "content": issues_data
-                    })
+                    }
 
                 elif resource_type == "users":
                     # List users
                     users_data = await self.client.get("users")
-                    return format_json_response({
+                    return {
                         "uri": uri,
                         "resource_type": "users_list",
                         "content": users_data
-                    })
+                    }
 
-            return format_json_response({
+            return {
                 "error": f"Unsupported URI pattern: {uri}"
-            })
+            }
 
         except Exception as e:
             logger.exception(f"Error reading resource: {uri}")
-            return format_json_response({
+            return {
                 "error": str(e),
                 "error_type": type(e).__name__,
                 "uri": uri
-            })
+            }
 
     def get_tool_definitions(self) -> Dict[str, Dict[str, Any]]:
         """Get core resources tool definitions."""

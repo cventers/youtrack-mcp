@@ -13,8 +13,6 @@ from typing import Any, Dict, Optional
 
 from youtrack_mcp.api.client import YouTrackClient
 from youtrack_mcp.api.projects import ProjectsClient
-from youtrack_mcp.mcp_wrappers import async_wrapper
-from youtrack_mcp.utils import format_json_response
 
 logger = logging.getLogger(__name__)
 
@@ -38,8 +36,7 @@ class ProjectsAdminTools:
             logger.warning(f"Admin permission check failed: {e}")
             return False
 
-    @async_wrapper
-    async def delete(self, project_id: str, permanent: bool = False) -> str:
+    async def delete(self, project_id: str, permanent: bool = False) -> dict:
         """
         Delete a project (admin only).
 
@@ -55,10 +52,10 @@ class ProjectsAdminTools:
         try:
             # Check admin permissions
             if not await self._check_admin_permissions():
-                return format_json_response({
+                return {
                     "error": "Admin permissions required for project deletion",
                     "project_id": project_id
-                })
+                }
 
             # Delete the project
             if permanent:
@@ -68,23 +65,22 @@ class ProjectsAdminTools:
                 # Move to trash (soft delete)
                 result = await self.client.post(f"admin/projects/{project_id}/trash")
 
-            return format_json_response({
+            return {
                 "success": True,
                 "project_id": project_id,
                 "action": "permanently_deleted" if permanent else "moved_to_trash",
                 "result": result
-            })
+            }
 
         except Exception as e:
             logger.exception(f"Error deleting project {project_id}")
-            return format_json_response({
+            return {
                 "error": str(e),
                 "error_type": type(e).__name__,
                 "project_id": project_id
-            })
+            }
 
-    @async_wrapper
-    async def archive(self, project_id: str, archive: bool = True) -> str:
+    async def archive(self, project_id: str, archive: bool = True) -> dict:
         """
         Archive or unarchive a project (admin only).
 
@@ -100,33 +96,32 @@ class ProjectsAdminTools:
         try:
             # Check admin permissions
             if not await self._check_admin_permissions():
-                return format_json_response({
+                return {
                     "error": "Admin permissions required for project archiving",
                     "project_id": project_id
-                })
+                }
 
             # Archive/unarchive the project
             action = "archive" if archive else "unarchive"
             result = await self.client.post(f"admin/projects/{project_id}/{action}")
 
-            return format_json_response({
+            return {
                 "success": True,
                 "project_id": project_id,
                 "action": action,
                 "archived": archive,
                 "result": result
-            })
+            }
 
         except Exception as e:
             logger.exception(f"Error archiving project {project_id}")
-            return format_json_response({
+            return {
                 "error": str(e),
                 "error_type": type(e).__name__,
                 "project_id": project_id
-            })
+            }
 
-    @async_wrapper
-    async def restore(self, project_id: str) -> str:
+    async def restore(self, project_id: str) -> dict:
         """
         Restore a deleted project from trash (admin only).
 
@@ -141,28 +136,28 @@ class ProjectsAdminTools:
         try:
             # Check admin permissions
             if not await self._check_admin_permissions():
-                return format_json_response({
+                return {
                     "error": "Admin permissions required for project restoration",
                     "project_id": project_id
-                })
+                }
 
             # Restore the project from trash
             result = await self.client.post(f"admin/projects/{project_id}/restore")
 
-            return format_json_response({
+            return {
                 "success": True,
                 "project_id": project_id,
                 "action": "restored_from_trash",
                 "result": result
-            })
+            }
 
         except Exception as e:
             logger.exception(f"Error restoring project {project_id}")
-            return format_json_response({
+            return {
                 "error": str(e),
                 "error_type": type(e).__name__,
                 "project_id": project_id
-            })
+            }
 
     def get_tool_definitions(self) -> Dict[str, Dict[str, Any]]:
         """Get admin project tool definitions."""

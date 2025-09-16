@@ -13,10 +13,8 @@ both simple and complex field types, including enum, state, user, and period fie
 
 import json
 import logging
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
-from youtrack_mcp.mcp_wrappers import sync_wrapper
-from youtrack_mcp.utils import format_json_response
 
 logger = logging.getLogger(__name__)
 
@@ -29,13 +27,12 @@ class CustomFields:
         self.issues_api = issues_api
         self.projects_api = projects_api
 
-    @sync_wrapper
     def update_custom_fields(
-        self, 
-        issue_id: str, 
+        self,
+        issue_id: str,
         custom_fields: Dict[str, Any],
         validate: bool = True
-    ) -> str:
+    ) -> dict:
         """
         Update custom fields on an issue with comprehensive validation.
 
@@ -51,16 +48,16 @@ class CustomFields:
         """
         try:
             if not issue_id:
-                return format_json_response({
+                return {
                     "status": "error",
                     "error": "Issue ID is required"
-                })
+                }
 
             if not custom_fields:
-                return format_json_response({
+                return {
                     "status": "error", 
                     "error": "Custom fields dictionary is required"
-                })
+                }
 
             # Update the issue custom fields
             updated_issue = self.issues_api.update_issue_custom_fields(
@@ -83,24 +80,23 @@ class CustomFields:
             else:
                 result["issue_data"] = updated_issue
 
-            return format_json_response(result)
+            return result
 
         except Exception as e:
             logger.exception(f"Error updating custom fields for issue {issue_id}")
-            return format_json_response({
+            return {
                 "status": "error",
                 "error": str(e),
                 "issue_id": issue_id,
                 "attempted_fields": list(custom_fields.keys()) if custom_fields else []
-            })
+            }
 
-    @sync_wrapper  
     def batch_update_custom_fields(
         self,
-        updates: List[Dict[str, Any]] = None,
-        issues: List[str] = None,
-        custom_fields: Dict[str, Any] = None
-    ) -> str:
+        updates: Optional[List[Dict[str, Any]]] = None,
+        issues: Optional[List[str]] = None,
+        custom_fields: Optional[Dict[str, Any]] = None
+    ) -> dict:
         """
         Update custom fields for multiple issues in a single operation.
 
@@ -116,9 +112,10 @@ class CustomFields:
         Returns:
             JSON string with batch update results
         """
+        final_updates = []
         try:
             logger.info(f"Batch update called with: updates={updates}, issues={issues}, custom_fields={custom_fields}")
-            
+
             # Handle different input formats
             if updates:
                 # Format 1: List of update dictionaries
@@ -133,7 +130,7 @@ class CustomFields:
                 logger.info(f"Using bulk format: {len(issues)} issues with fields {list(custom_fields.keys())}")
             else:
                 logger.warning(f"Invalid parameters: updates={updates}, issues={issues}, custom_fields={custom_fields}")
-                return format_json_response({
+                return {
                     "status": "error",
                     "error": "Either 'updates' list or both 'issues' and 'custom_fields' parameters are required",
                     "received_params": {
@@ -141,14 +138,14 @@ class CustomFields:
                         "issues": issues is not None, 
                         "custom_fields": custom_fields is not None
                     }
-                })
+                }
 
             if not final_updates:
-                return format_json_response({
+                return {
                     "status": "error",
                     "error": "No updates to process",
                     "final_updates": final_updates
-                })
+                }
 
             # Normalize parameter names: custom_fields -> fields
             normalized_updates = []
@@ -180,18 +177,17 @@ class CustomFields:
                 "results": results
             }
 
-            return format_json_response(response)
+            return response
 
         except Exception as e:
             logger.exception("Error in batch custom fields update")
-            return format_json_response({
+            return {
                 "status": "error",
                 "error": str(e),
                 "attempted_updates": len(final_updates) if 'final_updates' in locals() else 0
-            })
+            }
 
-    @sync_wrapper
-    def get_custom_fields(self, issue_id: str) -> str:
+    def get_custom_fields(self, issue_id: str) -> dict:
         """
         Get all custom fields for a specific issue.
 
@@ -205,10 +201,10 @@ class CustomFields:
         """
         try:
             if not issue_id:
-                return format_json_response({
+                return {
                     "status": "error",
                     "error": "Issue ID is required"
-                })
+                }
 
             # Get custom fields
             custom_fields = self.issues_api.get_issue_custom_fields(issue_id)
@@ -220,23 +216,22 @@ class CustomFields:
                 "field_count": len(custom_fields)
             }
 
-            return format_json_response(response)
+            return response
 
         except Exception as e:
             logger.exception(f"Error getting custom fields for issue {issue_id}")
-            return format_json_response({
+            return {
                 "status": "error",
                 "error": str(e),
                 "issue_id": issue_id
-            })
+            }
 
-    @sync_wrapper
     def validate_custom_field(
         self,
         project_id: str,
         field_name: str,
         field_value: Any
-    ) -> str:
+    ) -> dict:
         """
         Validate a custom field value against project schema.
 
@@ -252,10 +247,10 @@ class CustomFields:
         """
         try:
             if not project_id or not field_name:
-                return format_json_response({
+                return {
                     "status": "error",
                     "error": "Project ID and field name are required"
-                })
+                }
 
             # Validate the field
             validation_result = self.issues_api.validate_custom_field_value(
@@ -264,23 +259,22 @@ class CustomFields:
                 field_value=field_value
             )
 
-            return format_json_response(validation_result)
+            return validation_result
 
         except Exception as e:
             logger.exception(f"Error validating custom field {field_name}")
-            return format_json_response({
+            return {
                 "valid": False,
                 "error": f"Validation error: {str(e)}",
                 "field": field_name,
                 "value": field_value
-            })
+            }
 
-    @sync_wrapper
     def get_available_custom_field_values(
         self,
         project_id: str,
         field_name: str
-    ) -> str:
+    ) -> dict:
         """
         Get available values for enum/state custom fields.
 
@@ -295,10 +289,10 @@ class CustomFields:
         """
         try:
             if not project_id or not field_name:
-                return format_json_response({
+                return {
                     "status": "error",
                     "error": "Project ID and field name are required"
-                })
+                }
 
             # Get available values using projects API
             allowed_values = self.projects_api.get_custom_field_allowed_values(project_id, field_name)
@@ -311,16 +305,16 @@ class CustomFields:
                 "value_count": len(allowed_values)
             }
 
-            return format_json_response(response)
+            return response
 
         except Exception as e:
             logger.exception(f"Error getting available values for field {field_name}")
-            return format_json_response({
+            return {
                 "status": "error",
                 "error": str(e),
                 "project_id": project_id,
                 "field_name": field_name
-            })
+            }
 
     def get_tool_definitions(self) -> Dict[str, Dict[str, Any]]:
         """Get tool definitions for custom field functions."""

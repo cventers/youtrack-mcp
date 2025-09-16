@@ -6,6 +6,7 @@ import pytest
 from unittest.mock import patch, Mock
 
 from youtrack_mcp.utils.loader import load_all_tools
+from youtrack_mcp.server_fastmcp import mcp
 
 
 class TestToolLoading:
