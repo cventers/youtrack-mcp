@@ -460,7 +460,7 @@ This project maintains high code quality with comprehensive testing and CI/CD au
 #### **Architecture & Implementation**
 - **[Architecture Documentation](docs/architecture.md)**: Comprehensive modular architecture overview
 - **[FastMCP Server Implementation](youtrack_mcp/server_fastmcp.py)**: Modern MCP server with typed tools
-- **[Refactoring Tracker](refactoring_tracker.md)**: Details of the modular architecture refactoring
+- **[Refactoring Tracker](docs/REFACTORING_TRACKER.md)**: Details of the modular architecture refactoring
 - **[Modern MCP Plan](docs/plans/20250913-refactor-to-modern-mcp-plan.md)**: Complete FastMCP migration plan
 
 #### **Development Workflow**
@@ -494,7 +494,7 @@ export YOUTRACK_VERIFY_SSL="true"
 
 ### Architecture & Development
 - [Architecture Documentation](docs/architecture.md) - Comprehensive modular architecture overview
-- [Refactoring Tracker](refactoring_tracker.md) - Modular architecture implementation details
+- [Refactoring Tracker](docs/REFACTORING_TRACKER.md) - Modular architecture implementation details
 - [Development Workflow & Release Process](automations/release_instructions.md)
 - [Docker Tagging Strategy](automations/DOCKER_TAGGING.md)
 - [Testing Guide](tests/README.md)

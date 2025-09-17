@@ -1,5 +1,7 @@
 # YouTrack MCP Server - AI Agent Documentation
 
+**Note:** This file must remain at the project root so AI agents can locate it.
+
 This document provides guidance for AI agents working on the YouTrack MCP (Model Context Protocol) server implementation. **Version 1.17.2** with modular architecture and enhanced performance.
 
 ## Project Structure
