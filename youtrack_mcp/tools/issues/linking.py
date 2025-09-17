@@ -26,7 +26,8 @@ class Linking:
         """Initialize with API clients."""
         self.issues_api = issues_api
         self.projects_api = projects_api
-        self.client = issues_api.client  # Direct access for complex operations    def link_issues(
+        self.client = issues_api.client  # Direct access for complex operations
+    def link_issues(
         self, source_issue_id: str, target_issue_id: str, link_type: str
     ) -> dict:
         """
@@ -51,7 +52,8 @@ class Linking:
             logger.exception(
                 f"Error linking issues {source_issue_id} -> {target_issue_id}"
             )
-            return {"error": str(e, "status": "error"})    def get_issue_links(self, issue_id: str) -> dict:
+            return {"error": str(e), "status": "error"}
+    def get_issue_links(self, issue_id: str) -> dict:
         """
         Get all links for an issue.
 
@@ -68,7 +70,8 @@ class Linking:
             return result
         except Exception as e:
             logger.exception(f"Error getting links for issue {issue_id}")
-            return {"error": str(e, "status": "error"})    def get_available_link_types(self) -> dict:
+            return {"error": str(e), "status": "error"}
+    def get_available_link_types(self) -> dict:
         """
         Get all available issue link types.
 
@@ -82,7 +85,8 @@ class Linking:
             return result
         except Exception as e:
             logger.exception("Error getting available link types")
-            return {"error": str(e, "status": "error"})    def add_dependency(
+            return {"error": str(e), "status": "error"}
+    def add_dependency(
         self, dependent_issue_id: str, dependency_issue_id: str
     ) -> dict:
         """
@@ -106,7 +110,8 @@ class Linking:
             logger.exception(
                 f"Error adding dependency between {dependent_issue_id} and {dependency_issue_id}"
             )
-            return {"error": str(e, "status": "error"})    def remove_dependency(
+            return {"error": str(e), "status": "error"}
+    def remove_dependency(
         self, dependent_issue_id: str, dependency_issue_id: str
     ) -> dict:
         """
@@ -145,20 +150,19 @@ class Linking:
             response = self.client.post("commands", data=command_data)
 
             if isinstance(response, dict):
-                return 
-                    {
-                        "status": "success",
-                        "message": f"Successfully removed dependency between {dependent_issue_id} and {dependency_issue_id}",
-                        "command": command,
-                    }
-                
+                return {
+                    "status": "success",
+                    "message": f"Successfully removed dependency between {dependent_issue_id} and {dependency_issue_id}",
+                    "command": command,
+                }
 
             return response
         except Exception as e:
             logger.exception(
                 f"Error removing dependency between {dependent_issue_id} and {dependency_issue_id}"
             )
-            return {"error": str(e, "status": "error"})    def add_relates_link(
+            return {"error": str(e), "status": "error"}
+    def add_relates_link(
         self, source_issue_id: str, target_issue_id: str
     ) -> dict:
         """
@@ -182,7 +186,8 @@ class Linking:
             logger.exception(
                 f"Error adding relates link between {source_issue_id} and {target_issue_id}"
             )
-            return {"error": str(e, "status": "error"})    def add_duplicate_link(
+            return {"error": str(e), "status": "error"}
+    def add_duplicate_link(
         self, duplicate_issue_id: str, original_issue_id: str
     ) -> dict:
         """
@@ -206,8 +211,7 @@ class Linking:
             logger.exception(
                 f"Error adding duplicate link between {duplicate_issue_id} and {original_issue_id}"
             )
-            return {"error": str(e, "status": "error"})
-
+            return {"error": str(e), "status": "error"}
     def get_tool_definitions(self) -> Dict[str, Dict[str, Any]]:
         """Get tool definitions for linking functions."""
         return {
@@ -257,4 +261,4 @@ class Linking:
                     "original_issue_id": "Original issue that should be used instead"
                 }
             }
-        } 
+        }

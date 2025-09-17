@@ -40,7 +40,9 @@ class ResourcesTools:
         self.projects_api = ProjectsClient(self.client)
 
         # Cache for resource subscriptions
-        self.subscriptions = set()    def list_resources(self) -> dict:
+        self.subscriptions = set()
+
+    def list_resources(self) -> dict:
         """
         List available YouTrack resources.
 
@@ -144,7 +146,9 @@ class ResourcesTools:
             )
         except Exception as e:
             logger.exception("Error listing resources")
-            return json.dumps({"error": str(e)})    def read_resource(self, uri: str) -> dict:
+            return json.dumps({"error": str(e)})
+
+    def read_resource(self, uri: str) -> dict:
         """
         Read a YouTrack resource by URI.
 
@@ -257,7 +261,9 @@ class ResourcesTools:
             logger.exception(f"Error reading resource: {uri}")
             return json.dumps(
                 {"error": f"Error processing resource {uri}: {str(e)}"}
-            )    def subscribe_resource(self, uri: str) -> dict:
+            )
+
+    def subscribe_resource(self, uri: str) -> dict:
         """
         Subscribe to updates for a resource.
 
@@ -274,7 +280,9 @@ class ResourcesTools:
             return json.dumps({"subscribed": True, "uri": uri})
         except Exception as e:
             logger.exception(f"Error subscribing to resource: {uri}")
-            return json.dumps({"error": str(e)})    def unsubscribe_resource(self, uri: str) -> dict:
+            return json.dumps({"error": str(e)})
+
+    def unsubscribe_resource(self, uri: str) -> dict:
         """
         Unsubscribe from updates for a resource.
 

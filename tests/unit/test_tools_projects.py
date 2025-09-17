@@ -52,7 +52,11 @@ class TestProjectToolsGetProjects:
         tools = ProjectTools()
         result = tools.get_projects()
         
-        result_data = json.loads(result)
+        # OLD: Expected JSON string, needed json.loads()
+        # result_data = json.loads(result)
+        
+        # NEW: Tool returns Python object directly
+        result_data = result
         assert len(result_data) == 1
         assert result_data[0]["id"] == "0-0"
         assert result_data[0]["name"] == "Demo Project"
@@ -93,7 +97,7 @@ class TestProjectToolsGetProjects:
         tools = ProjectTools()
         result = tools.get_projects()
         
-        result_data = json.loads(result)
+        result_data = result
         assert len(result_data) == 1
         assert result_data[0]["id"] == "0-0"
     
@@ -112,7 +116,7 @@ class TestProjectToolsGetProjects:
         tools = ProjectTools()
         result = tools.get_projects()
         
-        result_data = json.loads(result)
+        result_data = result
         assert "error" in result_data
         assert "Access denied" in result_data["error"]
 
@@ -142,7 +146,7 @@ class TestProjectToolsGetProject:
         tools = ProjectTools()
         result = tools.get_project("0-0")
         
-        result_data = json.loads(result)
+        result_data = result
         assert result_data["id"] == "0-0"
         assert result_data["name"] == "Demo Project"
         
@@ -158,7 +162,7 @@ class TestProjectToolsGetProject:
         tools = ProjectTools()
         result = tools.get_project("")
         
-        result_data = json.loads(result)
+        result_data = result
         assert "error" in result_data
         assert "Project ID is required" in result_data["error"]
     
@@ -177,7 +181,7 @@ class TestProjectToolsGetProject:
         tools = ProjectTools()
         result = tools.get_project("NONEXISTENT")
         
-        result_data = json.loads(result)
+        result_data = result
         assert "error" in result_data
         assert "Project not found" in result_data["error"]
 
@@ -207,7 +211,7 @@ class TestProjectToolsGetProjectByName:
         tools = ProjectTools()
         result = tools.get_project_by_name("DEMO")
         
-        result_data = json.loads(result)
+        result_data = result
         assert result_data["shortName"] == "DEMO"
         
         mock_projects_api.get_project_by_name.assert_called_once_with("DEMO")
@@ -227,7 +231,7 @@ class TestProjectToolsGetProjectByName:
         tools = ProjectTools()
         result = tools.get_project_by_name("")
         
-        result_data = json.loads(result)
+        result_data = result
         assert "error" in result_data
         assert "Project '' not found" in result_data["error"]
 
@@ -255,7 +259,7 @@ class TestProjectToolsGetProjectIssues:
         tools = ProjectTools()
         result = tools.get_project_issues("DEMO")
         
-        result_data = json.loads(result)
+        result_data = result
         assert len(result_data) == 2
         assert result_data[0]["id"] == "2-123"
         
@@ -278,7 +282,7 @@ class TestProjectToolsGetProjectIssues:
         tools = ProjectTools()
         result = tools.get_project_issues("DEMO", limit=25)
         
-        result_data = json.loads(result)
+        result_data = result
         assert len(result_data) == 1
         assert result_data[0]["id"] == "2-125"
         
@@ -294,7 +298,7 @@ class TestProjectToolsGetProjectIssues:
         tools = ProjectTools()
         result = tools.get_project_issues("")
         
-        result_data = json.loads(result)
+        result_data = result
         assert "error" in result_data
         assert "Project ID is required" in result_data["error"]
     
@@ -322,7 +326,7 @@ class TestProjectToolsGetProjectIssues:
         tools = ProjectTools()
         result = tools.get_project_issues("DEMO")
         
-        result_data = json.loads(result)
+        result_data = result
         assert len(result_data) == 1
         assert result_data[0]["id"] == "2-123"
         
@@ -354,7 +358,7 @@ class TestProjectToolsGetCustomFields:
         tools = ProjectTools()
         result = tools.get_custom_fields("DEMO")
         
-        result_data = json.loads(result)
+        result_data = result
         assert len(result_data) == 2
         assert result_data[0]["name"] == "Priority"
         
@@ -370,7 +374,7 @@ class TestProjectToolsGetCustomFields:
         tools = ProjectTools()
         result = tools.get_custom_fields("")
         
-        result_data = json.loads(result)
+        result_data = result
         assert "error" in result_data
         assert "Project ID is required" in result_data["error"]
 
@@ -406,7 +410,7 @@ class TestProjectToolsCreateProject:
             description="A new project"
         )
         
-        result_data = json.loads(result)
+        result_data = result
         assert result_data["name"] == "New Project"
         assert result_data["shortName"] == "NEW"
         
@@ -431,7 +435,7 @@ class TestProjectToolsCreateProject:
             lead_id="admin"
         )
         
-        result_data = json.loads(result)
+        result_data = result
         assert "error" in result_data
         assert "Project name is required" in result_data["error"]
     
@@ -449,7 +453,7 @@ class TestProjectToolsCreateProject:
             lead_id="admin"
         )
         
-        result_data = json.loads(result)
+        result_data = result
         assert "error" in result_data
         assert "Project short name is required" in result_data["error"]
     
@@ -467,7 +471,7 @@ class TestProjectToolsCreateProject:
             lead_id=""
         )
         
-        result_data = json.loads(result)
+        result_data = result
         assert "error" in result_data
         assert "Project leader ID is required" in result_data["error"]
 
@@ -516,7 +520,7 @@ class TestProjectToolsUpdateProject:
             name="Updated Project"
         )
         
-        result_data = json.loads(result)
+        result_data = result
         assert result_data["name"] == "Updated Project"
         
         # Verify the API calls
@@ -536,7 +540,7 @@ class TestProjectToolsUpdateProject:
         tools = ProjectTools()
         result = tools.update_project(project_id="", name="Updated Project")
         
-        result_data = json.loads(result)
+        result_data = result
         assert "error" in result_data
         assert "Project ID is required" in result_data["error"]
 
@@ -1188,4 +1192,4 @@ class TestProjectToolsUpdateProjectAdvanced:
         parsed = json.loads(result)
         # Should catch AttributeError and return error response
         assert "error" in parsed
-        assert "'dict' object has no attribute 'name'" in parsed["error"] 
+        assert "'dict' object has no attribute 'name'" in parsed["error"]

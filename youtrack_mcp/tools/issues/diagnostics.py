@@ -24,7 +24,8 @@ class Diagnostics:
     def __init__(self, issues_api, projects_api):
         """Initialize with API clients."""
         self.issues_api = issues_api
-        self.projects_api = projects_api    def diagnose_workflow_restrictions(self, issue_id: str) -> dict:
+        self.projects_api = projects_api
+    def diagnose_workflow_restrictions(self, issue_id: str) -> dict:
         """
         Diagnose workflow restrictions and available state transitions for an issue.
         
@@ -141,21 +142,22 @@ class Diagnostics:
                 
             except Exception as e:
                 return {
-                    "error": f"Failed to analyze workflow: {str(e}",
+                    "error": f"Failed to analyze workflow: {str(e)}",
                     "issue_id": issue_id,
                     "suggestion": "Try checking issue permissions or contact YouTrack administrator"
-                })
+                }
                 
         except Exception as e:
             logger.exception(f"Error diagnosing workflow restrictions for issue {issue_id}")
             return {
-                "error": str(e,
+                "error": str(e),
                 "troubleshooting": [
                     "Verify issue ID format and existence",
                     "Check user permissions for the issue",
                     "Ensure proper authentication token"
                 ]
-            })    def get_help(self, topic: str = "all") -> dict:
+            }
+    def get_help(self, topic: str = "all") -> dict:
         """
         Get interactive help with live YouTrack data and working examples.
         
@@ -321,7 +323,7 @@ class Diagnostics:
         except Exception as e:
             logger.exception(f"Error generating help for topic: {topic}")
             return {
-                "error": str(e,
+                "error": str(e),
                 "basic_help": {
                     "most_common_functions": [
                         "update_issue_state(issue_id, new_state)",
@@ -335,7 +337,7 @@ class Diagnostics:
                         "get_help(topic)"
                     ]
                 }
-            })
+            }
 
     def get_tool_definitions(self) -> Dict[str, Dict[str, Any]]:
         """Get tool definitions for diagnostic functions."""
@@ -352,4 +354,4 @@ class Diagnostics:
                     "topic": "Help topic - 'all', 'state', 'priority', 'fields', 'projects', 'examples', 'workflow'. Defaults to 'all'"
                 }
             }
-        } 
+        }

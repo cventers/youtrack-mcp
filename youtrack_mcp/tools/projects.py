@@ -22,7 +22,9 @@ class ProjectTools:
         self.projects_api = ProjectsClient(self.client)
 
         # Also initialize the issues API for fetching issue details
-        self.issues_api = IssuesClient(self.client)    def get_projects(self, include_archived: bool = False) -> dict:
+        self.issues_api = IssuesClient(self.client)
+
+    def get_projects(self, include_archived: bool = False) -> dict:
         """
         Get a list of all projects.
 
@@ -48,7 +50,9 @@ class ProjectTools:
             return result
         except Exception as e:
             logger.exception("Error getting projects")
-            return {"error": str(e})    def get_project(self, project_id: str) -> dict:
+            return {"error": str(e)}
+
+    def get_project(self, project_id: str) -> dict:
         """
         Get information about a specific project.
 
@@ -60,9 +64,7 @@ class ProjectTools:
         """
         try:
             if not project_id:
-                return 
-                    {"error": "Project ID is required"}
-                
+                return {"error": "Project ID is required"}
 
             project_obj = self.projects_api.get_project(project_id)
 
@@ -75,7 +77,9 @@ class ProjectTools:
             return result
         except Exception as e:
             logger.exception(f"Error getting project {project_id}")
-            return {"error": str(e})    def get_project_by_name(self, project_name: str) -> dict:
+            return {"error": str(e)}
+
+    def get_project_by_name(self, project_name: str) -> dict:
         """
         Find a project by its name.
 
@@ -96,12 +100,12 @@ class ProjectTools:
 
                 return result
             else:
-                return 
-                    {"error": f"Project '{project_name}' not found"}
-                
+                return {"error": f"Project '{project_name}' not found"}
         except Exception as e:
             logger.exception(f"Error finding project by name {project_name}")
-            return {"error": str(e})    def get_project_issues(self, project_id: str, limit: int = 50) -> dict:
+            return {"error": str(e)}
+
+    def get_project_issues(self, project_id: str, limit: int = 50) -> dict:
         """
         Get issues for a specific project.
 
@@ -116,9 +120,7 @@ class ProjectTools:
         """
         try:
             if not project_id:
-                return 
-                    {"error": "Project ID is required"}
-                
+                return {"error": "Project ID is required"}
 
             # First try with the direct project ID
             try:
@@ -133,17 +135,17 @@ class ProjectTools:
                     logger.exception(
                         f"Error getting issues for project {project_id}"
                     )
-                    return {"error": str(e})
+                    return {"error": str(e)}
 
             # No fuzzy matching - if direct lookup fails, return error
-            return 
-                {"error": f"Project not found: {project_id}"}
-            
+            return {"error": f"Project not found: {project_id}"}
         except Exception as e:
             logger.exception(
                 f"Error processing get_project_issues({project_id}, {limit})"
             )
-            return {"error": str(e})    def get_custom_fields(self, project_id: str) -> dict:
+            return {"error": str(e)}
+
+    def get_custom_fields(self, project_id: str) -> dict:
         """
         Get custom fields for a project.
 
@@ -157,9 +159,7 @@ class ProjectTools:
         """
         try:
             if not project_id:
-                return 
-                    {"error": "Project ID is required"}
-                
+                return {"error": "Project ID is required"}
 
             fields = self.projects_api.get_custom_fields(project_id)
 
@@ -189,12 +189,14 @@ class ProjectTools:
                 logger.warning(
                     f"Could not process custom fields response: {str(e)}"
                 )
-                return {"custom_fields": str(fields})
+                return {"custom_fields": str(fields)}
         except Exception as e:
             logger.exception(
                 f"Error getting custom fields for project {project_id}"
             )
-            return {"error": str(e})    def get_custom_field_schema(self, project_id: str, field_name: str) -> dict:
+            return {"error": str(e)}
+
+    def get_custom_field_schema(self, project_id: str, field_name: str) -> dict:
         """
         Get detailed schema for a specific custom field in a project.
 
@@ -209,14 +211,11 @@ class ProjectTools:
         """
         try:
             if not project_id:
-                return 
-                    {"error": "Project ID is required"}
-                
+                return {"error": "Project ID is required"}
             
             if not field_name:
-                return 
-                    {"error": "Field name is required"}
-                
+                return {"error": "Field name is required"}
+            
 
             schema = self.projects_api.get_custom_field_schema(project_id, field_name)
             
@@ -238,7 +237,9 @@ class ProjectTools:
             logger.exception(
                 f"Error getting custom field schema for {field_name} in project {project_id}"
             )
-            return {"error": str(e})    def get_custom_field_allowed_values(self, project_id: str, field_name: str) -> dict:
+            return {"error": str(e)}
+
+    def get_custom_field_allowed_values(self, project_id: str, field_name: str) -> dict:
         """
         Get allowed values for enum/state custom fields in a project.
 
@@ -253,14 +254,11 @@ class ProjectTools:
         """
         try:
             if not project_id:
-                return 
-                    {"error": "Project ID is required"}
-                
+                return {"error": "Project ID is required"}
             
             if not field_name:
-                return 
-                    {"error": "Field name is required"}
-                
+                return {"error": "Field name is required"}
+            
 
             allowed_values = self.projects_api.get_custom_field_allowed_values(project_id, field_name)
             
@@ -269,14 +267,16 @@ class ProjectTools:
                 "project_id": project_id,
                 "field_name": field_name,
                 "allowed_values": allowed_values,
-                "value_count": len(allowed_values
-            })
+                "value_count": len(allowed_values)
+            }
 
         except Exception as e:
             logger.exception(
                 f"Error getting allowed values for field {field_name} in project {project_id}"
             )
-            return {"error": str(e})    def get_all_custom_fields_schemas(self, project_id: str) -> dict:
+            return {"error": str(e)}
+
+    def get_all_custom_fields_schemas(self, project_id: str) -> dict:
         """
         Get schemas for all custom fields in a project.
 
@@ -290,9 +290,8 @@ class ProjectTools:
         """
         try:
             if not project_id:
-                return 
-                    {"error": "Project ID is required"}
-                
+                return {"error": "Project ID is required"}
+            
 
             schemas = self.projects_api.get_all_custom_fields_schemas(project_id)
             
@@ -300,14 +299,16 @@ class ProjectTools:
                 "status": "success",
                 "project_id": project_id,
                 "schemas": schemas,
-                "field_count": len(schemas
-            })
+                "field_count": len(schemas)
+            }
 
         except Exception as e:
             logger.exception(
                 f"Error getting all custom field schemas for project {project_id}"
             )
-            return {"error": str(e})    def validate_custom_field_for_project(
+            return {"error": str(e)}
+
+    def validate_custom_field_for_project(
         self, 
         project_id: str, 
         field_name: str, 
@@ -345,10 +346,10 @@ class ProjectTools:
             )
             return {
                 "valid": False,
-                "error": f"Validation error: {str(e}",
-                "field": field_name,
-                "value": field_value
-            })    def create_project(
+                "error": f"Validation error: {str(e)}"
+            }
+
+    def create_project(
         self,
         name: str,
         short_name: str,
@@ -372,17 +373,11 @@ class ProjectTools:
         try:
             # Check for missing required parameters
             if not name:
-                return 
-                    {"error": "Project name is required"}
-                
+                return {"error": "Project name is required"}
             if not short_name:
-                return 
-                    {"error": "Project short name is required"}
-                
+                return {"error": "Project short name is required"}
             if not lead_id:
-                return 
-                    {"error": "Project leader ID is required"}
-                
+                return {"error": "Project leader ID is required"}
 
             project = self.projects_api.create_project(
                 name=name,
@@ -400,7 +395,9 @@ class ProjectTools:
             return result
         except Exception as e:
             logger.exception(f"Error creating project {name}")
-            return {"error": str(e})    def update_project(
+            return {"error": str(e)}
+
+    def update_project(
         self,
         project_id: str,
         name: Optional[str] = None,
@@ -427,9 +424,7 @@ class ProjectTools:
         """
         try:
             if not project_id:
-                return 
-                    {"error": "Project ID is required"}
-                
+                return {"error": "Project ID is required"}
 
             # First, get the existing project to maintain required fields
             try:
@@ -459,9 +454,7 @@ class ProjectTools:
                         "No parameters to update, returning current project"
                     )
                     if hasattr(existing_project, "model_dump"):
-                        return 
-                            existing_project.model_dump(
-                        )
+                        return existing_project.model_dump()
                     else:
                         return existing_project
 
@@ -486,9 +479,7 @@ class ProjectTools:
 
                     # Return updated project data
                     if hasattr(updated_project, "model_dump"):
-                        return 
-                            updated_project.model_dump(
-                        )
+                        return updated_project.model_dump()
                     else:
                         return updated_project
                 except Exception as e:
@@ -504,10 +495,12 @@ class ProjectTools:
                     )
             except Exception as e:
                 logger.exception(f"Error updating project {project_id}")
-                return {"error": str(e})
+                return {"error": str(e)}
         except Exception as e:
             logger.exception(f"Error processing update_project request")
-            return {"error": str(e})    def create_subsystem(self, project_id: str, name: str, description: str = "") -> dict:
+            return {"error": str(e)}
+
+    def create_subsystem(self, project_id: str, name: str, description: str = "") -> dict:
         """
         Create a subsystem for a project.
 
@@ -541,7 +534,9 @@ class ProjectTools:
 
         except Exception as e:
             logger.exception(f"Error creating subsystem {name} in project {project_id}")
-            return {"error": str(e})    def create_version(self, project_id: str, name: str, description: str = "", released: bool = False) -> dict:
+            return {"error": str(e)}
+
+    def create_version(self, project_id: str, name: str, description: str = "", released: bool = False) -> dict:
         """
         Create a version for a project.
 
@@ -577,7 +572,9 @@ class ProjectTools:
 
         except Exception as e:
             logger.exception(f"Error creating version {name} in project {project_id}")
-            return {"error": str(e})    def create_build(self, project_id: str, name: str, description: str = "") -> dict:
+            return {"error": str(e)}
+
+    def create_build(self, project_id: str, name: str, description: str = "") -> dict:
         """
         Create a build for a project.
 
@@ -611,7 +608,7 @@ class ProjectTools:
 
         except Exception as e:
             logger.exception(f"Error creating build {name} in project {project_id}")
-            return {"error": str(e})
+            return {"error": str(e)}
 
     def close(self) -> None:
         """Close the API client."""

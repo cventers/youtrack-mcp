@@ -59,7 +59,8 @@ class BasicOperations:
 
         except Exception as e:
             logger.exception(f"Error getting issue {issue_id}")
-            return {"error": str(e})    def search_issues(self, query: str, limit: int = 10) -> dict:
+            return {"error": str(e)}
+    def search_issues(self, query: str, limit: int = 10) -> dict:
         """
         Search for issues using YouTrack query language.
 
@@ -83,7 +84,8 @@ class BasicOperations:
 
         except Exception as e:
             logger.exception(f"Error searching issues with query: {query}")
-            return {"error": str(e})    def create_issue(
+            return {"error": str(e)}
+    def create_issue(
         self, project: str, summary: str, description: Optional[str] = None
     ) -> dict:
         """
@@ -106,12 +108,10 @@ class BasicOperations:
 
             # Validate required parameters
             if not project:
-                return 
-                    {"error": "Project is required", "status": "error"}
+                return {"error": "Project is required", "status": "error"}
                 
             if not summary:
-                return 
-                    {"error": "Summary is required", "status": "error"}
+                return {"error": "Summary is required", "status": "error"}
                 
 
             # Check if project is a project ID or short name
@@ -164,9 +164,7 @@ class BasicOperations:
                         detailed_issue = self.issues_api.get_issue(issue_id)
 
                         if hasattr(detailed_issue, "model_dump"):
-                            return 
-                                detailed_issue.model_dump(
-                            )
+                            return detailed_issue.model_dump()
                         else:
                             return detailed_issue
                     except Exception as e:
@@ -189,13 +187,13 @@ class BasicOperations:
                     except Exception:
                         pass
                 logger.error(f"API error creating issue: {error_msg}")
-                return 
-                    {"error": error_msg, "status": "error"}
+                return {"error": error_msg, "status": "error"}
                 
 
         except Exception as e:
             logger.exception(f"Error creating issue in project {project}")
-            return {"error": str(e, "status": "error"})    def update_issue(
+            return {"error": str(e), "status": "error"}
+    def update_issue(
         self,
         issue_id: str,
         summary: Optional[str] = None,
@@ -231,7 +229,8 @@ class BasicOperations:
             return result
         except Exception as e:
             logger.exception(f"Error updating issue {issue_id}")
-            return {"error": str(e, "status": "error"})    def add_comment(self, issue_id: str, text: str) -> dict:
+            return {"error": str(e), "status": "error"}
+    def add_comment(self, issue_id: str, text: str) -> dict:
         """
         Add a comment to an issue.
 
@@ -249,7 +248,7 @@ class BasicOperations:
             return result
         except Exception as e:
             logger.exception(f"Error adding comment to issue {issue_id}")
-            return {"error": str(e})
+            return {"error": str(e)}
 
     def get_tool_definitions(self) -> Dict[str, Dict[str, Any]]:
         """Get tool definitions for basic operation functions."""
@@ -291,4 +290,4 @@ class BasicOperations:
                     "text": "Comment text content"
                 }
             }
-        } 
+        }

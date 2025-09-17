@@ -43,7 +43,9 @@ class Attachments:
             return raw_issue
         except Exception as e:
             logger.exception(f"Error getting raw issue {issue_id}")
-            return {"error": str(e})    def get_attachment_content(self, issue_id: str, attachment_id: str) -> dict:
+            return {"error": str(e)}
+
+    def get_attachment_content(self, issue_id: str, attachment_id: str) -> dict:
         """
         Get the content of an attachment as a base64-encoded string.
 
@@ -97,7 +99,7 @@ class Attachments:
             logger.exception(
                 f"Error getting attachment content for issue {issue_id}, attachment {attachment_id}"
             )
-            return {"error": str(e, "status": "error"})
+            return {"error": str(e)}
 
     def get_tool_definitions(self) -> Dict[str, Dict[str, Any]]:
         """Get tool definitions for attachment functions."""
@@ -115,4 +117,4 @@ class Attachments:
                     "attachment_id": "Attachment identifier from issue attachments list like '1-456' or '2-789'"
                 }
             }
-        } 
+        }

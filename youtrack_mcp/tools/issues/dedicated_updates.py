@@ -27,7 +27,9 @@ class DedicatedUpdates:
         """Initialize with API clients."""
         self.issues_api = issues_api
         self.projects_api = projects_api
-        self.custom_fields = custom_fields    def update_issue_state(self, issue_id: str, new_state: str) -> dict:
+        self.custom_fields = custom_fields
+
+    def update_issue_state(self, issue_id: str, new_state: str) -> dict:
         """
         Update an issue's state using the proven working REST API approach.
         
@@ -99,9 +101,9 @@ class DedicatedUpdates:
                         "message": f"Successfully updated issue {issue_id} state to '{new_state}' using fallback method",
                         "issue_id": issue_id,
                         "new_state": new_state,
-                        "api_method": "Commands API (fallback",
+                        "api_method": "Commands API (fallback)",
                         "issue_data": updated_issue
-                    })
+                    }
                     
                 except Exception as cmd_error:
                     # Enhanced error handling with specific workflow analysis
@@ -192,18 +194,20 @@ class DedicatedUpdates:
                             "Verify you have permissions to change issue states",
                             "Some transitions require intermediate steps or conditions"
                         ],
-                        "diagnostic_help": f"Use diagnose_workflow_restrictions('{issue_id}' for detailed workflow analysis",
+                        "diagnostic_help": f"Use diagnose_workflow_restrictions('{issue_id}') for detailed workflow analysis",
                         "alternative_suggestion": "Try forward transitions like 'In Progress' or 'Fixed' instead of backward ones"
-                    })
+                    }
                 
         except Exception as e:
             logger.exception(f"Error updating state for issue {issue_id}")
             return {
-                "error": str(e,
+                "error": str(e),
                 "issue_id": issue_id,
                 "target_state": new_state,
                 "suggestion": "Check issue ID format and verify it exists in YouTrack"
-            })    def update_issue_priority(self, issue_id: str, new_priority: str) -> dict:
+            }
+
+    def update_issue_priority(self, issue_id: str, new_priority: str) -> dict:
         """
         Update an issue's priority using the proven working REST API approach.
         
@@ -260,9 +264,9 @@ class DedicatedUpdates:
                     "issue_id": issue_id,
                     "new_priority": new_priority,
                     "api_method": "Direct Field Update API",
-                    "updated_fields": result_data.get("updated_fields", ["Priority"],
+                    "updated_fields": result_data.get("updated_fields", ["Priority"]),
                     "issue_data": result_data.get("issue_data", {})
-                })
+                }
             else:
                 # Handle error case with priority-specific guidance
                 error_msg = result_data.get("error", "Unknown error")
@@ -277,16 +281,18 @@ class DedicatedUpdates:
                         "Use get_available_custom_field_values( to see available priorities"
                     ],
                     "field_help": f"Use get_available_custom_field_values('Priority') to see valid options"
-                })
+                }
                 
         except Exception as e:
             logger.exception(f"Error updating priority for issue {issue_id}")
             return {
-                "error": str(e,
+                "error": str(e),
                 "issue_id": issue_id,
                 "target_priority": new_priority,
                 "suggestion": "Check issue ID format and verify it exists in YouTrack"
-            })    def update_issue_assignee(self, issue_id: str, assignee: str) -> dict:
+            }
+
+    def update_issue_assignee(self, issue_id: str, assignee: str) -> dict:
         """
         Update an issue's assignee using the proven working REST API approach.
         
@@ -342,9 +348,9 @@ class DedicatedUpdates:
                     "issue_id": issue_id,
                     "assignee": assignee,
                     "api_method": "Direct Field Update API",
-                    "updated_fields": result_data.get("updated_fields", ["Assignee"],
+                    "updated_fields": result_data.get("updated_fields", ["Assignee"]),
                     "issue_data": result_data.get("issue_data", {})
-                })
+                }
             else:
                 # Handle error case with assignee-specific guidance
                 error_msg = result_data.get("error", "Unknown error")
@@ -359,16 +365,18 @@ class DedicatedUpdates:
                         "Use get_current_user() to see your login format"
                     ],
                     "user_help": "Use get_current_user() or search_users() to find valid login names"
-                })
+                }
                 
         except Exception as e:
             logger.exception(f"Error updating assignee for issue {issue_id}")
             return {
-                "error": str(e,
+                "error": str(e),
                 "issue_id": issue_id,
                 "target_assignee": assignee,
                 "suggestion": "Check issue ID format and verify user exists in YouTrack"
-            })    def update_issue_type(self, issue_id: str, issue_type: str) -> dict:
+            }
+
+    def update_issue_type(self, issue_id: str, issue_type: str) -> dict:
         """
         Update an issue's type using the proven working REST API approach.
         
@@ -424,9 +432,9 @@ class DedicatedUpdates:
                     "issue_id": issue_id,
                     "issue_type": issue_type,
                     "api_method": "Direct Field Update API",
-                    "updated_fields": result_data.get("updated_fields", ["Type"],
+                    "updated_fields": result_data.get("updated_fields", ["Type"]),
                     "issue_data": result_data.get("issue_data", {})
-                })
+                }
             else:
                 # Handle error case with type-specific guidance
                 error_msg = result_data.get("error", "Unknown error")
@@ -441,16 +449,18 @@ class DedicatedUpdates:
                         "Use get_available_custom_field_values( to see available types"
                     ],
                     "type_help": f"Use get_available_custom_field_values('Type') to see valid options"
-                })
+                }
                 
         except Exception as e:
             logger.exception(f"Error updating type for issue {issue_id}")
             return {
-                "error": str(e,
+                "error": str(e),
                 "issue_id": issue_id,
                 "target_type": issue_type,
                 "suggestion": "Check issue ID format and verify type exists in YouTrack"
-            })    def update_issue_estimation(self, issue_id: str, estimation: str) -> dict:
+            }
+
+    def update_issue_estimation(self, issue_id: str, estimation: str) -> dict:
         """
         Update an issue's time estimation using the proven working REST API approach.
         
@@ -509,9 +519,9 @@ class DedicatedUpdates:
                     "issue_id": issue_id,
                     "estimation": estimation,
                     "api_method": "Direct Field Update API",
-                    "updated_fields": result_data.get("updated_fields", ["Estimation"],
+                    "updated_fields": result_data.get("updated_fields", ["Estimation"]),
                     "issue_data": result_data.get("issue_data", {})
-                })
+                }
             else:
                 # Handle error case with estimation-specific guidance
                 error_msg = result_data.get("error", "Unknown error")
@@ -532,16 +542,16 @@ class DedicatedUpdates:
                         "1w (1 week)",
                         "3d 5h (3 days 5 hours)"
                     ]
-                })
+                }
                 
         except Exception as e:
             logger.exception(f"Error updating estimation for issue {issue_id}")
             return {
-                "error": str(e,
+                "error": str(e),
                 "issue_id": issue_id,
                 "target_estimation": estimation,
                 "suggestion": "Check issue ID format and use simple time format like '4h' or '2d'"
-            })
+            }
 
     def get_tool_definitions(self) -> Dict[str, Dict[str, Any]]:
         """Get tool definitions for dedicated update functions."""
@@ -581,4 +591,4 @@ class DedicatedUpdates:
                     "estimation": "Time estimate (e.g., '4h', '2d', '30m', '1w', '3d 5h')"
                 }
             }
-        } 
+        }

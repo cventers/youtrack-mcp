@@ -18,7 +18,9 @@ class SearchTools:
     def __init__(self):
         """Initialize the search tools."""
         self.client = YouTrackClient()
-        self.issues_api = IssuesClient(self.client)    def advanced_search(
+        self.issues_api = IssuesClient(self.client)
+
+    def advanced_search(
         self,
         query: str,
         limit: int = 10,
@@ -66,7 +68,9 @@ class SearchTools:
 
         except Exception as e:
             logger.exception(f"Error in advanced search with query: {query}")
-            return {"error": str(e})    def search_with_custom_field_values(
+            return {"error": str(e)}
+
+    def search_with_custom_field_values(
         self, query: str, custom_field_values: Dict[str, Any], limit: int = 10
     ) -> dict:
         """
@@ -132,7 +136,9 @@ class SearchTools:
             logger.exception(
                 f"Error in custom field search with query: {query}"
             )
-            return {"error": str(e})    def search_with_filter(
+            return {"error": str(e)}
+
+    def search_with_filter(
         self,
         project: Optional[str] = None,
         assignee: Optional[str] = None,
@@ -238,7 +244,7 @@ class SearchTools:
 
         except Exception as e:
             logger.exception("Error in filtered search")
-            return {"error": str(e})
+            return {"error": str(e)}
 
     def close(self) -> None:
         """Close the search tools."""

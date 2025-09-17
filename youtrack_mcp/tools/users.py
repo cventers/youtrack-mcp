@@ -22,7 +22,9 @@ class UserTools:
     def close(self) -> None:
         """Close the user tools."""
         if hasattr(self.client, "close"):
-            self.client.close()    def get_current_user(self) -> dict:
+            self.client.close()
+
+    def get_current_user(self) -> dict:
         """
         Get information about the current user.
 
@@ -41,7 +43,9 @@ class UserTools:
             return result
         except Exception as e:
             logger.exception("Error getting current user")
-            return {"error": str(e})    def get_user_by_id(self, user_id: str) -> dict:
+            return {"error": str(e)}
+
+    def get_user_by_id(self, user_id: str) -> dict:
         """
         Get information about a specific user by ID or login.
 
@@ -65,7 +69,9 @@ class UserTools:
             return result
         except Exception as e:
             logger.exception(f"Error getting user {user_id}")
-            return {"error": str(e})    def search_users(self, query: str = "", limit: int = 10) -> dict:
+            return {"error": str(e)}
+
+    def search_users(self, query: str = "", limit: int = 10) -> dict:
         """
         Search for users by name or login.
 
@@ -92,7 +98,9 @@ class UserTools:
             return result
         except Exception as e:
             logger.exception(f"Error searching users with query: {query}")
-            return {"error": str(e})    def get_user_permissions(self, user_id: str = None) -> dict:
+            return {"error": str(e)}
+
+    def get_user_permissions(self, user_id: str = None) -> dict:
         """
         Get permissions for a specific user.
 
@@ -136,7 +144,7 @@ class UserTools:
             return permissions
         except Exception as e:
             logger.exception(f"Error getting permissions for user {user_id}")
-            return {"error": str(e})
+            return {"error": str(e)}
 
     def get_tool_definitions(self) -> Dict[str, Dict[str, Any]]:
         """Get tool definitions with descriptions."""

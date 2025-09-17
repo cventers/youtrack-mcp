@@ -107,7 +107,8 @@ class AdvancedSearchTools:
         # Initialize analytics
         self.stats = SearchStats()
         
-        logger.info("AdvancedSearchTools initialized with caching and analytics")    async def intelligent_search(
+        logger.info("AdvancedSearchTools initialized with caching and analytics")
+    async def intelligent_search(
         self,
         natural_query: str,
         project: Optional[str] = None,
@@ -190,10 +191,12 @@ class AdvancedSearchTools:
             self.stats.error_count += 1
             logger.exception(f"Error in intelligent search: {e}")
             return {
-                "error": str(e,
+                "error": str(e),
                 "error_type": type(e).__name__,
                 "query": natural_query
-            })    async def search_by_query_builder(
+            }
+
+    async def search_by_query_builder(
         self,
         conditions: List[Dict[str, Any]],
         text_search: Optional[str] = None,
@@ -260,19 +263,21 @@ class AdvancedSearchTools:
                 "conditions": conditions,
                 "results": results,
                 "metadata": {
-                    "total_conditions": len(conditions,
+                    "total_conditions": len(conditions),
                     "projects": projects,
                     "sort": {"field": sort_by, "order": sort_order} if sort_by else None
                 }
-            })
+            }
             
         except Exception as e:
             logger.exception(f"Error in query builder search: {e}")
             return {
-                "error": str(e,
+                "error": str(e),
                 "error_type": type(e).__name__,
                 "conditions": conditions
-            })    async def search_suggestions(self, partial_query: str, context: Optional[str] = None) -> dict:
+            }
+
+    async def search_suggestions(self, partial_query: str, context: Optional[str] = None) -> dict:
         """
         Get search suggestions and auto-completions.
         
@@ -328,10 +333,12 @@ class AdvancedSearchTools:
         except Exception as e:
             logger.exception(f"Error generating suggestions: {e}")
             return {
-                "error": str(e,
+                "error": str(e),
                 "error_type": type(e).__name__,
                 "query": partial_query
-            })    async def search_analytics(self) -> dict:
+            }
+
+    async def search_analytics(self) -> dict:
         """
         Get search analytics and performance metrics.
         
@@ -377,7 +384,7 @@ class AdvancedSearchTools:
                     "hits": self.stats.cache_hits,
                     "misses": self.stats.cache_misses,
                     "hit_rate": cache_hit_rate,
-                    "current_size": len(self.query_cache
+                    "current_size": len(self.query_cache)
                 },
                 "usage": {
                     "top_queries": [{"query": q, "count": c} for q, c in top_queries],
@@ -387,14 +394,16 @@ class AdvancedSearchTools:
                     "start": self.stats.last_reset.isoformat(),
                     "duration_hours": (datetime.now() - self.stats.last_reset).total_seconds() / 3600
                 }
-            })
+            }
             
         except Exception as e:
             logger.exception(f"Error getting analytics: {e}")
             return {
-                "error": str(e,
+                "error": str(e),
                 "error_type": type(e).__name__
-            })    async def clear_search_cache(self) -> dict:
+            }
+
+    async def clear_search_cache(self) -> dict:
         """
         Clear search caches and optionally reset analytics.
         
@@ -421,9 +430,9 @@ class AdvancedSearchTools:
         except Exception as e:
             logger.exception(f"Error clearing cache: {e}")
             return {
-                "error": str(e,
+                "error": str(e),
                 "error_type": type(e).__name__
-            })
+            }
     
     def _natural_to_yql(self, natural_query: str, project: Optional[str] = None) -> dict:
         """Convert natural language to YouTrack Query Language."""
