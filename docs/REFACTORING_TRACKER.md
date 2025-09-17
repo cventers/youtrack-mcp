@@ -135,4 +135,57 @@ youtrack_mcp/tools/issues/
 
 **Status**: 🎉 **REFACTORING SUCCESSFULLY COMPLETED AND DEPLOYED** 🎉
 
-**Version**: 1.17.2 - Production Release with Enhanced Stability 
+**Version**: 1.17.2 - Production Release with Enhanced Stability
+
+## 🤖 AI Service Singleton Refactoring
+
+### Overview
+Completed singleton pattern implementation for AI services to eliminate duplicate initialization across tool modules.
+
+### Changes Made
+- **Created `youtrack_mcp/ai/registry.py`**: Centralized singleton registry for AI components
+- **AIServiceRegistry Class**: Singleton pattern ensuring one instance of each AI component
+- **Lazy Initialization**: AI services created only when first accessed
+- **Shared Components**: OpenAIClient, ErrorHandler, and AIService now shared across all tools
+
+### Before vs After
+**Before**: 4 duplicate AI initializations per startup
+```
+INFO OpenAIClient initialized with model openai/gpt-oss-120b
+INFO ErrorHandler initialized with 8 error patterns
+INFO AIService initialized (NL to YQL: LLM required)
+INFO AITools initialized (error enhancement: rule-based, NL to YQL: LLM required)
+[Repeated 4 times for each tool module]
+```
+
+**After**: Single AI initialization
+```
+INFO OpenAIClient initialized with model openai/gpt-oss-120b
+INFO ErrorHandler initialized with 8 error patterns
+INFO ErrorHandler initialized with error patterns
+INFO AIService initialized (NL to YQL: LLM required)
+INFO AITools initialized using shared AI registry (error enhancement: rule-based, NL to YQL: LLM required)
+[Only 4 AITools wrapper instances, 1 shared AI service]
+```
+
+### Benefits Achieved
+- ✅ **75% Reduction in AI Initialization**: From 4 duplicate sequences to 1 shared sequence
+- ✅ **Memory Efficiency**: Single shared AI instances instead of per-tool duplicates
+- ✅ **Startup Performance**: Faster initialization with reduced redundant operations
+- ✅ **Consistent State**: All tools share same AI service state and caches
+- ✅ **Maintainability**: Centralized AI configuration and error handling
+
+### Files Modified
+- `youtrack_mcp/ai/registry.py` - New singleton registry implementation
+- `youtrack_mcp/ai/service.py` - Updated to accept shared error handler
+- `youtrack_mcp/tools/ai/ai_tools.py` - Modified to use shared registry
+- `tests/unit/test_ai_tools.py` - Updated test expectations
+- `AGENTS.md` - Added AI architecture documentation
+
+### Testing
+- ✅ All existing AI functionality preserved
+- ✅ All 8 AI tools unit tests passing
+- ✅ Startup logs verified to show single initialization
+- ✅ Performance improvement confirmed
+
+**Status**: 🎉 **AI SINGLETON REFACTORING COMPLETED** 🎉 

@@ -21,7 +21,7 @@ class AITools:
         """Initialize AI planning tools."""
         self.ai_tools = AIToolsImpl()
 
-    async def plan(self, intent: str, context: Optional[Dict[str, Any]] = None) -> dict:
+    async def plan(self, intent: str, context: Optional[Dict[str, Any]] = None) -> str:
         """
         LLM-powered intent planning and analysis.
 
@@ -32,31 +32,34 @@ class AITools:
             context: Optional context dictionary
 
         Returns:
-            JSON with plan, explanations[], requires_confirmation: true
+            JSON string with plan, explanations[], requires_confirmation: true
         """
         try:
             # Use LLM to analyze intent and create execution plan
             plan_result = await self._llm_analyze_intent(intent, context or {})
 
-            return plan_result
+            return json.dumps(plan_result)
 
         except Exception as e:
             logger.exception(f"Error planning intent: {intent}")
-            return {
+            return json.dumps({
                 "error": str(e),
                 "error_type": type(e).__name__,
                 "intent": intent,
                 "requires_confirmation": True
-            }
+            })
 
     async def _llm_analyze_intent(self, intent: str, context: Dict[str, Any]) -> Dict[str, Any]:
         """Use LLM to analyze intent and create execution plan."""
         try:
             # Use the AI tools analyze_intent method which uses LLM
-            result_str = self.ai_tools.analyze_intent(intent, context)
-            result = json.loads(result_str)
+            result = self.ai_tools.analyze_intent(intent, context)
 
-            # Extract the actual plan data from the formatted response
+            # Handle both dict and JSON string responses for compatibility
+            if isinstance(result, str):
+                result = json.loads(result)
+
+            # Extract the actual plan data from the response
             if 'error' in result:
                 raise RuntimeError(result['error'])
 

@@ -24,12 +24,13 @@ class AIService:
     NL to YQL translation requires LLM for ai.plan and search autosearch.
     """
 
-    def __init__(self, openai_client: Optional[OpenAIClient] = None):
+    def __init__(self, openai_client: Optional[OpenAIClient] = None, error_handler: Optional[ErrorHandler] = None):
         """
         Initialize AI service.
 
         Args:
             openai_client: Optional OpenAIClient instance for NL to YQL
+            error_handler: Optional ErrorHandler instance (will create if not provided)
         """
         self.openai_client = openai_client
 
@@ -37,7 +38,7 @@ class AIService:
         self.query_cache = TTLCache(maxsize=1000, ttl=3600)  # 1 hour
 
         # Error handler for rule-based error enhancement
-        self.error_handler = ErrorHandler()
+        self.error_handler = error_handler or ErrorHandler()
 
         logger.info("AIService initialized (NL to YQL: LLM required)")
 

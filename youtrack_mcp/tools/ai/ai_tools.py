@@ -11,10 +11,8 @@ import logging
 import os
 from typing import Any, Dict, Optional
 
-from youtrack_mcp.utils import format_json_response, ErrorHandler
-from youtrack_mcp.ai.service import AIService
-from youtrack_mcp.ai.openai_client import OpenAIClient
-from youtrack_mcp.config import config
+from youtrack_mcp.utils import format_json_response
+from youtrack_mcp.ai.registry import ai_registry
 
 logger = logging.getLogger(__name__)
 
@@ -23,32 +21,12 @@ class AITools:
     """AI-powered tools for YouTrack operations."""
 
     def __init__(self):
-        """Initialize AI tools with AIService."""
-        # Initialize OpenAI client for NL to YQL (ai.plan, search autosearch)
-        openai_client = None
-        try:
-            # Use config values instead of environment variables
-            if config.OPENAI_API_KEY and config.LLM_ENABLED:
-                openai_client = OpenAIClient(
-                    api_key=config.OPENAI_API_KEY,
-                    base_url=config.OPENAI_BASE_URL,
-                    model=config.OPENAI_MODEL,
-                    temperature=config.OPENAI_TEMPERATURE,
-                    timeout=config.OPENAI_TIMEOUT
-                )
-                logger.info("OpenAI client initialized for NL to YQL using config values")
-            else:
-                logger.warning("LLM not enabled or API key not configured. NL to YQL will be unavailable.")
-        except Exception as e:
-            logger.warning(f"Failed to initialize OpenAI client: {e}. NL to YQL will be unavailable.")
+        """Initialize AI tools using shared registry."""
+        # Use shared AI service instance from registry
+        self.ai_service = ai_registry.ai_service
+        self.error_handler = ai_registry.error_handler
 
-        # AIService: NL to YQL requires LLM
-        self.ai_service = AIService(openai_client=openai_client)
-
-        # ErrorHandler: rule-based error enhancement
-        self.error_handler = ErrorHandler()
-
-        logger.info("AITools initialized (error enhancement: rule-based, NL to YQL: LLM required)")
+        logger.info("AITools initialized using shared AI registry (error enhancement: rule-based, NL to YQL: LLM required)")
 
     def translate_to_yql(self, natural_language_query: str, project_context: Optional[str] = None) -> dict:
         """

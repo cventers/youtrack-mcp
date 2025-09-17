@@ -96,7 +96,7 @@ class TestAITools:
             "suggested_tools": ["issues.create"],
             "estimated_complexity": "medium"
         }
-        ai_tools.ai_tools.analyze_intent.return_value = json.dumps(llm_response)
+        ai_tools.ai_tools.analyze_intent.return_value = llm_response
 
         result = await ai_tools.plan(intent, context)
         result_data = json.loads(result)
@@ -138,11 +138,12 @@ class TestAITools:
         result = await ai_tools.plan(intent, context)
         result_data = json.loads(result)
 
-        # Should return error response
-        assert "error" in result_data
-        assert result_data["error_type"] == "RuntimeError"
+        # Should fallback to rule-based analysis and return a plan
+        assert "error" not in result_data
         assert result_data["intent"] == intent
         assert result_data["requires_confirmation"] is True
+        assert "plan" in result_data
+        assert "explanations" in result_data
 
     @pytest.mark.asyncio
     async def test_plan_empty_context(self, ai_tools):

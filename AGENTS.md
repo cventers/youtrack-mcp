@@ -226,6 +226,30 @@ query = f"project: {project} state: Open assignee: {user}"
 query = f"{{Priority}}: High {{Component}}: Backend"
 ```
 
+## AI Service Architecture
+
+### Singleton Pattern Implementation
+- **AIServiceRegistry**: Centralized singleton for all AI components (OpenAIClient, ErrorHandler, AIService)
+- **Lazy Initialization**: AI services created only when first accessed, not at import time
+- **Shared Instances**: All tool modules use the same AI service instances to prevent duplicate initialization
+- **Registry Location**: `youtrack_mcp/ai/registry.py` - import with `from youtrack_mcp.ai.registry import ai_registry`
+
+### Usage Pattern
+```python
+from youtrack_mcp.ai.registry import ai_registry
+
+# Access shared AI components
+openai_client = ai_registry.openai_client
+ai_service = ai_registry.ai_service
+error_handler = ai_registry.error_handler
+```
+
+### Benefits
+- **Reduced Startup Time**: Eliminates 4x duplicate AI initialization (was 4 instances, now 1)
+- **Memory Efficiency**: Single shared instances instead of per-tool duplicates
+- **Consistent State**: All tools share the same AI service state and caches
+- **Maintainability**: Centralized AI configuration and initialization logic
+
 ## Resources for Development
 
 ### Official Documentation
