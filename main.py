@@ -31,6 +31,93 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from youtrack_mcp.config import Config, config
+
+def load_config():
+    """Load configuration from environment variables, YAML file, or defaults."""
+    # First, try to load from YAML file if specified
+    yaml_file = os.getenv("YOUTRACK_CONFIG_FILE", "")
+    if not yaml_file:
+        # Try configuration file locations in priority order
+        possible_files = [
+            "./local/youtrack-mcp.yaml",      # Project local config (highest priority)
+            "./local/youtrack-mcp.yml",
+            os.path.expanduser("~/.config/youtrack-mcp.yaml"),  # User config
+            os.path.expanduser("~/.config/youtrack-mcp.yml"),
+            "./youtrack-mcp-config.yaml",     # Project root config
+            "./config.yaml",
+            "./youtrack-mcp.yaml",
+            "/etc/youtrack-mcp/config.yaml"   # System config (lowest priority)
+        ]
+        for possible_file in possible_files:
+            if os.path.exists(possible_file):
+                yaml_file = possible_file
+                logger.info(f"Found configuration file: {yaml_file}")
+                break
+
+    if yaml_file:
+        try:
+            logger.info(f"Loading configuration from YAML file: {yaml_file}")
+            config.load_from_yaml(yaml_file)
+        except Exception as e:
+            logger.warning(f"Failed to YAML configuration from {yaml_file}: {e}")
+            logger.info("Falling back to environment variables and defaults")
+
+    # Environment variables have higher priority than config file
+    env_config = {}
+
+    # Extract config variables from environment
+    for key in dir(Config):
+        if key.isupper() and not key.startswith("_"):
+            env_key = f"YOUTRACK_MCP_{key}"
+            if env_key in os.environ:
+                env_value = os.environ[env_key]
+                # Convert string booleans to actual booleans
+                if env_value.lower() in ("true", "false"):
+                    env_value = env_value.lower() == "true"
+                env_config[key] = env_value
+
+    # Create config instance from environment variables
+    if env_config:
+        logger.info("Loading configuration from environment variables")
+        Config.from_dict(env_config)
+
+    # Ensure token is properly formatted for YouTrack Cloud
+    if config.YOUTRACK_API_TOKEN and not config.YOUTRACK_API_TOKEN.startswith(("perm:", "perm-")):
+        # Check if we need to add the perm- prefix
+        if "." in config.YOUTRACK_API_TOKEN and "=" in config.YOUTRACK_API_TOKEN:
+            config.YOUTRACK_API_TOKEN = f"perm-{config.YOUTRACK_API_TOKEN}"
+            logger.info("Added 'perm-' prefix to the API token")
+        else:
+            # For traditional tokens
+            config.YOUTRACK_API_TOKEN = f"perm:{config.YOUTRACK_API_TOKEN}"
+            logger.info("Added 'perm:' prefix to the API token")
+
+    # Force YouTrack URL to be properly formatted
+    if config.YOUTRACK_URL and config.YOUTRACK_URL.endswith("/"):
+        config.YOUTRACK_URL = config.YOUTRACK_URL.rstrip("/")
+        logger.info("Removed trailing slash from YouTrack URL")
+
+    # Initialize configuration from environment variables
+    config.validate()
+
+    # Use environment variable for URL if specified instead of auto-detection
+    env_url = os.getenv("YOUTRACK_URL")
+    if env_url and not config.YOUTRACK_URL:
+        logger.info(f"Using URL from environment: {env_url}")
+        config.YOUTRACK_URL = env_url
+
+    # Log configuration status
+    if config.YOUTRACK_URL:
+        logger.info(f"Configured for YouTrack instance at: {config.YOUTRACK_URL}")
+    else:
+        logger.info("Configured for YouTrack Cloud instance")
+
+    logger.info(f"SSL verification: {'Enabled' if config.VERIFY_SSL else 'Disabled'}")
+
+
+# Load configuration before importing server_fastmcp to ensure YouTrackResources is created with proper config
+load_config()
+
 from youtrack_mcp.server_fastmcp import mcp
 from youtrack_mcp.utils.loader import load_all_tools
 
@@ -263,87 +350,7 @@ async def list_tools():
     
     return {"tools": tool_definitions}
 
-def load_config():
-    """Load configuration from environment variables, YAML file, or defaults."""
-    # First, try to load from YAML file if specified
-    yaml_file = os.getenv("YOUTRACK_CONFIG_FILE", "")
-    if not yaml_file:
-        # Try configuration file locations in priority order
-        possible_files = [
-            "./local/youtrack-mcp.yaml",      # Project local config (highest priority)
-            "./local/youtrack-mcp.yml",
-            os.path.expanduser("~/.config/youtrack-mcp.yaml"),  # User config
-            os.path.expanduser("~/.config/youtrack-mcp.yml"),
-            "./youtrack-mcp-config.yaml",     # Project root config
-            "./config.yaml",
-            "./youtrack-mcp.yaml",
-            "/etc/youtrack-mcp/config.yaml"   # System config (lowest priority)
-        ]
-        for possible_file in possible_files:
-            if os.path.exists(possible_file):
-                yaml_file = possible_file
-                logger.info(f"Found configuration file: {yaml_file}")
-                break
 
-    if yaml_file:
-        try:
-            logger.info(f"Loading configuration from YAML file: {yaml_file}")
-            config.load_from_yaml(yaml_file)
-        except Exception as e:
-            logger.warning(f"Failed to load YAML configuration from {yaml_file}: {e}")
-            logger.info("Falling back to environment variables and defaults")
-
-    # Environment variables have higher priority than config file
-    env_config = {}
-
-    # Extract config variables from environment
-    for key in dir(Config):
-        if key.isupper() and not key.startswith("_"):
-            env_key = f"YOUTRACK_MCP_{key}"
-            if env_key in os.environ:
-                env_value = os.environ[env_key]
-                # Convert string booleans to actual booleans
-                if env_value.lower() in ("true", "false"):
-                    env_value = env_value.lower() == "true"
-                env_config[key] = env_value
-
-    # Create config instance from environment variables
-    if env_config:
-        logger.info("Loading configuration from environment variables")
-        Config.from_dict(env_config)
-
-    # Ensure token is properly formatted for YouTrack Cloud
-    if config.YOUTRACK_API_TOKEN and not config.YOUTRACK_API_TOKEN.startswith(("perm:", "perm-")):
-        # Check if we need to add the perm- prefix
-        if "." in config.YOUTRACK_API_TOKEN and "=" in config.YOUTRACK_API_TOKEN:
-            config.YOUTRACK_API_TOKEN = f"perm-{config.YOUTRACK_API_TOKEN}"
-            logger.info("Added 'perm-' prefix to the API token")
-        else:
-            # For traditional tokens
-            config.YOUTRACK_API_TOKEN = f"perm:{config.YOUTRACK_API_TOKEN}"
-            logger.info("Added 'perm:' prefix to the API token")
-    
-    # Force YouTrack URL to be properly formatted
-    if config.YOUTRACK_URL and config.YOUTRACK_URL.endswith("/"):
-        config.YOUTRACK_URL = config.YOUTRACK_URL.rstrip("/")
-        logger.info("Removed trailing slash from YouTrack URL")
-    
-    # Initialize configuration from environment variables
-    config.validate()
-    
-    # Use environment variable for URL if specified instead of auto-detection
-    env_url = os.getenv("YOUTRACK_URL")
-    if env_url and not config.YOUTRACK_URL:
-        logger.info(f"Using URL from environment: {env_url}")
-        config.YOUTRACK_URL = env_url
-    
-    # Log configuration status
-    if config.YOUTRACK_URL:
-        logger.info(f"Configured for YouTrack instance at: {config.YOUTRACK_URL}")
-    else:
-        logger.info("Configured for YouTrack Cloud instance")
-    
-    logger.info(f"SSL verification: {'Enabled' if config.VERIFY_SSL else 'Disabled'}")
 
 def parse_args():
     """Parse command line arguments."""
@@ -467,9 +474,7 @@ def main():
     # Apply command line arguments
     apply_cli_args(args)
 
-    # Load configuration
-    load_config()
-
+    # Configuration is already loaded at module level
     # Set up logging based on configuration
     setup_logging()
 
