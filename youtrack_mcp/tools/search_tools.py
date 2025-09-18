@@ -14,7 +14,7 @@ from youtrack_mcp.api.client import YouTrackClient
 from youtrack_mcp.api.issues import IssuesClient
 
 
-from youtrack_mcp.tools.ai.ai_tools import AITools
+from youtrack_mcp.tools.ai_tools import AITools
 
 logger = logging.getLogger(__name__)
 
@@ -202,7 +202,7 @@ class SearchTools:
             )
 
             # Parse the AI result
-            ai_response = json.loads(translation_result)
+            ai_response = translation_result
             yql_query = ai_response.get("yql_query", "")
             confidence = ai_response.get("confidence", 0.0)
 

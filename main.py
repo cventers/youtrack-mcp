@@ -495,17 +495,12 @@ def main():
         global server
         server = mcp
 
-        # Load all tools just once
-        all_tools = load_all_tools()
-
         # Tools are already registered in server_fastmcp.py
+        # No need to load them again here
 
         # Run the server directly in stdio mode
         logger.info("Starting in stdio mode for Cursor/Claude integration")
-        # Import and run the server_fastmcp module
-        from youtrack_mcp import server_fastmcp
-        # Note: run_stdio method may not be available in current MCP version
-        # server_fastmcp.mcp.run_stdio()
+        mcp.run(transport="stdio")
 
 if __name__ == "__main__":
     main()
