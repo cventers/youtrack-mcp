@@ -24,7 +24,8 @@ class OpenAIClient:
                  base_url: Optional[str] = None,
                  model: str = "gpt-4o-mini",
                  temperature: float = 0.7,
-                 timeout: float = 30.0):
+                 timeout: float = 30.0,
+                 max_tokens: int = 1000):
         """
         Initialize OpenAI client.
 
@@ -34,6 +35,7 @@ class OpenAIClient:
             model: Model name (defaults to OPENAI_MODEL env var)
             temperature: Temperature for responses (defaults to OPENAI_TEMPERATURE env var)
             timeout: Request timeout in seconds (defaults to OPENAI_TIMEOUT env var)
+            max_tokens: Maximum tokens for completion (defaults to OPENAI_MAX_TOKENS env var or 1000)
         """
         self.api_key = api_key or os.getenv("OPENAI_API_KEY")
         if not self.api_key:
@@ -56,6 +58,14 @@ class OpenAIClient:
                 self.timeout = float(timeout_env)
             except ValueError:
                 pass
+        
+        self.max_tokens = max_tokens
+        max_tokens_env = os.getenv("OPENAI_MAX_TOKENS")
+        if max_tokens_env:
+            try:
+                self.max_tokens = int(max_tokens_env)
+            except ValueError:
+                pass
 
         # Initialize client
         self.client = OpenAI(
@@ -64,31 +74,34 @@ class OpenAIClient:
             timeout=self.timeout
         )
 
-        logger.info(f"OpenAIClient initialized with model {self.model}")
+        logger.info(f"OpenAIClient initialized with model {self.model}, max_tokens {self.max_tokens}")
 
     def complete(self,
                  prompt: str,
                  system: Optional[str] = None,
                  max_tokens: Optional[int] = None,
-                 temperature: Optional[float] = None) -> Dict[str, Any]:
+                 temperature: Optional[float] = None) -> str:
         """
-        Complete a prompt using OpenAI API.
+        Complete a prompt using the OpenAI API.
 
         Args:
-            prompt: User prompt
-            system: System prompt (optional)
-            max_tokens: Maximum tokens to generate
+            prompt: The user prompt
+            system: Optional system message
+            max_tokens: Maximum tokens in response (defaults to instance max_tokens)
             temperature: Temperature override
 
         Returns:
-            Dict with 'content', 'usage', 'confidence' keys
+            The completion text
         """
-        try:
-            messages = []
-            if system:
-                messages.append({"role": "system", "content": system})
-            messages.append({"role": "user", "content": prompt})
+        if max_tokens is None:
+            max_tokens = self.max_tokens
+            
+        messages = []
+        if system:
+            messages.append({"role": "system", "content": system})
+        messages.append({"role": "user", "content": prompt})
 
+        try:
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=messages,
@@ -99,15 +112,7 @@ class OpenAIClient:
 
             content = response.choices[0].message.content if response.choices else ""
 
-            return {
-                "content": content,
-                "usage": {
-                    "prompt_tokens": response.usage.prompt_tokens if response.usage else 0,
-                    "completion_tokens": response.usage.completion_tokens if response.usage else 0,
-                    "total_tokens": response.usage.total_tokens if response.usage else 0
-                },
-                "confidence": 0.8  # Default confidence for successful responses
-            }
+            return content
 
         except Exception as e:
             logger.error(f"OpenAI API error: {e}")

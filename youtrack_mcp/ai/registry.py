@@ -58,8 +58,8 @@ class AIServiceRegistry:
         assert self._error_handler is not None  # Should be initialized above
         return self._error_handler
 
-    def _initialize_openai_client(self) -> None:
-        """Initialize OpenAI client once."""
+    def _initialize_openai_client(self):
+        """Initialize OpenAI client if configured."""
         try:
             if config.OPENAI_API_KEY and config.LLM_ENABLED:
                 self._openai_client = OpenAIClient(
@@ -67,11 +67,12 @@ class AIServiceRegistry:
                     base_url=config.OPENAI_BASE_URL,
                     model=config.OPENAI_MODEL,
                     temperature=config.OPENAI_TEMPERATURE,
-                    timeout=config.OPENAI_TIMEOUT
+                    timeout=config.OPENAI_TIMEOUT,
+                    max_tokens=config.OPENAI_MAX_TOKENS
                 )
-                logger.info("OpenAI client initialized for NL to YQL using config values")
+                logger.info("OpenAI client initialized successfully")
             else:
-                logger.warning("LLM not enabled or API key not configured. NL to YQL will be unavailable.")
+                logger.info("OpenAI client not initialized (missing API key or LLM disabled)")
         except Exception as e:
             logger.warning(f"Failed to initialize OpenAI client: {e}. NL to YQL will be unavailable.")
 

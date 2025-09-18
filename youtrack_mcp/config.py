@@ -1,438 +1,459 @@
 """
-Configuration for YouTrack MCP server.
+Configuration management using pydantic-settings.
+
+This module provides type-safe, validated configuration for the YouTrack MCP server
+using pydantic-settings, supporting environment variables, YAML files, and .env files.
 """
 
 import os
 import ssl
-from typing import Optional, Dict, Any
+from typing import Optional, Literal
+from pathlib import Path
+from pydantic import Field, SecretStr, field_validator, ConfigDict
+from pydantic_settings import BaseSettings, SettingsConfigDict
+import logging
 
-# Optional import for dotenv
-try:
-    from dotenv import load_dotenv
-
-    # Load environment variables from .env file if it exists
-    load_dotenv()
-except ImportError:
-    # dotenv is not required
-    pass
-
-# Optional import for YAML support
-try:
-    import yaml
-    YAML_AVAILABLE = True
-except ImportError:
-    YAML_AVAILABLE = False
-    yaml = None
+logger = logging.getLogger(__name__)
 
 
-class Config:
-    """Configuration settings for YouTrack MCP server."""
-
-    # Configuration file
-    CONFIG_FILE: str = os.getenv("YOUTRACK_CONFIG_FILE", "")
-
-    # YouTrack API configuration
-    YOUTRACK_URL: str = os.getenv("YOUTRACK_URL", "")
-    YOUTRACK_API_TOKEN: str = os.getenv("YOUTRACK_API_TOKEN", "")
-    YOUTRACK_TOKEN_FILE: str = os.getenv("YOUTRACK_TOKEN_FILE", "")
-    VERIFY_SSL: bool = os.getenv("YOUTRACK_VERIFY_SSL", "true").lower() in (
-        "true", "1", "yes",
+class YouTrackConfig(BaseSettings):
+    """YouTrack connection configuration."""
+    
+    model_config = ConfigDict(
+        env_prefix="YOUTRACK_",
+        case_sensitive=False,
     )
+    
+    url: str = Field("", description="YouTrack instance URL")
+    api_token: SecretStr = Field(SecretStr(""), description="API authentication token")
+    token_file: Optional[Path] = Field(None, description="Path to token file")
+    verify_ssl: bool = Field(True, description="Verify SSL certificates")
+    cloud: bool = Field(False, description="Is this a cloud instance")
+    workspace: Optional[str] = Field(None, description="Cloud workspace name")
+    
+    # Retry configuration
+    max_retries: int = Field(3, ge=0, description="Maximum retry attempts")
+    retry_delay: float = Field(1.0, ge=0, description="Retry delay in seconds")
+    
+    # Token management
+    token_ttl_seconds: int = Field(3600, ge=60, description="Token cache TTL")
+    enable_token_refresh: bool = Field(True, description="Enable auto token refresh")
+    
+    @field_validator('api_token', mode='before')
+    def load_token_from_file(cls, v, info):
+        """Load token from file if token_file is specified."""
+        if not v and info.data.get('token_file'):
+            token_path = Path(info.data['token_file'])
+            if token_path.exists():
+                token = token_path.read_text().strip()
+                return SecretStr(token)
+        return v if isinstance(v, SecretStr) else SecretStr(str(v) if v else "")
+    
+    @field_validator('url', mode='after')
+    def clean_url(cls, v):
+        """Remove trailing slashes from URL."""
+        if v:
+            return v.rstrip('/')
+        return v
 
-    # Cloud instance configuration
-    YOUTRACK_CLOUD: bool = os.getenv("YOUTRACK_CLOUD", "false").lower() in (
-        "true", "1", "yes",
-    )
 
-    # API client configuration
-    MAX_RETRIES: int = int(os.getenv("YOUTRACK_MAX_RETRIES", "3"))
-    RETRY_DELAY: float = float(os.getenv("YOUTRACK_RETRY_DELAY", "1.0"))
+class MCPConfig(BaseSettings):
+    """MCP server configuration."""
+    
+    model_config = ConfigDict(
+        env_prefix="MCP_",
+        case_sensitive=False,
+    )
+    
+    server_name: str = Field("youtrack-mcp", description="Server name")
+    server_description: str = Field("YouTrack MCP Server", description="Server description")
+    debug: bool = Field(False, description="Enable debug mode")
 
-    # Token security configuration
-    TOKEN_TTL_SECONDS: int = int(os.getenv("YOUTRACK_TOKEN_TTL_SECONDS", "3600"))  # 1 hour default
-    ENABLE_TOKEN_REFRESH: bool = os.getenv("YOUTRACK_ENABLE_TOKEN_REFRESH", "true").lower() in (
-        "true", "1", "yes"
-    )
 
-    # MCP Server configuration
-    MCP_SERVER_NAME: str = os.getenv("MCP_SERVER_NAME", "youtrack-mcp")
-    MCP_SERVER_DESCRIPTION: str = os.getenv(
-        "MCP_SERVER_DESCRIPTION", "YouTrack MCP Server"
+class OpenAIConfig(BaseSettings):
+    """OpenAI/LLM configuration."""
+    
+    model_config = ConfigDict(
+        env_prefix="OPENAI_",
+        case_sensitive=False,
+        extra='ignore',
     )
-    MCP_DEBUG: bool = os.getenv("MCP_DEBUG", "false").lower() in (
-        "true", "1", "yes",
-    )
-    MCP_TRANSPORT: str = os.getenv("MCP_TRANSPORT", "stdio")
-    MCP_TIMEOUT: int = int(os.getenv("MCP_TIMEOUT", "15000"))  # Default 15 seconds
-    YOUTRACK_CAPS: str = os.getenv("YOUTRACK_CAPS", "")
-    # AI Mode Configuration
+    
+    api_key: Optional[SecretStr] = Field(None, description="OpenAI API key")
+    base_url: Optional[str] = Field(None, description="OpenAI base URL")
+    model: str = Field("gpt-4o-mini", description="Model name")
+    max_tokens: int = Field(1000, ge=1, description="Maximum tokens for completion")
+    temperature: float = Field(0.3, ge=0, le=2, description="Temperature")
+    timeout: int = Field(30, ge=1, description="Request timeout")
+    llm_enabled: Optional[bool] = Field(None, description="Enable LLM features (auto-enabled if API key present)")
+    
+    @field_validator('llm_enabled', mode='after')
+    def set_llm_enabled_default(cls, v, info):
+        """Default llm_enabled to True if api_key is present, False otherwise."""
+        if v is not None:
+            return v
+        # Check for LLM_ENABLED env var (without OPENAI_ prefix for backward compat)
+        env_val = os.getenv("LLM_ENABLED")
+        if env_val is not None:
+            return env_val.lower() in ("true", "1", "yes")
+        # Default to True if api_key is present
+        return bool(info.data.get('api_key'))
 
-    # OpenAI Configuration
-    OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
-    OPENAI_BASE_URL: str = os.getenv("OPENAI_BASE_URL", "")
-    OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
-    OPENAI_MAX_TOKENS: int = int(os.getenv("OPENAI_MAX_TOKENS", "1000"))
-    OPENAI_TEMPERATURE: float = float(os.getenv("OPENAI_TEMPERATURE", "0.7"))
-    OPENAI_TIMEOUT: int = int(os.getenv("OPENAI_TIMEOUT", "30"))
-    LLM_ENABLED: bool = os.getenv("LLM_ENABLED", "false").lower() in (
-        "true",
-        "1",
-        "yes",
-    )
 
-    # Cache Configuration
-    CACHE_ENABLED: bool = os.getenv("CACHE_ENABLED", "true").lower() in (
-        "true",
-        "1",
-        "yes",
+class CacheConfig(BaseSettings):
+    """Caching configuration (future feature)."""
+    
+    model_config = ConfigDict(
+        env_prefix="CACHE_",
+        case_sensitive=False,
     )
-    CACHE_TTL: int = int(os.getenv("CACHE_TTL", "300"))
-    CACHE_MAX_SIZE: int = int(os.getenv("CACHE_MAX_SIZE", "100"))
+    
+    enabled: bool = Field(True, description="Enable caching")
+    ttl: int = Field(300, ge=0, description="Cache TTL in seconds")
+    max_size: int = Field(100, ge=1, description="Maximum cache size")
 
-    # Logging Configuration
-    LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
-    LOG_FILE: Optional[str] = os.getenv("LOG_FILE")
-    LOG_CONSOLE_DISABLE: bool = os.getenv("LOG_CONSOLE_DISABLE", "false").lower() in (
-        "true",
-        "1",
-        "yes",
-    )
 
-    # Connection Configuration
-    CONNECTION_POOL_SIZE: int = int(os.getenv("CONNECTION_POOL_SIZE", "10"))
-    CONNECTION_TIMEOUT: int = int(os.getenv("CONNECTION_TIMEOUT", "30"))
-    READ_TIMEOUT: int = int(os.getenv("READ_TIMEOUT", "60"))
+class LoggingConfig(BaseSettings):
+    """Logging configuration."""
+    
+    model_config = ConfigDict(
+        env_prefix="LOG_",
+        case_sensitive=False,
+    )
+    
+    level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(
+        "INFO", description="Log level"
+    )
+    file: Optional[Path] = Field(None, description="Log file path")
+    console_disable: bool = Field(False, description="Disable console logging")
 
-    # Rate Limiting
-    RATE_LIMIT_ENABLED: bool = os.getenv("RATE_LIMIT_ENABLED", "true").lower() in (
-        "true",
-        "1",
-        "yes",
-    )
-    RATE_LIMIT_REQUESTS: int = int(os.getenv("RATE_LIMIT_REQUESTS", "100"))
-    RATE_LIMIT_PERIOD: int = int(os.getenv("RATE_LIMIT_PERIOD", "60"))
 
-    # User Preferences
-    DATE_FORMAT: str = os.getenv("DATE_FORMAT", "%Y-%m-%d")
-    DATETIME_FORMAT: str = os.getenv("DATETIME_FORMAT", "%Y-%m-%d %H:%M:%S")
-    TIMEZONE: str = os.getenv("TIMEZONE", "America/Chicago")
-    MAX_DESCRIPTION_LENGTH: int = int(os.getenv("MAX_DESCRIPTION_LENGTH", "500"))
-    TRUNCATE_LONG_TEXT: bool = os.getenv("TRUNCATE_LONG_TEXT", "true").lower() in (
-        "true",
-        "1",
-        "yes",
+class DisplayConfig(BaseSettings):
+    """Display configuration."""
+    
+    model_config = ConfigDict(
+        env_prefix="DISPLAY_",
+        case_sensitive=False,
     )
-    SHOW_ISSUE_URL: bool = os.getenv("SHOW_ISSUE_URL", "false").lower() in (
-        "true",
-        "1",
-        "yes",
-    )
-    DEFAULT_QUERY_CONTEXT: str = os.getenv("DEFAULT_QUERY_CONTEXT", "me")
-    DEFAULT_STATE_FILTER: str = os.getenv("DEFAULT_STATE_FILTER", "Open")
+    
+    timezone: Optional[str] = Field("America/Chicago", description="Timezone for date/time operations")
 
-    # Feature Flags
-    NATURAL_LANGUAGE_SEARCH: bool = os.getenv("NATURAL_LANGUAGE_SEARCH", "false").lower() in (
-        "true",
-        "1",
-        "yes",
-    )
-    SMART_SUGGESTIONS: bool = os.getenv("SMART_SUGGESTIONS", "false").lower() in (
-        "true",
-        "1",
-        "yes",
-    )
-    ACTIVITY_ANALYSIS: bool = os.getenv("ACTIVITY_ANALYSIS", "false").lower() in (
-        "true",
-        "1",
-        "yes",
-    )
-    AUTO_FIELD_DETECTION: bool = os.getenv("AUTO_FIELD_DETECTION", "false").lower() in (
-        "true",
-        "1",
-        "yes",
-    )
-    BATCH_OPERATIONS: bool = os.getenv("BATCH_OPERATIONS", "false").lower() in (
-        "true",
-        "1",
-        "yes",
-    )
-    ASYNC_PROCESSING: bool = os.getenv("ASYNC_PROCESSING", "false").lower() in (
-        "true",
-        "1",
-        "yes",
-    )
-    CACHING_LAYER: bool = os.getenv("CACHING_LAYER", "false").lower() in (
-        "true",
-        "1",
-        "yes",
-    )
 
-    @classmethod
-    def from_dict(cls, config_dict: Dict[str, Any]) -> None:
-        """
-        Update configuration from a dictionary.
-
-        Args:
-            config_dict: Dictionary with configuration values
-        """
-        # Set configuration values from the dictionary
-        for key, value in config_dict.items():
-            if hasattr(cls, key):
-                setattr(cls, key, value)
-
-    @classmethod
-    def load_from_yaml(cls, yaml_file: str) -> None:
+class Settings(BaseSettings):
+    """Main configuration settings for YouTrack MCP server."""
+    
+    model_config = SettingsConfigDict(
+        env_nested_delimiter="__",
+        case_sensitive=False,
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+    
+    # Nested configurations
+    youtrack: YouTrackConfig = Field(default_factory=YouTrackConfig)
+    mcp: MCPConfig = Field(default_factory=MCPConfig)
+    openai: OpenAIConfig = Field(default_factory=OpenAIConfig)
+    cache: CacheConfig = Field(default_factory=CacheConfig)
+    logging: LoggingConfig = Field(default_factory=LoggingConfig)
+    display: DisplayConfig = Field(default_factory=DisplayConfig)
+    
+    def load_from_yaml(self, yaml_file: str) -> None:
         """
         Load configuration from a YAML file.
-
+        
         Args:
             yaml_file: Path to the YAML configuration file
-
-        Raises:
-            ImportError: If PyYAML is not installed
-            FileNotFoundError: If the YAML file doesn't exist
-            ValueError: If the YAML file is invalid
         """
-        if not YAML_AVAILABLE:
-            raise ImportError(
-                "PyYAML is required to load YAML configuration files. "
-                "Install it with: pip install PyYAML"
-            )
-
+        import yaml
+        
         if not os.path.exists(yaml_file):
             raise FileNotFoundError(f"YAML configuration file not found: {yaml_file}")
-
+        
         try:
             with open(yaml_file, 'r', encoding='utf-8') as f:
                 yaml_config = yaml.safe_load(f)
-
-            if yaml_config is None:
-                raise ValueError(f"YAML file is empty or invalid: {yaml_file}")
-
-            # Flatten nested YAML structure to match Config class attributes
-            flattened_config = cls._flatten_yaml_config(yaml_config)
-
-            # Update configuration from flattened dictionary
-            cls.from_dict(flattened_config)
-
+            
+            if yaml_config:
+                # Update nested configs
+                if 'youtrack' in yaml_config:
+                    self.youtrack = YouTrackConfig(**yaml_config['youtrack'])
+                if 'mcp' in yaml_config:
+                    self.mcp = MCPConfig(**yaml_config['mcp'])
+                if 'openai' in yaml_config:
+                    self.openai = OpenAIConfig(**yaml_config['openai'])
+                if 'cache' in yaml_config:
+                    self.cache = CacheConfig(**yaml_config['cache'])
+                if 'logging' in yaml_config:
+                    self.logging = LoggingConfig(**yaml_config['logging'])
+                if 'display' in yaml_config:
+                    self.display = DisplayConfig(**yaml_config['display'])
         except yaml.YAMLError as e:
             raise ValueError(f"Invalid YAML file {yaml_file}: {e}")
-
-    @classmethod
-    def _flatten_yaml_config(cls, yaml_config: Dict[str, Any], prefix: str = "") -> Dict[str, Any]:
+    
+    def get_api_token(self) -> str:
         """
-        Flatten nested YAML configuration to match Config class attribute names.
-
-        Args:
-            yaml_config: Nested YAML configuration dictionary
-            prefix: Current prefix for nested keys
-
-        Returns:
-            Flattened dictionary with Config class attribute names
-        """
-        flattened = {}
-
-        for key, value in yaml_config.items():
-            # Convert YAML key to uppercase Config attribute name
-            config_key = key.upper()
-
-            if isinstance(value, dict):
-                # Recursively flatten nested dictionaries
-                nested_flattened = cls._flatten_yaml_config(value, config_key)
-                flattened.update(nested_flattened)
-            else:
-                # Handle special cases for nested keys
-                if prefix:
-                    # For nested keys, combine prefix with key
-                    if prefix == "YOUTRACK":
-                        # Direct mapping for youtrack section
-                        config_key = f"YOUTRACK_{config_key}"
-                    elif prefix == "MCP":
-                        config_key = f"MCP_{config_key}"
-                    elif prefix == "API":
-                        if config_key in ["MAX_RETRIES", "RETRY_DELAY"]:
-                            config_key = f"YOUTRACK_{config_key}"
-                        else:
-                            config_key = f"YOUTRACK_API_{config_key}"
-                    elif prefix == "LOGGING":
-                        # Direct mapping for logging section
-                        if config_key == "CONSOLE_DISABLE":
-                            config_key = "LOG_CONSOLE_DISABLE"
-                        elif config_key == "FILE":
-                            config_key = "LOG_FILE"
-                        elif config_key == "LEVEL":
-                            config_key = "LOG_LEVEL"
-                        else:
-                            config_key = f"LOG_{config_key}"
-                    elif prefix == "LLM":
-                        # Direct mapping for AI LLM section to OpenAI config
-                        if config_key == "API_KEY":
-                            config_key = "OPENAI_API_KEY"
-                        elif config_key == "API_URL":
-                            config_key = "OPENAI_BASE_URL"
-                        elif config_key == "MODEL":
-                            config_key = "OPENAI_MODEL"
-                        elif config_key == "MAX_TOKENS":
-                            config_key = "OPENAI_MAX_TOKENS"
-                        elif config_key == "TEMPERATURE":
-                            config_key = "OPENAI_TEMPERATURE"
-                        elif config_key == "TIMEOUT":
-                            config_key = "OPENAI_TIMEOUT"
-                        elif config_key == "ENABLED":
-                            config_key = "LLM_ENABLED"
-                    else:
-                        config_key = f"{prefix}_{config_key}"
-
-                flattened[config_key] = value
-
-        return flattened
-
-    @classmethod
-    def get_api_token(cls) -> str:
-        """
-        Get the API token from environment variable or token file with lazy loading.
-
+        Get the API token from configuration.
+        
         Returns:
             str: The API token
-
+            
         Raises:
             ValueError: If no token is found
         """
-        # First try environment variable (lazy loaded)
-        token = os.getenv("YOUTRACK_API_TOKEN", "")
-        if token:
-            return token
-
-        # Then try token file (lazy loaded)
-        token_file = os.getenv("YOUTRACK_TOKEN_FILE", "")
-        if token_file:
+        token_value = self.youtrack.api_token.get_secret_value() if self.youtrack.api_token else ""
+        
+        if token_value:
+            return token_value
+        
+        # Try token file if no direct token
+        if self.youtrack.token_file and Path(self.youtrack.token_file).exists():
             try:
-                with open(token_file, "r") as f:
-                    token = f.read().strip()
-                    if token:
-                        return token
+                token_value = Path(self.youtrack.token_file).read_text().strip()
+                if token_value:
+                    return token_value
             except (FileNotFoundError, IOError) as e:
-                raise ValueError(
-                    f"Could not read token file {token_file}: {e}"
-                )
-
-        # Finally try config attribute
-        if hasattr(cls, 'YOUTRACK_API_TOKEN') and cls.YOUTRACK_API_TOKEN:
-            return cls.YOUTRACK_API_TOKEN
-
+                logger.error(f"Could not read token file: {e}")
+        
         raise ValueError(
             "YouTrack API token is required. Provide it using YOUTRACK_API_TOKEN environment variable, "
             "YOUTRACK_TOKEN_FILE environment variable, or in configuration."
         )
-
-    @classmethod
-    def validate(cls) -> None:
+    
+    def validate(self) -> None:
         """
         Validate the configuration settings.
-
+        
         Raises:
             ValueError: If required settings are missing or invalid
         """
-        # API token is always required (from env var or file)
-        try:
-            cls.get_api_token()
-        except ValueError as e:
-            raise e
-
-        # URL is only required for self-hosted instances (Cloud instances can use API token only)
-        if not cls.YOUTRACK_CLOUD and not cls.YOUTRACK_URL:
+        # API token is always required
+        self.get_api_token()
+        
+        # URL is only required for self-hosted instances
+        if not self.youtrack.cloud and not self.youtrack.url:
             raise ValueError(
-                "YouTrack URL is required for self-hosted instances. Provide it using YOUTRACK_URL environment variable or set YOUTRACK_CLOUD=true for cloud instances."
+                "YouTrack URL is required for self-hosted instances. "
+                "Provide it using YOUTRACK_URL environment variable or set YOUTRACK_CLOUD=true for cloud instances."
             )
-
-        # If URL is provided, ensure it doesn't end with a trailing slash
-        if cls.YOUTRACK_URL:
-            cls.YOUTRACK_URL = cls.YOUTRACK_URL.rstrip("/")
-
-    @classmethod
-    def get_ssl_context(cls) -> Optional[ssl.SSLContext]:
+    
+    def get_ssl_context(self) -> Optional[ssl.SSLContext]:
         """
         Get SSL context for HTTPS requests.
-
+        
         Returns:
             SSLContext with proper configuration or None for default behavior
         """
-        if not cls.VERIFY_SSL:
-            # Create a context that doesn't verify certificates
+        if not self.youtrack.verify_ssl:
             context = ssl.create_default_context()
             context.check_hostname = False
             context.verify_mode = ssl.CERT_NONE
             return context
-
         return None
-
-    @classmethod
-    def is_cloud_instance(cls) -> bool:
+    
+    def is_cloud_instance(self) -> bool:
         """
         Check if the configured YouTrack instance is a cloud instance.
-
+        
         Returns:
             True if the instance is a cloud instance, False otherwise
         """
-        return cls.YOUTRACK_CLOUD or not cls.YOUTRACK_URL
-
-    @classmethod
-    def get_base_url(cls) -> str:
+        return self.youtrack.cloud or not self.youtrack.url
+    
+    def get_base_url(self) -> str:
         """
         Get the base URL for the YouTrack instance API.
-
-        For self-hosted instances, this is the configured URL.
-        For cloud instances, this is the workspace-specific youtrack.cloud API URL,
-        which is extracted from the API token or used directly if provided.
-
+        
         Returns:
             Base URL for the YouTrack API
         """
-        # If URL is explicitly provided, use it regardless of cloud setting
-        if cls.YOUTRACK_URL:
-            # Remove trailing slash to prevent double slashes
-            clean_url = cls.YOUTRACK_URL.rstrip('/')
-            return f"{clean_url}/api"
-
-        # For cloud instances without explicit URL, try to extract from token
-        if cls.is_cloud_instance():
-            # Handle both token formats: perm: and perm-
-            if "." in cls.YOUTRACK_API_TOKEN and (
-                cls.YOUTRACK_API_TOKEN.startswith("perm:")
-                or cls.YOUTRACK_API_TOKEN.startswith("perm-")
+        if self.youtrack.url:
+            return f"{self.youtrack.url}/api"
+        
+        if self.is_cloud_instance():
+            token_value = self.youtrack.api_token.get_secret_value() if self.youtrack.api_token else ""
+            
+            # Handle both token formats
+            if "." in token_value and (
+                token_value.startswith("perm:") or token_value.startswith("perm-")
             ):
-                token_parts = cls.YOUTRACK_API_TOKEN.split(".")
-
-                # Extract workspace from specific token formats
-                if len(token_parts) > 1:
-                    # For format: perm:username.workspace.12345...
-                    if cls.YOUTRACK_API_TOKEN.startswith("perm:"):
-                        workspace = token_parts[1]
-                        return f"https://{workspace}.youtrack.cloud/api"
-
-                    # For format: perm-base64.base64.hash
-                    elif cls.YOUTRACK_API_TOKEN.startswith("perm-"):
-                        # If we have a fixed workspace name from environment, use it
-                        if os.getenv("YOUTRACK_WORKSPACE"):
-                            workspace = os.getenv("YOUTRACK_WORKSPACE")
-                            return f"https://{workspace}.youtrack.cloud/api"
-
-                        if os.getenv("YOUTRACK_URL"):
-                            return f"{os.getenv('YOUTRACK_URL')}/api"
-
-            # Fallback error with better guidance
+                token_parts = token_value.split(".")
+                
+                if len(token_parts) > 1 and token_value.startswith("perm:"):
+                    workspace = token_parts[1]
+                    return f"https://{workspace}.youtrack.cloud/api"
+                elif self.youtrack.workspace:
+                    return f"https://{self.youtrack.workspace}.youtrack.cloud/api"
+            
+            if self.youtrack.workspace:
+                return f"https://{self.youtrack.workspace}.youtrack.cloud/api"
+            
             raise ValueError(
                 "Could not determine YouTrack Cloud URL. Please either:\n"
-                "1. Set YOUTRACK_URL to your YouTrack Cloud URL (e.g., https://yourworkspace.youtrack.cloud)\n"
+                "1. Set YOUTRACK_URL to your YouTrack Cloud URL\n"
                 "2. Set YOUTRACK_WORKSPACE to your workspace name\n"
                 "3. Use a token in the format perm:username.workspace.12345..."
             )
-
-        # Should never reach here as is_cloud_instance() returns True if URL is missing
-        raise ValueError(
-            "YouTrack URL is required. Please set YOUTRACK_URL environment variable."
-        )
+        
+        raise ValueError("YouTrack URL is required. Please set YOUTRACK_URL environment variable.")
 
 
-# Create a global config instance
+# Backward compatibility layer for old Config class
+class Config:
+    """
+    Backward compatibility wrapper for the old Config class.
+    This allows existing code to work without modification.
+    """
+    
+    def __init__(self):
+        self._settings = Settings()
+    
+    def __getattr__(self, name):
+        """Map old attribute names to new structure."""
+        # Direct mappings
+        if name == "YOUTRACK_URL":
+            return self._settings.youtrack.url
+        elif name == "YOUTRACK_API_TOKEN":
+            token = self._settings.youtrack.api_token
+            return token.get_secret_value() if token else ""
+        elif name == "YOUTRACK_TOKEN_FILE":
+            return str(self._settings.youtrack.token_file) if self._settings.youtrack.token_file else ""
+        elif name == "VERIFY_SSL":
+            return self._settings.youtrack.verify_ssl
+        elif name == "YOUTRACK_CLOUD":
+            return self._settings.youtrack.cloud
+        elif name == "MAX_RETRIES":
+            return self._settings.youtrack.max_retries
+        elif name == "RETRY_DELAY":
+            return self._settings.youtrack.retry_delay
+        elif name == "TOKEN_TTL_SECONDS":
+            return self._settings.youtrack.token_ttl_seconds
+        elif name == "ENABLE_TOKEN_REFRESH":
+            return self._settings.youtrack.enable_token_refresh
+        
+        # MCP settings
+        elif name == "MCP_SERVER_NAME":
+            return self._settings.mcp.server_name
+        elif name == "MCP_SERVER_DESCRIPTION":
+            return self._settings.mcp.server_description
+        elif name == "MCP_DEBUG":
+            return self._settings.mcp.debug
+        
+        # OpenAI settings
+        elif name == "OPENAI_API_KEY":
+            key = self._settings.openai.api_key
+            return key.get_secret_value() if key else ""
+        elif name == "OPENAI_BASE_URL":
+            return self._settings.openai.base_url or ""
+        elif name == "OPENAI_MODEL":
+            return self._settings.openai.model
+        elif name == "OPENAI_MAX_TOKENS":
+            return self._settings.openai.max_tokens
+        elif name == "OPENAI_TEMPERATURE":
+            return self._settings.openai.temperature
+        elif name == "OPENAI_TIMEOUT":
+            return self._settings.openai.timeout
+        elif name == "LLM_ENABLED":
+            return self._settings.openai.llm_enabled
+        
+        # Cache settings
+        elif name == "CACHE_ENABLED":
+            return self._settings.cache.enabled
+        elif name == "CACHE_TTL":
+            return self._settings.cache.ttl
+        elif name == "CACHE_MAX_SIZE":
+            return self._settings.cache.max_size
+        
+        # Logging settings
+        elif name == "LOG_LEVEL":
+            return self._settings.logging.level
+        elif name == "LOG_FILE":
+            return str(self._settings.logging.file) if self._settings.logging.file else None
+        elif name == "LOG_CONSOLE_DISABLE":
+            return self._settings.logging.console_disable
+        
+        # Display settings
+        elif name == "TIMEZONE":
+            return self._settings.display.timezone
+        
+        # Default for unknown attributes
+        else:
+            # Return empty string for removed feature flags to avoid errors
+            removed_flags = [
+                "NATURAL_LANGUAGE_SEARCH", "SMART_SUGGESTIONS", "ACTIVITY_ANALYSIS",
+                "AUTO_FIELD_DETECTION", "BATCH_OPERATIONS", "ASYNC_PROCESSING",
+                "CACHING_LAYER", "DEFAULT_QUERY_CONTEXT", "DEFAULT_STATE_FILTER",
+                "SHOW_ISSUE_URL", "MAX_DESCRIPTION_LENGTH", "TRUNCATE_LONG_TEXT",
+                "DATE_FORMAT", "DATETIME_FORMAT", "RATE_LIMIT_ENABLED",
+                "RATE_LIMIT_REQUESTS", "RATE_LIMIT_PERIOD", "CONNECTION_POOL_SIZE",
+                "CONNECTION_TIMEOUT", "READ_TIMEOUT", "MCP_TRANSPORT", "MCP_TIMEOUT",
+                "YOUTRACK_CAPS", "CONFIG_FILE"
+            ]
+            if name in removed_flags:
+                return "" if name.endswith("_FORMAT") or name.endswith("_FILTER") or name.endswith("_CONTEXT") else False
+            raise AttributeError(f"Config has no attribute '{name}'")
+    
+    def __setattr__(self, name, value):
+        """Allow setting attributes for backward compatibility."""
+        if name == "_settings":
+            super().__setattr__(name, value)
+        elif name == "YOUTRACK_URL":
+            self._settings.youtrack.url = value
+        elif name == "YOUTRACK_API_TOKEN":
+            self._settings.youtrack.api_token = SecretStr(value)
+        elif name == "YOUTRACK_CLOUD":
+            self._settings.youtrack.cloud = value
+        elif name == "VERIFY_SSL":
+            self._settings.youtrack.verify_ssl = value
+        elif name == "OPENAI_TEMPERATURE":
+            self._settings.openai.temperature = value
+        elif name == "OPENAI_TIMEOUT":
+            self._settings.openai.timeout = value
+        elif name == "LLM_ENABLED":
+            self._settings.openai.llm_enabled = value
+        elif name == "LOG_LEVEL":
+            self._settings.logging.level = value
+        elif name == "LOG_FILE":
+            self._settings.logging.file = Path(value) if value else None
+        elif name == "LOG_CONSOLE_DISABLE":
+            self._settings.logging.console_disable = value
+        else:
+            # Ignore setting of removed attributes
+            pass
+    
+    @classmethod
+    def from_dict(cls, config_dict: dict) -> None:
+        """Update configuration from a dictionary (backward compat)."""
+        global config
+        for key, value in config_dict.items():
+            if hasattr(config, key):
+                setattr(config, key, value)
+    
+    def load_from_yaml(self, yaml_file: str) -> None:
+        """Load configuration from YAML file (backward compat)."""
+        self._settings.load_from_yaml(yaml_file)
+    
+    def get_api_token(self) -> str:
+        """Get the API token (backward compat)."""
+        return self._settings.get_api_token()
+    
+    def validate(self) -> None:
+        """Validate configuration (backward compat)."""
+        return self._settings.validate()
+    
+    def get_ssl_context(self) -> Optional[ssl.SSLContext]:
+        """Get SSL context (backward compat)."""
+        return self._settings.get_ssl_context()
+    
+    def is_cloud_instance(self) -> bool:
+        """Check if cloud instance (backward compat)."""
+        return self._settings.is_cloud_instance()
+    
+    def get_base_url(self) -> str:
+        """Get base URL (backward compat)."""
+        return self._settings.get_base_url()
+
+
+# Global instances for backward compatibility
 config = Config()
+settings = config._settings  # Direct access to new settings if needed

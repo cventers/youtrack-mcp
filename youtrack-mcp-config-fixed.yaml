@@ -1,0 +1,40 @@
+# YouTrack MCP Server Configuration - NEW SIMPLIFIED FORMAT
+# Environment variables take precedence over these YAML values
+
+youtrack:
+  url: https://exceleron.myjetbrains.com
+  api_token: ${YOUTRACK_API_TOKEN}  # Set via environment variable
+  verify_ssl: true
+  cloud: true
+  max_retries: 3
+  retry_delay: 1.0
+  token_ttl_seconds: 3600
+  enable_token_refresh: true
+
+mcp:
+  server_name: youtrack-mcp
+  server_description: YouTrack MCP Server
+  debug: true
+
+openai:
+  # Using Groq as OpenAI-compatible provider
+  base_url: https://api.groq.com/openai/v1/
+  api_key: ${OPENAI_API_KEY}  # Set via environment variable
+  model: openai/gpt-oss-120b
+  max_tokens: 1000
+  temperature: 0.3
+  timeout: 30
+  llm_enabled: true  # Automatically enabled when api_key is present
+
+cache:
+  enabled: true
+  ttl: 300
+  max_size: 100
+
+logging:
+  level: DEBUG
+  file: /home/chase/.local/share/youtrack-mcp/youtrack-mcp.log
+  console_disable: false
+
+display:
+  timezone: America/Chicago
