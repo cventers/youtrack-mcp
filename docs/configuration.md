@@ -14,51 +14,88 @@ The server looks for configuration files in the following order:
 
 Configuration can be provided via YAML file or environment variables. Environment variables override YAML settings.
 
+### Configuration Format
+
+Configuration can be provided via YAML file or environment variables. Environment variables override YAML settings.
+
 ### YAML Structure
 
 ```yaml
 # YouTrack Configuration
-youtrack_url: "https://your-instance.youtrack.cloud"
-youtrack_api_token: "perm-XXXXXXXXXXXXXXXXXXXX"
-youtrack_cloud: true
-verify_ssl: true
-max_retries: 3
-retry_delay: 1.0
+youtrack:
+  url: "https://your-instance.youtrack.cloud"
+  api_token: "perm-XXXXXXXXXXXXXXXXXXXX"
+  cloud: true
+  verify_ssl: true
+  max_retries: 3
+  retry_delay: 1.0
 
 # MCP Server Configuration
-mcp_server_name: "youtrack-mcp"
-mcp_server_description: "YouTrack integration for Claude Code"
-mcp_debug: false
-mcp_transport: "stdio"
+mcp:
+  server_name: "youtrack-mcp"
+  server_description: "YouTrack MCP Server"
+  debug: false
+  transport: "stdio"
+  timeout: 15000
 
-# OpenAI Configuration (for AI features)
-openai_api_key: "your-openai-api-key"
-openai_api_base: "https://api.openai.com/v1"
-openai_model: "gpt-4"
-openai_max_tokens: 1000
-openai_temperature: 0.3
-openai_timeout: 30
-llm_enabled: true
+# AI Configuration
+ai:
+  llm:
+    api_url: "https://api.openai.com/v1"
+    api_key: "sk-your-openai-key"
+    model: "gpt-4o-mini"
+    max_tokens: 1000
+    temperature: 0.7
+    timeout: 30
+    enabled: true
 
-# Alternative: Hugging Face Models
-hf_model: "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
-hf_device: "cpu"
-hf_max_tokens: 500
-hf_temperature: 0.3
-hf_torch_dtype: "auto"
-hf_4bit: false
-hf_8bit: false
-hf_trust_remote_code: false
-hf_enabled: false
+
 
 # Cache Configuration
-cache_enabled: true
-cache_ttl: 300
-cache_max_size: 100
+cache:
+  enabled: true
+  ttl: 300
+  max_size: 100
 
 # Logging Configuration
-log_level: "INFO"
-log_file: null
+logging:
+  level: "INFO"
+  file: null
+  console_disable: false
+
+# Connection Configuration
+connection:
+  pool_size: 10
+  timeout: 30
+  read_timeout: 60
+
+# Rate Limiting
+rate_limit:
+  enabled: true
+  requests: 100
+  period: 60
+
+# User Preferences
+preferences:
+  date_format: "%Y-%m-%d"
+  datetime_format: "%Y-%m-%d %H:%M:%S"
+  timezone: "America/Chicago"
+  max_description_length: 500
+  truncate_long_text: true
+  show_issue_url: false
+  default_query_context: "me"
+  default_state_filter: "Open"
+
+# Feature Flags
+features:
+  natural_language_search: false
+  smart_suggestions: false
+  activity_analysis: false
+  auto_field_detection: false
+  batch_operations: false
+  async_processing: false
+  caching_layer: false
+```
 
 # Tool-specific Settings
 tools:
@@ -147,22 +184,10 @@ Error enhancement is always rule-based. NL to YQL translation (ai.plan, search a
 | `openai_api_key` | `OPENAI_API_KEY` | `""` | OpenAI API key |
 | `openai_base_url` | `OPENAI_BASE_URL` | `""` | OpenAI API base URL |
 | `openai_model` | `OPENAI_MODEL` | `"gpt-4o-mini"` | OpenAI model name |
+| `openai_max_tokens` | `OPENAI_MAX_TOKENS` | `"1000"` | Maximum tokens per request |
 | `openai_temperature` | `OPENAI_TEMPERATURE` | `"0.7"` | Response temperature |
 | `openai_timeout` | `OPENAI_TIMEOUT` | `"30"` | Request timeout (seconds) |
-
-### Hugging Face Configuration
-
-| Setting | Environment Variable | Default | Description |
-|---------|---------------------|---------|-------------|
-| `hf_model` | `HF_MODEL` | `""` | Hugging Face model name |
-| `hf_device` | `HF_DEVICE` | `"cpu"` | Device for model inference |
-| `hf_max_tokens` | `HF_MAX_TOKENS` | `"500"` | Maximum tokens per request |
-| `hf_temperature` | `HF_TEMPERATURE` | `"0.3"` | Response temperature |
-| `hf_torch_dtype` | `HF_TORCH_DTYPE` | `"auto"` | PyTorch data type |
-| `hf_4bit` | `HF_4BIT` | `"false"` | Enable 4-bit quantization |
-| `hf_8bit` | `HF_8BIT` | `"false"` | Enable 8-bit quantization |
-| `hf_trust_remote_code` | `HF_TRUST_REMOTE_CODE` | `"false"` | Trust remote code |
-| `hf_enabled` | `HF_ENABLED` | `"false"` | Enable Hugging Face features |
+| `llm_enabled` | `LLM_ENABLED` | `"false"` | Enable LLM features |
 
 ### Cache Configuration
 
@@ -239,6 +264,14 @@ export YOUTRACK_MCP_YOUTRACK_API_TOKEN="your-token"
 export YOUTRACK_MCP_LOG_LEVEL="DEBUG"
 ```
 
+Or use direct environment variables (these take precedence over YOUTRACK_MCP_ prefixed ones):
+
+```bash
+export YOUTRACK_URL="https://your-instance.youtrack.cloud"
+export YOUTRACK_API_TOKEN="your-token"
+export LOG_LEVEL="DEBUG"
+```
+
 ## Authentication
 
 ### YouTrack Cloud
@@ -272,17 +305,38 @@ youtrack_token_file: "/path/to/token/file"
 - **NL to YQL Translation**: Requires OpenAI configuration for ai.plan and search autosearch
 
 ```yaml
-# OpenAI (required for ai.plan and search autosearch)
-openai_api_key: "sk-..."
-openai_base_url: "https://api.openai.com/v1"
-openai_model: "gpt-4o-mini"
-openai_temperature: 0.7
+# YAML format
+ai:
+  llm:
+    api_url: "https://api.openai.com/v1"
+    api_key: "sk-..."
+    model: "gpt-4o-mini"
+    temperature: 0.7
+    enabled: true
+```
+
+```bash
+# Environment variables
+export YOUTRACK_MCP_OPENAI_API_KEY="sk-..."
+export YOUTRACK_MCP_OPENAI_BASE_URL="https://api.openai.com/v1"
+export YOUTRACK_MCP_OPENAI_MODEL="gpt-4o-mini"
+export YOUTRACK_MCP_OPENAI_TEMPERATURE="0.7"
+export YOUTRACK_MCP_LLM_ENABLED="true"
 ```
 
 ### OpenAI Setup
 ```yaml
-openai_api_key: "sk-..."
-openai_model: "gpt-4"
+ai:
+  llm:
+    api_key: "sk-..."
+    model: "gpt-4"
+    enabled: true
+```
+
+```bash
+export YOUTRACK_MCP_OPENAI_API_KEY="sk-..."
+export YOUTRACK_MCP_OPENAI_MODEL="gpt-4"
+export YOUTRACK_MCP_LLM_ENABLED="true"
 ```
 
 ### Groq Cloud (Recommended)

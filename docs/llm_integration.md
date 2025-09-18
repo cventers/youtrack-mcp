@@ -53,75 +53,67 @@ See the following documentation for detailed configuration guidance:
 #### OpenAI-Compatible Provider
 ```bash
 # Basic configuration
-YOUTRACK_LLM_API_URL=https://api.openai.com/v1
-YOUTRACK_LLM_API_KEY=your_api_key_here
-YOUTRACK_LLM_MODEL=gpt-3.5-turbo
+YOUTRACK_MCP_OPENAI_BASE_URL=https://api.openai.com/v1
+YOUTRACK_MCP_OPENAI_API_KEY=your_api_key_here
+YOUTRACK_MCP_OPENAI_MODEL=gpt-3.5-turbo
 
 # Optional parameters
-YOUTRACK_LLM_MAX_TOKENS=1000
-YOUTRACK_LLM_TEMPERATURE=0.3
-YOUTRACK_LLM_TIMEOUT=30
-YOUTRACK_LLM_ENABLED=true
+YOUTRACK_MCP_OPENAI_MAX_TOKENS=1000
+YOUTRACK_MCP_OPENAI_TEMPERATURE=0.3
+YOUTRACK_MCP_OPENAI_TIMEOUT=30
+YOUTRACK_MCP_LLM_ENABLED=true
 ```
 
-#### Hugging Face Transformers
+Or using direct environment variables:
+
 ```bash
-# Model configuration
-YOUTRACK_HF_MODEL=Qwen/Qwen1.5-0.5B-Chat
-YOUTRACK_HF_DEVICE=cpu
-YOUTRACK_HF_ENABLED=true
-
-# Quantization (optional)
-YOUTRACK_HF_4BIT=true          # Use 4-bit quantization
-YOUTRACK_HF_8BIT=false         # Use 8-bit quantization
-YOUTRACK_HF_TORCH_DTYPE=auto   # auto, float16, bfloat16
-
-# Advanced options
-YOUTRACK_HF_MAX_TOKENS=1000
-YOUTRACK_HF_TEMPERATURE=0.3
-YOUTRACK_HF_TRUST_REMOTE_CODE=false
+OPENAI_BASE_URL=https://api.openai.com/v1
+OPENAI_API_KEY=your_api_key_here
+OPENAI_MODEL=gpt-3.5-turbo
+LLM_ENABLED=true
 ```
+
+
 
 #### General AI Settings
 ```bash
-# AI processor configuration
-YOUTRACK_AI_ENABLED=true
-YOUTRACK_AI_MAX_MEMORY_MB=2048
+# Enable LLM features
+YOUTRACK_MCP_LLM_ENABLED=true
+```
+
+Or using direct environment variables:
+
+```bash
+LLM_ENABLED=true
 ```
 
 ## Provider Examples
 
 ### OpenAI
 ```bash
-export YOUTRACK_LLM_API_URL="https://api.openai.com/v1"
-export YOUTRACK_LLM_API_KEY="sk-your-openai-key"
-export YOUTRACK_LLM_MODEL="gpt-3.5-turbo"
-export YOUTRACK_LLM_ENABLED="true"
+export YOUTRACK_MCP_OPENAI_BASE_URL="https://api.openai.com/v1"
+export YOUTRACK_MCP_OPENAI_API_KEY="sk-your-openai-key"
+export YOUTRACK_MCP_OPENAI_MODEL="gpt-3.5-turbo"
+export YOUTRACK_MCP_LLM_ENABLED="true"
 ```
 
 ### Anthropic Claude
 ```bash
-export YOUTRACK_LLM_API_URL="https://api.anthropic.com/v1"
-export YOUTRACK_LLM_API_KEY="sk-ant-your-anthropic-key"
-export YOUTRACK_LLM_MODEL="claude-3-haiku-20240307"
-export YOUTRACK_LLM_ENABLED="true"
+export YOUTRACK_MCP_OPENAI_BASE_URL="https://api.anthropic.com/v1"
+export YOUTRACK_MCP_OPENAI_API_KEY="sk-ant-your-anthropic-key"
+export YOUTRACK_MCP_OPENAI_MODEL="claude-3-haiku-20240307"
+export YOUTRACK_MCP_LLM_ENABLED="true"
 ```
 
 ### Ollama (Local)
 ```bash
-export YOUTRACK_LLM_API_URL="http://localhost:11434/v1"
-export YOUTRACK_LLM_API_KEY="ollama"
-export YOUTRACK_LLM_MODEL="llama2"
-export YOUTRACK_LLM_ENABLED="true"
+export YOUTRACK_MCP_OPENAI_BASE_URL="http://localhost:11434/v1"
+export YOUTRACK_MCP_OPENAI_API_KEY="ollama"
+export YOUTRACK_MCP_OPENAI_MODEL="llama2"
+export YOUTRACK_MCP_LLM_ENABLED="true"
 ```
 
-### Hugging Face (Local CPU)
-```bash
-export YOUTRACK_HF_MODEL="Qwen/Qwen1.5-0.5B-Chat"
-export YOUTRACK_HF_DEVICE="cpu"
-export YOUTRACK_HF_4BIT="true"
-export YOUTRACK_HF_ENABLED="true"
-```
+
 
 ## Recommended Models for CPU Inference
 
@@ -240,12 +232,7 @@ result = await analyze_user_activity_patterns(
 
 ## Provider Priority
 
-The system uses configured providers in priority order:
-
-1. **OpenAI-Compatible** (if configured and available)
-2. **Hugging Face** (if configured and model loaded)
-
-Error message enhancement is always available regardless of AI provider configuration.
+The system uses OpenAI-compatible APIs for all AI features. Error message enhancement is always available regardless of AI provider configuration.
 
 ## Troubleshooting
 

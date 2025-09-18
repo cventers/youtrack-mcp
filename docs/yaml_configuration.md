@@ -85,11 +85,7 @@ ai:
     enabled: true
   
 
-  
-  # Local model support (future feature)
-  local:
-    model_path: "/path/to/local/model"
-    enabled: false
+
 ```
 
 ### OAuth2/OIDC Configuration

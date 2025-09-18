@@ -12,6 +12,7 @@ from cachetools import TTLCache
 from .openai_client import OpenAIClient
 from ..utils import ErrorEnhancementResult, ErrorHandler
 from . import QueryTranslationResult
+from .template_loader import get_template_loader
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +40,9 @@ class AIService:
 
         # Error handler for rule-based error enhancement
         self.error_handler = error_handler or ErrorHandler()
+
+        # Template loader for prompt management
+        self.template_loader = get_template_loader()
 
         logger.info("AIService initialized (NL to YQL: LLM required)")
 
@@ -97,21 +101,13 @@ class AIService:
             return self.query_cache[cache_key]
 
         try:
-            system_prompt = """You are a YouTrack Query Language (YQL) expert. Convert natural language queries to YQL.
-
-YQL syntax examples:
-- project: ProjectName
-- assignee: me, assignee: Unassigned
-- state: Open, state: {In Progress}
-- priority: Critical, priority: High
-- created: -7d .. *, created: 2025-01-01 .. 2025-01-31
-- {Custom Field}: Value
-
-Return only the YQL query, no explanations."""
-
-            prompt = f"Convert this natural language query to YouTrack YQL: '{natural_query}'"
-            if project_context:
-                prompt += f"\nProject context: {project_context}"
+            # Load prompts from templates
+            system_prompt = self.template_loader.get_system_prompt("yql_translation")
+            prompt = self.template_loader.get_user_prompt(
+                "yql_user_prompt",
+                natural_query=natural_query,
+                project_context=project_context
+            )
 
             response = self.openai_client.complete(
                 prompt=prompt,
@@ -146,19 +142,13 @@ Return only the YQL query, no explanations."""
             raise RuntimeError("OpenAI client required for LLM mode")
 
         try:
-            system_prompt = """You are a YouTrack API expert helping users understand and fix errors.
-Provide:
-1. Enhanced explanation of what went wrong
-2. Specific fix suggestion
-3. Example correction
-4. Learning tip for future queries
-
-Be concise and practical."""
-
-            prompt = f"""Error: {str(error)}
-Context: {json.dumps(context, indent=2)}
-
-Please enhance this error with helpful explanations and fix suggestions."""
+            # Load prompts from templates
+            system_prompt = self.template_loader.get_system_prompt("error_enhancement")
+            prompt = self.template_loader.get_user_prompt(
+                "error_user_prompt",
+                error=str(error),
+                context=context
+            )
 
             response = self.openai_client.complete(
                 prompt=prompt,
@@ -192,34 +182,13 @@ Please enhance this error with helpful explanations and fix suggestions."""
             raise RuntimeError("OpenAI client required for LLM mode")
 
         try:
-            system_prompt = """You are a YouTrack expert assistant. Analyze user intent and create a detailed execution plan.
-
-Available tools:
-- issues.create: Create new issues
-- issues.get: Read issue details
-- issues.patch: Update existing issues
-- issues.delete: Delete issues
-- search.autosearch: Natural language search for issues
-- projects.list: List all projects
-- projects.get: Get project details
-- users.search: Search for users
-
-Return a JSON plan with:
-- intent: Original user intent
-- context: Provided context
-- requires_confirmation: Always true for safety
-- plan: Array of action objects with tool, description, and parameters
-- explanations: Array of human-readable explanations
-- suggested_tools: Array of recommended tool names
-- estimated_complexity: "low", "medium", or "high"
-
-Be specific about which tools to use and what parameters they need."""
-
-            prompt = f"""Analyze this user intent and create an execution plan: "{intent}"
-
-Context: {json.dumps(context, indent=2)}
-
-Return only valid JSON matching the specified format."""
+            # Load prompts from templates
+            system_prompt = self.template_loader.get_system_prompt("intent_analysis")
+            prompt = self.template_loader.get_user_prompt(
+                "intent_user_prompt",
+                intent=intent,
+                context=context
+            )
 
             response = self.openai_client.complete(
                 prompt=prompt,
