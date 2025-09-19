@@ -660,19 +660,35 @@ class ResponseValidator:
 **File**: `youtrack_mcp/config.py` (additions)
 
 ```python
-# LLM Configuration
-LLM_CONFIG = {
-    "max_retries": int(os.getenv("LLM_MAX_RETRIES", "3")),
-    "min_confidence": float(os.getenv("LLM_MIN_CONFIDENCE", "0.6")),
-    "require_json": os.getenv("LLM_REQUIRE_JSON", "true").lower() == "true",
-    "temperature": float(os.getenv("LLM_TEMPERATURE", "0.3")),
-    "max_tokens": {
-        "yql_translation": int(os.getenv("LLM_MAX_TOKENS_YQL", "500")),
-        "error_enhancement": int(os.getenv("LLM_MAX_TOKENS_ERROR", "800")),
-        "intent_analysis": int(os.getenv("LLM_MAX_TOKENS_INTENT", "1500"))
-    },
-    "cache_ttl": int(os.getenv("LLM_CACHE_TTL", "3600")),  # 1 hour
-}
+class LLMConfig(BaseSettings):
+    """LLM-specific configuration for enhanced prompting."""
+    
+    model_config = ConfigDict(
+        env_prefix="LLM_",
+        case_sensitive=False,
+    )
+    
+    # Retry configuration
+    max_retries: int = Field(3, ge=0, le=10, description="Maximum retry attempts for LLM calls")
+    min_confidence: float = Field(0.6, ge=0.0, le=1.0, description="Minimum confidence threshold")
+    require_json: bool = Field(True, description="Require JSON responses from LLM")
+    
+    # Token limits per operation type
+    max_tokens_yql: int = Field(500, ge=100, description="Max tokens for YQL translation")
+    max_tokens_error: int = Field(800, ge=100, description="Max tokens for error enhancement")
+    max_tokens_intent: int = Field(1500, ge=100, description="Max tokens for intent analysis")
+    
+    # Cache settings
+    cache_ttl: int = Field(3600, ge=60, description="Cache TTL in seconds (default 1 hour)")
+    
+    # Validation settings
+    validate_json_schema: bool = Field(True, description="Validate responses against JSON schema")
+    extract_json_from_markdown: bool = Field(True, description="Try to extract JSON from markdown blocks")
+
+# Add to Settings class
+class Settings(BaseSettings):
+    # ... existing nested configurations ...
+    llm: LLMConfig = Field(default_factory=LLMConfig)
 ```
 
 ### 3. Testing Strategy
@@ -720,7 +736,7 @@ class TestPromptResponses:
 
 ### 4. Implementation Checklist
 
-#### Phase 1: Update Existing Templates (Week 1)
+#### Phase 1: Update Existing Templates
 
 **AI Agent Instructions**: Use TodoWrite to track progress. Mark each item as completed after implementation.
 
@@ -749,7 +765,7 @@ class TestPromptResponses:
 - [ ] Update `prompts/intent_user_prompt.j2` with intent context
   - Pass available context and entities
 
-#### Phase 2: Implement Validation (Week 1-2)
+#### Phase 2: Implement Validation
 
 **AI Agent Instructions**: Create new files and integrate with existing codebase. Run tests after each component.
 
@@ -768,7 +784,7 @@ class TestPromptResponses:
   - Test schema validation pass/fail cases
   - Test retry logic with mock responses
 
-#### Phase 3: Update AI Service (Week 2)
+#### Phase 3: Update AI Service
 
 **AI Agent Instructions**: Modify existing AIService class. Replace existing implementation completely.
 
@@ -786,15 +802,15 @@ class TestPromptResponses:
   - Clear all existing caches on deployment
   - Use new cache key format
 
-#### Phase 4: Configuration Updates (Week 2)
+#### Phase 4: Configuration Updates
 
-**AI Agent Instructions**: Update configuration files and environment handling.
+**AI Agent Instructions**: Update configuration files to use new pydantic-settings framework.
 
-- [ ] Update `youtrack_mcp/config.py` with LLM settings
-  - Add LLM_MAX_RETRIES (default: 3)
-  - Add LLM_MIN_CONFIDENCE (default: 0.6)
-  - Add LLM_REQUIRE_JSON (default: true)
-  - Add per-operation max_tokens settings
+- [ ] Add LLMConfig class to `youtrack_mcp/config.py`
+  - Create LLMConfig with BaseSettings
+  - Add all LLM-specific settings with Field validators
+  - Integrate with Settings class as nested configuration
+  - Update backward compatibility layer if needed
   
 - [ ] Update `.env.example` with new variables
   - Document all LLM configuration options
@@ -804,7 +820,7 @@ class TestPromptResponses:
   - Add section on LLM configuration
   - Include troubleshooting guide
 
-#### Phase 5: Testing & Documentation (Week 3)
+#### Phase 5: Testing & Documentation
 
 **AI Agent Instructions**: Create comprehensive tests and documentation. Verify all functionality.
 
