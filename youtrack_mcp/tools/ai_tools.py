@@ -9,7 +9,7 @@ import json
 import logging
 from typing import Any, Dict, Optional
 
-from youtrack_mcp.tools.ai.ai_tools import AITools as AIToolsImpl
+from youtrack_mcp.tools.ai_tools_v3 import AITools as AIToolsImpl
 
 logger = logging.getLogger(__name__)
 

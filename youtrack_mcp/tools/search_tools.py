@@ -196,7 +196,7 @@ class SearchTools:
         """
         try:
             # Use AI to translate natural language to YQL
-            translation_result = self.ai_tools.translate_to_yql(
+            translation_result = await self.ai_tools.translate_to_yql(
                 natural_language_query,
                 project_context
             )

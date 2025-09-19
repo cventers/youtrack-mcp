@@ -1,303 +1,240 @@
 """
-AI Service for YouTrack MCP Server.
+AI Service v3 for YouTrack MCP Server.
 
-Provides LLM-powered natural language to YQL translation with structured outputs.
+Fully async service using LiteLLM + Instructor for structured outputs.
 """
 
-import asyncio
-import json
-import logging
-from typing import Any, Dict, Optional, Union
+from typing import Dict, Optional, Any
 from cachetools import TTLCache
+import structlog
 
-from .openai_client import OpenAIClient, OutputMode
-from .errors import StructuredOutputError, ProviderError
+from .llm_client import LLMClient
+from .template_manager import TemplateManager
 from .models import (
     YQLTranslationResponse,
     ErrorEnhancementResponse,
-    IntentAnalysisResponse,
-    IntentPlanStep
+    IntentAnalysisResponse
 )
-from ..utils import ErrorEnhancementResult, ErrorHandler
-from . import QueryTranslationResult
-from .template_loader import get_template_loader
+from ..utils import ErrorHandler
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class AIService:
-    """
-    Unified AI service.
+    """Unified AI service with async-only operations."""
 
-    Error enhancement is always rule-based.
-    NL to YQL translation requires LLM for ai.plan and search autosearch.
-    """
-
-    def __init__(self, openai_client: Optional[OpenAIClient] = None, error_handler: Optional[ErrorHandler] = None):
-        """
-        Initialize AI service.
+    def __init__(
+        self,
+        llm_client: LLMClient,
+        template_manager: Optional[TemplateManager] = None,
+        error_handler: Optional[ErrorHandler] = None
+    ):
+        """Initialize AI service.
 
         Args:
-            openai_client: Optional OpenAIClient instance for NL to YQL
-            error_handler: Optional ErrorHandler instance (will create if not provided)
+            llm_client: LLMClient instance for structured outputs
+            template_manager: Optional template manager (will create if not provided)
+            error_handler: Optional error handler for rule-based enhancement
         """
-        self.openai_client = openai_client
+        self.llm_client = llm_client
+        self.template_manager = template_manager or TemplateManager()
+        self.error_handler = error_handler or ErrorHandler()
 
         # Caches
         self.query_cache = TTLCache(maxsize=1000, ttl=3600)  # 1 hour
+        self.error_cache = TTLCache(maxsize=500, ttl=1800)  # 30 minutes
 
-        # Error handler for rule-based error enhancement
-        self.error_handler = error_handler or ErrorHandler()
+        logger.info("AIService v3 initialized with async-only architecture")
 
-        # Template loader for prompt management
-        self.template_loader = get_template_loader()
-
-        logger.info("AIService initialized (NL to YQL: LLM required)")
-
-    @property
-    def error_patterns(self):
-        """Access error patterns from the error handler."""
-        return self.error_handler.error_patterns
-
-    def enhance_error_message(self, error: Union[Exception, str], context: Dict[str, Any]) -> ErrorEnhancementResult:
-        """
-        Enhance error message using rule-based processing.
-
-        Args:
-            error: Error exception or string
-            context: Operation context
-
-        Returns:
-            Enhanced error result
-        """
-        return self.error_handler.enhance_error(error, context)
-
-    async def translate_nl_to_yql(self, natural_query: str, project_context: Optional[str] = None) -> QueryTranslationResult:
-        """
-        Translate natural language to YQL using LLM with structured output.
+    async def translate_nl_to_yql(
+        self,
+        natural_query: str,
+        project_context: Optional[str] = None
+    ) -> YQLTranslationResponse:
+        """Translate natural language to YQL using LLM.
 
         Args:
             natural_query: Natural language query
             project_context: Optional project context
 
         Returns:
-            Translation result
+            YQLTranslationResponse with query and metadata
         """
-        if not self.openai_client:
-            return QueryTranslationResult(
-                yql_query="",
-                confidence=0.0,
-                reasoning="LLM client not configured for natural language queries",
-                original_input=natural_query,
-                detected_entities={},
-                suggestions=["Configure OpenAI client for ai.plan and search autosearch"]
-            )
-
-        return await self._llm_translate_nl_to_yql(natural_query, project_context)
-
-    def translate_nl_to_yql_sync(self, natural_query: str, project_context: Optional[str] = None) -> QueryTranslationResult:
-        """
-        Synchronous wrapper for translate_nl_to_yql (backward compatibility).
-        """
-        return asyncio.run(self.translate_nl_to_yql(natural_query, project_context))
-
-
-
-
-
-    async def _llm_translate_nl_to_yql(self, natural_query: str, project_context: Optional[str]) -> QueryTranslationResult:
-        """LLM-powered NL to YQL translation with structured output."""
-        if not self.openai_client:
-            raise RuntimeError("OpenAI client required for LLM mode")
-
-        cache_key = f"llm_query:{hash(natural_query)}{hash(str(project_context))}"
+        # Check cache
+        cache_key = f"{natural_query}:{project_context}"
         if cache_key in self.query_cache:
+            logger.debug("Using cached YQL translation", query=natural_query[:50])
             return self.query_cache[cache_key]
 
         try:
-            # Load prompts from templates
-            system_prompt = """You are an expert YouTrack Query Language (YQL) assistant. Your role is to translate natural language requests into precise YQL queries.
-
-Key capabilities:
-- Deep understanding of YQL syntax, operators, and field references
-- Knowledge of all YouTrack entities (issues, projects, users, custom fields)
-- Ability to handle complex date ranges and relative time expressions
-- Understanding of field type-specific query patterns
-
-Always provide accurate, optimized queries that follow YouTrack best practices."""
-
-            prompt = f"""Task: Convert the following natural language query to YQL.
-
-Natural Query: {natural_query}"""
-            if project_context:
-                prompt += f"\nProject Context: {project_context}"
-
-            prompt += """
-
-Requirements:
-- Generate the most accurate YQL query for the request
-- Use proper syntax for multi-word values (curly braces)
-- Apply correct date formats and operators
-- Consider the project context if provided"""
-
-            # Use structured output
-            response = await self.openai_client.complete_structured(
-                prompt=prompt,
-                response_model=YQLTranslationResponse,
-                system=system_prompt,
-                max_tokens=500,
-                temperature=0.3
+            # Render template
+            messages = self.template_manager.render_messages(
+                "yql/translation.j2",
+                natural_query=natural_query,
+                project_context=project_context
             )
 
-            # Convert to QueryTranslationResult for backward compatibility
-            result = QueryTranslationResult(
-                yql_query=response.yql_query,
-                confidence=response.confidence,
-                reasoning=response.reasoning,
-                original_input=natural_query,
-                detected_entities=response.detected_entities,
-                suggestions=response.alternative_queries or response.warnings
+            # Get structured response
+            response = await self.llm_client.complete_structured(
+                messages=messages,
+                response_model=YQLTranslationResponse
             )
 
-            self.query_cache[cache_key] = result
-            return result
+            # Cache result
+            self.query_cache[cache_key] = response
 
-        except StructuredOutputError as e:
-            logger.error(f"Structured output error in YQL translation: {e.to_dict()}")
-            raise RuntimeError(f"YQL translation failed: {e.message}")
-        except ProviderError as e:
-            logger.error(f"Provider error in YQL translation: {e.to_dict()}")
-            raise RuntimeError(f"LLM provider error: {e.message}")
+            logger.info(
+                "Translated natural language to YQL",
+                query_preview=natural_query[:50],
+                yql_preview=response.yql_query[:50],
+                confidence=response.confidence
+            )
+
+            return response
+
         except Exception as e:
-            logger.error(f"Unexpected error in YQL translation: {e}")
-            raise RuntimeError("LLM translation unavailable")
+            logger.error(
+                "YQL translation failed",
+                query=natural_query,
+                error=str(e)
+            )
+            # Return fallback response
+            return YQLTranslationResponse(
+                yql_query=f'text: "{natural_query}"',  # Fallback to text search
+                confidence=0.1,
+                reasoning=f"Translation failed: {str(e)}. Falling back to text search.",
+                warnings=[f"Translation error: {str(e)}"]
+            )
 
-    def _llm_enhance_error(self, error: Union[Exception, str], context: Dict[str, Any]) -> ErrorEnhancementResult:
-        """LLM-powered error enhancement."""
-        if not self.openai_client:
-            raise RuntimeError("OpenAI client required for LLM mode")
+    async def enhance_error_with_llm(
+        self,
+        error: Exception,
+        context: Dict[str, Any]
+    ) -> ErrorEnhancementResponse:
+        """Enhance error message using LLM for better user guidance.
+
+        Args:
+            error: Exception that occurred
+            context: Operation context
+
+        Returns:
+            ErrorEnhancementResponse with detailed guidance
+        """
+        # First try rule-based enhancement
+        rule_based = self.error_handler.enhance_error(error, context)
+
+        # Create cache key
+        error_str = str(error)
+        cache_key = f"{error_str[:100]}:{context.get('operation', 'unknown')}"
+
+        if cache_key in self.error_cache:
+            logger.debug("Using cached error enhancement")
+            return self.error_cache[cache_key]
 
         try:
-            # Load prompts from templates
-            system_prompt = self.template_loader.get_system_prompt("error_enhancement")
-            prompt = self.template_loader.get_user_prompt(
-                "error_user_prompt",
-                error=str(error),
-                context=context
+            # Render template
+            messages = self.template_manager.render_messages(
+                "error/enhancement.j2",
+                error_type=type(error).__name__,
+                error_message=error_str,
+                context=str(context),
+                operation=context.get('operation', 'Unknown')
             )
 
-            response = self.openai_client.complete(
-                prompt=prompt,
-                system=system_prompt,
-                max_tokens=500,
-                temperature=0.3
+            # Get structured response
+            response = await self.llm_client.complete_structured(
+                messages=messages,
+                response_model=ErrorEnhancementResponse
             )
 
-            if response and response.get('content'):
-                content = response['content'].strip()
-                lines = content.split('\n')
+            # Cache result
+            self.error_cache[cache_key] = response
 
-                result = ErrorEnhancementResult(
-                    enhanced_explanation=lines[0] if lines else content,
-                    fix_suggestion=lines[1] if len(lines) > 1 else "Check the error message for specific details",
-                    example_correction=lines[2] if len(lines) > 2 else "",
-                    learning_tip=lines[3] if len(lines) > 3 else "Review YouTrack Query Language documentation",
-                    confidence=response.get('confidence', 0.8)
-                )
-                return result
+            logger.info(
+                "Enhanced error with LLM",
+                error_category=response.error_category,
+                fix_time=response.estimated_fix_time
+            )
 
-            raise RuntimeError("LLM enhancement failed")
+            return response
 
-        except Exception as e:
-            logger.error(f"LLM enhancement error: {e}")
-            raise RuntimeError("LLM enhancement unavailable")
+        except Exception as llm_error:
+            logger.warning(
+                "LLM error enhancement failed, using rule-based",
+                error=str(llm_error)
+            )
 
-    async def analyze_intent(self, intent: str, context: Dict[str, Any]) -> Dict[str, Any]:
-        """Analyze user intent with structured output."""
-        if not self.openai_client:
-            raise RuntimeError("OpenAI client required for intent analysis")
+            # Fall back to rule-based enhancement
+            return ErrorEnhancementResponse(
+                error_category="server",
+                enhanced_explanation=rule_based.explanation,
+                root_cause=rule_based.category,
+                immediate_fix=rule_based.recommendation,
+                prevention_tips=rule_based.learn_from_this.split('. ') if rule_based.learn_from_this else [],
+                confidence=0.5,
+                estimated_fix_time="needs_investigation"
+            )
 
+    async def analyze_intent(
+        self,
+        intent: str,
+        context: Optional[Dict[str, Any]] = None
+    ) -> IntentAnalysisResponse:
+        """Analyze user intent and create execution plan.
+
+        Args:
+            intent: User's stated intent
+            context: Optional context information
+
+        Returns:
+            IntentAnalysisResponse with execution plan
+        """
         try:
-            system_prompt = """You are an expert YouTrack automation assistant that analyzes user intent and creates detailed execution plans.
-
-Core competencies:
-- Understanding complex multi-step operations
-- Risk assessment and validation requirements
-- Knowledge of YouTrack permissions and constraints
-- Ability to decompose tasks into atomic operations
-
-Always provide safe, idempotent plans with proper error handling."""
-
-            prompt = f"""Analyze the user's intent and create an execution plan:
-
-Intent: {intent}
-Context:"""
-            if context.get('current_project'):
-                prompt += f"\n- Project: {context['current_project']}"
-            if context.get('user_permissions'):
-                prompt += f"\n- User Permissions: {context['user_permissions']}"
-            if context.get('available_resources'):
-                prompt += f"\n- Available Resources: {context['available_resources']}"
-
-            prompt += """
-
-Generate a detailed plan including:
-1. Step-by-step operations
-2. Required validations
-3. Potential risks and mitigations
-4. Rollback strategy if needed"""
-
-            # Use structured output
-            response = await self.openai_client.complete_structured(
-                prompt=prompt,
-                response_model=IntentAnalysisResponse,
-                system=system_prompt,
-                max_tokens=1500,
-                temperature=0.3
+            # Render template
+            messages = self.template_manager.render_messages(
+                "intent/analysis.j2",
+                intent=intent,
+                context=context or {}
             )
 
-            # Convert to dictionary format for backward compatibility
-            plan_dicts = [
-                {
-                    'step': step.step,
-                    'tool': step.tool,
-                    'description': step.description,
-                    'parameters': step.parameters,
-                    'expected_result': step.expected_result,
-                    'error_handling': step.error_handling
-                }
-                for step in response.plan
-            ]
+            # Get structured response
+            response = await self.llm_client.complete_structured(
+                messages=messages,
+                response_model=IntentAnalysisResponse
+            )
 
-            result = {
-                'intent': response.intent,
-                'intent_category': response.intent_category,
-                'confidence': response.confidence,
-                'detected_entities': response.detected_entities,
-                'requires_confirmation': response.requires_confirmation,
-                'plan': plan_dicts,
-                'warnings': response.warnings,
-                'estimated_complexity': response.estimated_complexity,
-                'alternative_interpretations': response.alternative_interpretations,
-                'rollback_plan': response.rollback_plan,
-                # Backward compatibility fields
-                'context': context,
-                'explanations': response.warnings,
-                'suggested_tools': [step.tool for step in response.plan[:3]]
-            }
+            logger.info(
+                "Analyzed user intent",
+                intent_preview=intent[:50],
+                category=response.intent_category,
+                steps=len(response.plan),
+                complexity=response.estimated_complexity
+            )
 
-            return result
+            return response
 
-        except StructuredOutputError as e:
-            logger.error(f"Structured output error in intent analysis: {e.to_dict()}")
-            raise RuntimeError(f"Intent analysis failed: {e.message}")
-        except ProviderError as e:
-            logger.error(f"Provider error in intent analysis: {e.to_dict()}")
-            raise RuntimeError(f"LLM provider error: {e.message}")
         except Exception as e:
-            logger.error(f"Unexpected error in intent analysis: {e}")
-            raise RuntimeError("LLM intent analysis unavailable")
+            logger.error(
+                "Intent analysis failed",
+                intent=intent,
+                error=str(e)
+            )
+            raise
 
-    def _llm_analyze_intent(self, intent: str, context: Dict[str, Any]) -> Dict[str, Any]:
-        """Synchronous wrapper for analyze_intent (backward compatibility)."""
-        return asyncio.run(self.analyze_intent(intent, context))
+    def enhance_error(self, error: Exception, context: Dict[str, Any]) -> Dict[str, Any]:
+        """Rule-based error enhancement (synchronous fallback).
+
+        Args:
+            error: Exception that occurred
+            context: Operation context
+
+        Returns:
+            Enhanced error dictionary
+        """
+        result = self.error_handler.enhance_error(error, context)
+        return {
+            "explanation": result.explanation,
+            "category": result.category,
+            "recommendation": result.recommendation,
+            "learn_from_this": result.learn_from_this
+        }

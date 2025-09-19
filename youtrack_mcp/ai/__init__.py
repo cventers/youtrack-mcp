@@ -3,8 +3,8 @@
 from dataclasses import dataclass
 from typing import Any, Dict, List
 
-from .template_loader import PromptTemplateLoader, get_template_loader
-from .openai_client import OutputMode
+from .template_manager import TemplateManager
+from .llm_client import LLMClient
 from .errors import StructuredOutputError, ProviderError
 from .models import (
     YQLTranslationResponse,
@@ -27,9 +27,8 @@ class QueryTranslationResult:
 
 __all__ = [
     "QueryTranslationResult",
-    "PromptTemplateLoader",
-    "get_template_loader",
-    "OutputMode",
+    "TemplateManager",
+    "LLMClient",
     "StructuredOutputError",
     "ProviderError",
     "YQLTranslationResponse",
