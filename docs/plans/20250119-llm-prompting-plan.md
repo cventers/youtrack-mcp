@@ -810,7 +810,7 @@ class TestPromptResponses:
   - Create LLMConfig with BaseSettings
   - Add all LLM-specific settings with Field validators
   - Integrate with Settings class as nested configuration
-  - Update backward compatibility layer if needed
+
   
 - [ ] Update `.env.example` with new variables
   - Document all LLM configuration options
