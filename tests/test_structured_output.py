@@ -1,0 +1,432 @@
+"""
+Test suite for structured output implementation.
+
+Tests the three output modes and validates response models.
+"""
+
+import asyncio
+import json
+import pytest
+from unittest.mock import Mock, patch, MagicMock
+from typing import Dict, Any
+
+from youtrack_mcp.ai.openai_client import OpenAIClient, OutputMode
+from youtrack_mcp.ai.models import (
+    YQLTranslationResponse,
+    ErrorEnhancementResponse,
+    IntentAnalysisResponse,
+    IntentPlanStep
+)
+from youtrack_mcp.ai.errors import StructuredOutputError, ProviderError
+from youtrack_mcp.ai.service import AIService
+
+
+class TestStructuredOutputModes:
+    """Test the three output modes for structured responses."""
+
+    @pytest.fixture
+    def mock_openai_response(self):
+        """Mock OpenAI API response."""
+        response = Mock()
+        response.id = "test-request-id"
+        response.usage = Mock(total_tokens=100, completion_tokens=50)
+        response.choices = [Mock()]
+        return response
+
+    @pytest.mark.asyncio
+    async def test_json_schema_mode_success(self, mock_openai_response):
+        """Test successful JSON schema mode validation."""
+        # Setup
+        mock_openai_response.choices[0].message.content = json.dumps({
+            "yql_query": "project: DEMO state: Open",
+            "confidence": 0.95,
+            "reasoning": "Filtered by project and state",
+            "detected_entities": {"projects": ["DEMO"], "states": ["Open"]},
+            "alternative_queries": [],
+            "warnings": []
+        })
+
+        with patch('openai.OpenAI') as MockOpenAI:
+            mock_client = Mock()
+            MockOpenAI.return_value = mock_client
+            mock_client.chat.completions.create.return_value = mock_openai_response
+
+            client = OpenAIClient(
+                api_key="test-key",
+                mode=OutputMode.JSON_SCHEMA
+            )
+
+            # Act
+            result = await client.complete_structured(
+                prompt="Find open issues in DEMO project",
+                response_model=YQLTranslationResponse,
+                system="Test system prompt"
+            )
+
+            # Assert
+            assert isinstance(result, YQLTranslationResponse)
+            assert result.yql_query == "project: DEMO state: Open"
+            assert result.confidence == 0.95
+            assert "projects" in result.detected_entities
+
+    @pytest.mark.asyncio
+    async def test_json_object_mode_with_retry(self, mock_openai_response):
+        """Test JSON object mode with validation retry."""
+        # First response - invalid
+        invalid_response = Mock()
+        invalid_response.id = "test-request-1"
+        invalid_response.choices = [Mock()]
+        invalid_response.choices[0].message.content = json.dumps({
+            "yql_query": "",  # Invalid - empty query
+            "confidence": 0.5,
+            "reasoning": "Test"
+        })
+
+        # Second response - valid
+        valid_response = Mock()
+        valid_response.id = "test-request-2"
+        valid_response.choices = [Mock()]
+        valid_response.choices[0].message.content = json.dumps({
+            "yql_query": "project: DEMO",
+            "confidence": 0.8,
+            "reasoning": "Fixed validation error"
+        })
+
+        with patch('openai.OpenAI') as MockOpenAI:
+            mock_client = Mock()
+            MockOpenAI.return_value = mock_client
+            mock_client.chat.completions.create.side_effect = [
+                invalid_response,
+                valid_response
+            ]
+
+            client = OpenAIClient(
+                api_key="test-key",
+                mode=OutputMode.JSON_OBJECT,
+                max_retries=2
+            )
+
+            # Act
+            result = await client.complete_structured(
+                prompt="Find issues in DEMO",
+                response_model=YQLTranslationResponse,
+                system="Test system prompt"
+            )
+
+            # Assert
+            assert isinstance(result, YQLTranslationResponse)
+            assert result.yql_query == "project: DEMO"
+            assert result.confidence == 0.8
+            assert mock_client.chat.completions.create.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_inline_mode_markdown_extraction(self, mock_openai_response):
+        """Test inline mode with JSON extraction from markdown."""
+        # Response with markdown code block
+        mock_openai_response.choices[0].message.content = """
+        Here's the YQL translation:
+
+        ```json
+        {
+            "yql_query": "assignee: me state: {In Progress}",
+            "confidence": 0.9,
+            "reasoning": "User's in-progress tasks",
+            "detected_entities": {"assignee": ["me"], "states": ["In Progress"]},
+            "alternative_queries": ["for: me state: {In Progress}"],
+            "warnings": []
+        }
+        ```
+
+        This query finds your in-progress issues.
+        """
+
+        with patch('openai.OpenAI') as MockOpenAI:
+            mock_client = Mock()
+            MockOpenAI.return_value = mock_client
+            mock_client.chat.completions.create.return_value = mock_openai_response
+
+            client = OpenAIClient(
+                api_key="test-key",
+                mode=OutputMode.INLINE
+            )
+
+            # Act
+            result = await client.complete_structured(
+                prompt="Show my in-progress work",
+                response_model=YQLTranslationResponse,
+                system="Test system prompt"
+            )
+
+            # Assert
+            assert isinstance(result, YQLTranslationResponse)
+            assert result.yql_query == "assignee: me state: {In Progress}"
+            assert result.confidence == 0.9
+            assert "In Progress" in result.detected_entities["states"]
+
+    @pytest.mark.asyncio
+    async def test_structured_output_error_handling(self):
+        """Test StructuredOutputError is raised on validation failure."""
+        with patch('openai.OpenAI') as MockOpenAI:
+            mock_client = Mock()
+            MockOpenAI.return_value = mock_client
+
+            # All responses are invalid
+            for _ in range(3):
+                invalid_response = Mock()
+                invalid_response.id = "test-request"
+                invalid_response.choices = [Mock()]
+                invalid_response.choices[0].message.content = json.dumps({
+                    "invalid_field": "test"  # Missing required fields
+                })
+                mock_client.chat.completions.create.return_value = invalid_response
+
+            client = OpenAIClient(
+                api_key="test-key",
+                mode=OutputMode.JSON_OBJECT,
+                max_retries=3
+            )
+
+            # Act & Assert
+            with pytest.raises(StructuredOutputError) as exc_info:
+                await client.complete_structured(
+                    prompt="Test prompt",
+                    response_model=YQLTranslationResponse
+                )
+
+            assert exc_info.value.attempt_count == 3
+            assert "Validation failed after retries" in exc_info.value.message
+
+
+class TestPydanticModels:
+    """Test Pydantic model validation."""
+
+    def test_yql_translation_response_validation(self):
+        """Test YQL translation response model validation."""
+        # Valid model
+        response = YQLTranslationResponse(
+            yql_query="project: TEST",
+            confidence=0.85,
+            reasoning="Simple project filter"
+        )
+        assert response.yql_query == "project: TEST"
+        assert response.confidence == 0.85
+        assert response.detected_entities == {}  # Default
+        assert response.alternative_queries == []  # Default
+
+        # Invalid confidence
+        with pytest.raises(ValueError):
+            YQLTranslationResponse(
+                yql_query="test",
+                confidence=1.5,  # > 1.0
+                reasoning="Invalid"
+            )
+
+        # Empty query
+        with pytest.raises(ValueError):
+            YQLTranslationResponse(
+                yql_query="",  # Empty
+                confidence=0.5,
+                reasoning="Empty query"
+            )
+
+    def test_error_enhancement_response_validation(self):
+        """Test error enhancement response model validation."""
+        # Valid model
+        response = ErrorEnhancementResponse(
+            error_category="authentication",
+            enhanced_explanation="Token expired",
+            root_cause="Authentication failure",
+            immediate_fix="Refresh your API token",
+            confidence=0.95,
+            estimated_fix_time="immediate"
+        )
+        assert response.error_category == "authentication"
+        assert response.requires_admin is False  # Default
+
+        # Invalid category
+        with pytest.raises(ValueError):
+            ErrorEnhancementResponse(
+                error_category="unknown",  # Not in enum
+                enhanced_explanation="Test",
+                root_cause="Test",
+                immediate_fix="Test",
+                confidence=0.5,
+                estimated_fix_time="immediate"
+            )
+
+        # Valid example correction
+        response = ErrorEnhancementResponse(
+            error_category="syntax",
+            enhanced_explanation="Syntax error",
+            root_cause="Missing quotes",
+            immediate_fix="Add quotes",
+            example_correction={
+                "wrong": "state: In Progress",
+                "correct": "state: {In Progress}"
+            },
+            confidence=0.9,
+            estimated_fix_time="immediate"
+        )
+        assert response.example_correction["wrong"] == "state: In Progress"
+
+    def test_intent_analysis_response_validation(self):
+        """Test intent analysis response model validation."""
+        # Valid model with plan
+        response = IntentAnalysisResponse(
+            intent="Create bug report",
+            intent_category="create",
+            confidence=0.88,
+            plan=[
+                IntentPlanStep(
+                    step=1,
+                    tool="issues.create",
+                    description="Create new issue",
+                    parameters={"project": "DEMO", "type": "Bug"},
+                    expected_result="Issue created"
+                )
+            ],
+            estimated_complexity="low"
+        )
+        assert response.intent == "Create bug report"
+        assert len(response.plan) == 1
+        assert response.plan[0].step == 1
+
+        # Invalid - empty plan
+        with pytest.raises(ValueError):
+            IntentAnalysisResponse(
+                intent="Test",
+                intent_category="create",
+                confidence=0.5,
+                plan=[],  # Empty
+                estimated_complexity="low"
+            )
+
+        # Invalid - non-sequential steps
+        with pytest.raises(ValueError):
+            IntentAnalysisResponse(
+                intent="Test",
+                intent_category="update",
+                confidence=0.7,
+                plan=[
+                    IntentPlanStep(
+                        step=1,
+                        tool="tool1",
+                        description="Step 1",
+                        parameters={},
+                        expected_result="Result 1"
+                    ),
+                    IntentPlanStep(
+                        step=3,  # Should be 2
+                        tool="tool2",
+                        description="Step 3",
+                        parameters={},
+                        expected_result="Result 3"
+                    )
+                ],
+                estimated_complexity="medium"
+            )
+
+
+class TestAIServiceIntegration:
+    """Test AIService with structured outputs."""
+
+    @pytest.mark.asyncio
+    async def test_translate_nl_to_yql_with_structured_output(self):
+        """Test NL to YQL translation using structured output."""
+        # Mock OpenAI client
+        mock_client = Mock()
+        mock_response = YQLTranslationResponse(
+            yql_query="project: DEMO priority: Critical",
+            confidence=0.92,
+            reasoning="Critical issues in DEMO project",
+            detected_entities={"projects": ["DEMO"], "priorities": ["Critical"]},
+            alternative_queries=["project: DEMO {Priority}: Critical"],
+            warnings=[]
+        )
+        mock_client.complete_structured = asyncio.coroutine(
+            lambda *args, **kwargs: mock_response
+        )
+
+        # Create service
+        service = AIService(openai_client=mock_client)
+
+        # Act
+        result = await service.translate_nl_to_yql(
+            "Find critical bugs in DEMO",
+            project_context="DEMO"
+        )
+
+        # Assert
+        assert result.yql_query == "project: DEMO priority: Critical"
+        assert result.confidence == 0.92
+        assert "projects" in result.detected_entities
+        assert len(result.suggestions) > 0  # From alternative_queries
+
+    @pytest.mark.asyncio
+    async def test_analyze_intent_with_structured_output(self):
+        """Test intent analysis using structured output."""
+        # Mock OpenAI client
+        mock_client = Mock()
+        mock_response = IntentAnalysisResponse(
+            intent="Bulk update issue states",
+            intent_category="bulk",
+            confidence=0.85,
+            detected_entities={"action": ["update"], "field": ["state"]},
+            requires_confirmation=True,
+            plan=[
+                IntentPlanStep(
+                    step=1,
+                    tool="search.query",
+                    description="Find target issues",
+                    parameters={"query": "state: Open"},
+                    expected_result="List of open issues",
+                    error_handling="stop"
+                ),
+                IntentPlanStep(
+                    step=2,
+                    tool="issues.patch",
+                    description="Update states",
+                    parameters={"state": "In Progress"},
+                    expected_result="Issues updated",
+                    error_handling="retry"
+                )
+            ],
+            warnings=["This will affect multiple issues"],
+            estimated_complexity="medium"
+        )
+        mock_client.complete_structured = asyncio.coroutine(
+            lambda *args, **kwargs: mock_response
+        )
+
+        # Create service
+        service = AIService(openai_client=mock_client)
+
+        # Act
+        result = await service.analyze_intent(
+            "Update all open issues to in progress",
+            {"current_project": "DEMO"}
+        )
+
+        # Assert
+        assert result["intent"] == "Bulk update issue states"
+        assert result["intent_category"] == "bulk"
+        assert result["confidence"] == 0.85
+        assert len(result["plan"]) == 2
+        assert result["plan"][0]["tool"] == "search.query"
+        assert result["requires_confirmation"] is True
+        assert "multiple issues" in result["warnings"][0]
+
+
+def test_output_mode_enum():
+    """Test OutputMode enum values."""
+    assert OutputMode.JSON_SCHEMA.value == "json_schema"
+    assert OutputMode.JSON_OBJECT.value == "json_object"
+    assert OutputMode.INLINE.value == "inline"
+
+    # Test string conversion
+    mode = OutputMode("json_schema")
+    assert mode == OutputMode.JSON_SCHEMA
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])

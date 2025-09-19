@@ -8,10 +8,10 @@ Provides centralized access to OpenAIClient, AIService, and ErrorHandler instanc
 import logging
 from typing import Optional
 
-from .openai_client import OpenAIClient
+from .openai_client import OpenAIClient, OutputMode
 from .service import AIService
 from ..utils import ErrorHandler
-from ..config import config
+from ..config import config, Settings
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +61,36 @@ class AIServiceRegistry:
     def _initialize_openai_client(self):
         """Initialize OpenAI client if configured."""
         try:
-            if config.OPENAI_API_KEY and config.LLM_ENABLED:
+            # Try to get settings from the new config system
+            settings = None
+            try:
+                settings = Settings()
+            except Exception:
+                # Fall back to legacy config
+                pass
+
+            if settings and settings.openai.api_key.get_secret_value() and settings.openai.enabled:
+                # Use new config system
+                try:
+                    output_mode = OutputMode(settings.llm.output_mode)
+                except ValueError:
+                    output_mode = OutputMode.JSON_SCHEMA
+
+                self._openai_client = OpenAIClient(
+                    api_key=settings.openai.api_key.get_secret_value(),
+                    base_url=settings.openai.base_url,
+                    model=settings.openai.model,
+                    temperature=settings.openai.temperature,
+                    timeout=settings.openai.timeout,
+                    max_tokens=settings.openai.max_tokens,
+                    mode=output_mode,
+                    max_retries=settings.llm.max_retries,
+                    initial_backoff=settings.llm.initial_backoff,
+                    backoff_multiplier=settings.llm.backoff_multiplier
+                )
+                logger.info(f"OpenAI client initialized with mode {output_mode}")
+            elif config.OPENAI_API_KEY and config.LLM_ENABLED:
+                # Fall back to legacy config
                 self._openai_client = OpenAIClient(
                     api_key=config.OPENAI_API_KEY,
                     base_url=config.OPENAI_BASE_URL,
@@ -70,7 +99,7 @@ class AIServiceRegistry:
                     timeout=config.OPENAI_TIMEOUT,
                     max_tokens=config.OPENAI_MAX_TOKENS
                 )
-                logger.info("OpenAI client initialized successfully")
+                logger.info("OpenAI client initialized successfully (legacy config)")
             else:
                 logger.info("OpenAI client not initialized (missing API key or LLM disabled)")
         except Exception as e:

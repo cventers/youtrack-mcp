@@ -39,6 +39,7 @@ packages = ["youtrack_mcp"]
 
 [dependency-groups]
 dev = [
+    "anthropic>=0.68.0",
     "mcp[test]>=1.13.1",
     "pytest-asyncio>=1.1.0",
     "pytest-mcp>=0.1.0",

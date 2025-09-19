@@ -7,7 +7,7 @@ using pydantic-settings, supporting environment variables, YAML files, and .env 
 
 import os
 import ssl
-from typing import Optional, Literal
+from typing import Optional, Literal, Dict
 from pathlib import Path
 from pydantic import Field, SecretStr, field_validator, ConfigDict
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -139,6 +139,43 @@ class DisplayConfig(BaseSettings):
     timezone: Optional[str] = Field("America/Chicago", description="Timezone for date/time operations")
 
 
+class LLMConfig(BaseSettings):
+    """LLM-specific configuration for enhanced prompting."""
+
+    model_config = ConfigDict(
+        env_prefix="LLM_",
+        case_sensitive=False,
+    )
+
+    # Output mode configuration (tristate)
+    output_mode: Literal["json_schema", "json_object", "inline"] = Field(
+        "json_schema",
+        description="Output mode: json_schema (strict), json_object (validated), inline (flexible)"
+    )
+
+    # Retry configuration
+    max_retries: int = Field(3, ge=0, le=10, description="Maximum retry attempts for LLM calls")
+    initial_backoff: float = Field(1.0, ge=0.1, le=10.0, description="Initial backoff delay in seconds")
+    backoff_multiplier: float = Field(2.0, ge=1.0, le=5.0, description="Backoff multiplier for exponential backoff")
+    min_confidence: float = Field(0.6, ge=0.0, le=1.0, description="Minimum confidence threshold")
+
+    # Token limits nested by operation type (for response/completion only, not input)
+    max_tokens: Dict[str, int] = Field(
+        default={
+            "yql": 500,      # Response tokens for YQL translation
+            "error": 800,    # Response tokens for error enhancement
+            "intent": 1500   # Response tokens for intent analysis
+        },
+        description="Max tokens for LLM response per operation type (does not include input tokens)"
+    )
+
+    # Cache settings
+    cache_ttl: int = Field(3600, ge=60, description="Cache TTL in seconds (default 1 hour)")
+
+    # Validation settings (only apply to inline mode)
+    extract_json_from_markdown: bool = Field(True, description="Try to extract JSON from markdown blocks")
+
+
 class Settings(BaseSettings):
     """Main configuration settings for YouTrack MCP server."""
     
@@ -157,6 +194,7 @@ class Settings(BaseSettings):
     cache: CacheConfig = Field(default_factory=CacheConfig)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
     display: DisplayConfig = Field(default_factory=DisplayConfig)
+    llm: LLMConfig = Field(default_factory=LLMConfig)
     
     def load_from_yaml(self, yaml_file: str) -> None:
         """
@@ -188,6 +226,8 @@ class Settings(BaseSettings):
                     self.logging = LoggingConfig(**yaml_config['logging'])
                 if 'display' in yaml_config:
                     self.display = DisplayConfig(**yaml_config['display'])
+                if 'llm' in yaml_config:
+                    self.llm = LLMConfig(**yaml_config['llm'])
         except yaml.YAMLError as e:
             raise ValueError(f"Invalid YAML file {yaml_file}: {e}")
     
