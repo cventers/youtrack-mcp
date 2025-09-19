@@ -72,15 +72,15 @@ import asyncio
 from openai import OpenAI
 
 class OutputMode(str, Enum):
-    JSON_SCHEMA = "json_schema"  # Strict server-side enforcement
-    JSON_OBJECT = "json_object"  # Provider JSON + local validation
-    INLINE = "inline"            # Schema in prompt
+    JSON_SCHEMA = "json_schema"  # Strict server-side enforcement - JSON always required
+    JSON_OBJECT = "json_object"  # Provider JSON + local validation - JSON always required
+    INLINE = "inline"            # Schema in prompt - JSON always required
 
 T = TypeVar('T', bound=BaseModel)
 
 class OpenAIClient:
     """Enhanced OpenAI client with structured output support."""
-    
+
     def __init__(
         self,
         api_key: str,
@@ -94,23 +94,34 @@ class OpenAIClient:
         self.max_retries = max_retries
         self.initial_backoff = initial_backoff
         self.backoff_multiplier = backoff_multiplier
-    
+
     async def complete_structured(
         self,
         prompt: str,
         response_model: Type[T],
-        system: str | None = None
+        system: str | None = None,
+        max_tokens: int = 800
     ) -> T:
-        """Generate structured output with mode-based enforcement."""
-        
+        """Generate structured output with mode-based enforcement.
+
+        JSON is always required and validated, enforcement method varies by OutputMode:
+        - JSON_SCHEMA: OpenAI enforces both JSON format and schema server-side
+        - JSON_OBJECT: OpenAI enforces JSON format, we validate schema locally
+        - INLINE: We extract JSON and validate schema locally, retry if either fails
+
+        Note: max_tokens applies to the response/completion only, not the input.
+        The total token usage = input_tokens (prompt + system + schema) + response_tokens (max_tokens).
+        With structured outputs, prompts can be longer due to embedded schemas.
+        """
+
         if self.mode == OutputMode.JSON_SCHEMA:
-            return await self._json_schema_mode(prompt, response_model, system)
+            return await self._json_schema_mode(prompt, response_model, system, max_tokens)
         elif self.mode == OutputMode.JSON_OBJECT:
-            return await self._json_object_mode(prompt, response_model, system)
+            return await self._json_object_mode(prompt, response_model, system, max_tokens)
         else:  # INLINE
-            return await self._inline_mode(prompt, response_model, system)
+            return await self._inline_mode(prompt, response_model, system, max_tokens)
     
-    async def _json_schema_mode(self, prompt: str, model: Type[T], system: str) -> T:
+    async def _json_schema_mode(self, prompt: str, model: Type[T], system: str, max_tokens: int) -> T:
         """Use OpenAI's strict json_schema enforcement."""
         response = self.client.chat.completions.create(
             model="gpt-4o-mini",
@@ -125,11 +136,20 @@ class OpenAIClient:
                     "strict": True,
                     "schema": model.model_json_schema()
                 }
-            }
+            },
+            max_tokens=max_tokens
         )
+
+        # Log warning if approaching or exceeding token limits
+        if hasattr(response, 'usage'):
+            if response.usage.total_tokens > 4000:
+                logger.warning(f"High token usage: {response.usage.total_tokens} total tokens")
+            if response.usage.completion_tokens >= max_tokens * 0.95:
+                logger.warning(f"Response near max_tokens limit: {response.usage.completion_tokens}/{max_tokens}")
+
         return model.model_validate_json(response.choices[0].message.content)
-    
-    async def _json_object_mode(self, prompt: str, model: Type[T], system: str) -> T:
+
+    async def _json_object_mode(self, prompt: str, model: Type[T], system: str, max_tokens: int) -> T:
         """Use json_object with local validation and retries."""
         for attempt in range(self.max_retries):
             response = self.client.chat.completions.create(
@@ -138,7 +158,8 @@ class OpenAIClient:
                     {"role": "system", "content": system or f"Return JSON matching: {model.model_json_schema()}"},
                     {"role": "user", "content": prompt}
                 ],
-                response_format={"type": "json_object"}
+                response_format={"type": "json_object"},
+                max_tokens=max_tokens
             )
             
             try:
@@ -158,40 +179,56 @@ Fix these validation errors: {e.errors()}"
                         request_id=response.id
                     )
     
-    async def _inline_mode(self, prompt: str, model: Type[T], system: str) -> T:
+    async def _inline_mode(self, prompt: str, model: Type[T], system: str, max_tokens: int) -> T:
         """Include schema in prompt with validation and retries."""
         schema_str = self._compact_schema(model)
         enhanced_prompt = f"{prompt}
 
 Output JSON matching: {schema_str}"
-        
+
         for attempt in range(self.max_retries):
             response = self.client.chat.completions.create(
                 model="gpt-4o-mini",
                 messages=[
                     {"role": "system", "content": system or "Output valid JSON only."},
                     {"role": "user", "content": enhanced_prompt}
-                ]
+                ],
+                max_tokens=max_tokens
             )
             
             content = response.choices[0].message.content
             try:
-                # Extract JSON from response
+                # Extract JSON from response (required)
                 import json
-                if content.startswith("```json"):
-                    content = content.split("```json")[1].split("```")[0]
-                data = json.loads(content)
+                json_content = None
+
+                # Try to extract from markdown code block
+                if "```json" in content:
+                    json_content = content.split("```json")[1].split("```")[0].strip()
+                elif "```" in content:
+                    json_content = content.split("```")[1].split("```")[0].strip()
+                else:
+                    # Try to find JSON object in text
+                    json_start = content.find('{')
+                    json_end = content.rfind('}')
+                    if json_start != -1 and json_end != -1:
+                        json_content = content[json_start:json_end + 1]
+
+                if not json_content:
+                    raise json.JSONDecodeError("No JSON found in response", content, 0)
+
+                data = json.loads(json_content)
                 return model.model_validate(data)
             except (json.JSONDecodeError, ValidationError) as e:
                 if attempt < self.max_retries - 1:
                     await asyncio.sleep(self.initial_backoff * (self.backoff_multiplier ** attempt))
                     enhanced_prompt += f"
 
-Fix: {str(e)}"
+IMPORTANT: You MUST return valid JSON. Fix: {str(e)}"
                 else:
                     raise StructuredOutputError(
                         fields=str(e),
-                        message="Failed to generate valid JSON",
+                        message="Failed to extract or validate JSON after retries",
                         last_raw=content,
                         attempt_count=attempt + 1,
                         request_id=response.id
@@ -338,10 +375,10 @@ logger = logging.getLogger(__name__)
 class ValidationConfig:
     """Configuration for response validation."""
     max_retries: int = 3
-    require_json: bool = True
     require_confidence: bool = True
     min_confidence: float = 0.5
     schema: Optional[Dict[str, Any]] = None
+    # Note: JSON requirement is controlled by OutputMode, not this config
 
 
 class ResponseValidator:
@@ -469,21 +506,19 @@ class ResponseValidator:
     @staticmethod
     def validate_response(
         response: str,
-        config: ValidationConfig
+        config: ValidationConfig,
+        output_mode: OutputMode
     ) -> tuple[bool, Optional[Dict[str, Any]], Optional[str]]:
         """
         Validate LLM response against configuration.
-        
+
         Returns:
             Tuple of (is_valid, parsed_response, error_message)
         """
-        # Extract JSON if required
-        if config.require_json:
-            parsed = ResponseValidator.extract_json(response)
-            if parsed is None:
-                return False, None, "Failed to extract valid JSON from response"
-        else:
-            parsed = {"content": response}
+        # JSON is always required regardless of output mode
+        parsed = ResponseValidator.extract_json(response)
+        if parsed is None:
+            return False, None, "Failed to extract valid JSON from response"
         
         # Validate against schema if provided
         if config.schema:
@@ -507,46 +542,52 @@ class ResponseValidator:
         llm_func: Callable,
         prompt: str,
         config: ValidationConfig,
+        output_mode: OutputMode,
         system_prompt: Optional[str] = None,
         **kwargs
     ) -> Dict[str, Any]:
         """
         Retry LLM call with validation.
-        
+
         Args:
             llm_func: LLM completion function
             prompt: User prompt
             config: Validation configuration
+            output_mode: Output mode controlling JSON requirement
             system_prompt: Optional system prompt
             **kwargs: Additional arguments for LLM function
-        
+
         Returns:
             Validated response dictionary
-        
+
         Raises:
             RuntimeError: If all retries fail
         """
         last_error = None
-        
+
         for attempt in range(config.max_retries):
             try:
                 # Add retry context to prompt if not first attempt
                 if attempt > 0:
-                    retry_prompt = f"{prompt}\n\nPrevious attempt failed: {last_error}\nPlease ensure response is valid JSON matching the required schema."
+                    if output_mode in (OutputMode.JSON_SCHEMA, OutputMode.JSON_OBJECT):
+                        retry_prompt = f"{prompt}\n\nPrevious attempt failed: {last_error}\nPlease ensure response is valid JSON matching the required schema."
+                    else:
+                        retry_prompt = f"{prompt}\n\nPrevious attempt failed: {last_error}\nPlease correct the issue and try again."
                 else:
                     retry_prompt = prompt
-                
+
                 # Call LLM
                 response = await llm_func(
                     prompt=retry_prompt,
                     system=system_prompt,
                     **kwargs
                 )
-                
+
                 # Validate response
                 is_valid, parsed, error_msg = ResponseValidator.validate_response(
                     response,
-                    config
+                    config,
+                    output_mode
                 )
                 
                 if is_valid:
@@ -573,27 +614,36 @@ class ResponseValidator:
 ```python
 class LLMConfig(BaseSettings):
     """LLM-specific configuration for enhanced prompting."""
-    
+
     model_config = ConfigDict(
         env_prefix="LLM_",
         case_sensitive=False,
     )
-    
+
+    # Output mode configuration (tristate)
+    output_mode: OutputMode = Field(
+        OutputMode.JSON_SCHEMA,
+        description="Output mode: json_schema (strict), json_object (validated), inline (flexible)"
+    )
+
     # Retry configuration
     max_retries: int = Field(3, ge=0, le=10, description="Maximum retry attempts for LLM calls")
     min_confidence: float = Field(0.6, ge=0.0, le=1.0, description="Minimum confidence threshold")
-    require_json: bool = Field(True, description="Require JSON responses from LLM")
-    
-    # Token limits per operation type
-    max_tokens_yql: int = Field(500, ge=100, description="Max tokens for YQL translation")
-    max_tokens_error: int = Field(800, ge=100, description="Max tokens for error enhancement")
-    max_tokens_intent: int = Field(1500, ge=100, description="Max tokens for intent analysis")
-    
+
+    # Token limits nested by operation type (for response/completion only, not input)
+    max_tokens: dict = Field(
+        default={
+            "yql": 500,      # Response tokens for YQL translation
+            "error": 800,    # Response tokens for error enhancement
+            "intent": 1500   # Response tokens for intent analysis
+        },
+        description="Max tokens for LLM response per operation type (does not include input tokens)"
+    )
+
     # Cache settings
     cache_ttl: int = Field(3600, ge=60, description="Cache TTL in seconds (default 1 hour)")
-    
-    # Validation settings
-    validate_json_schema: bool = Field(True, description="Validate responses against JSON schema")
+
+    # Validation settings (only apply to inline mode)
     extract_json_from_markdown: bool = Field(True, description="Try to extract JSON from markdown blocks")
 
 # Add to Settings class
@@ -733,7 +783,118 @@ class TestPromptResponses:
    - Mitigation: Test with multiple models
    - Fallback: Model-specific prompt variants
 
-### 7. Appendices
+### 7. Enhanced Prompts
+
+#### 7.1 YQL Translation Prompts
+
+**System Prompt:**
+```
+You are an expert YouTrack Query Language (YQL) assistant. Your role is to translate natural language requests into precise YQL queries.
+
+Key capabilities:
+- Deep understanding of YQL syntax, operators, and field references
+- Knowledge of all YouTrack entities (issues, projects, users, custom fields)
+- Ability to handle complex date ranges and relative time expressions
+- Understanding of field type-specific query patterns
+
+Always provide accurate, optimized queries that follow YouTrack best practices.
+```
+
+**User Prompt Template:**
+```
+Task: Convert the following natural language query to YQL.
+
+Natural Query: {natural_query}
+{%- if project_context %}
+Project Context: {project_context}
+{%- endif %}
+{%- if available_custom_fields %}
+Available Custom Fields: {available_custom_fields}
+{%- endif %}
+
+Requirements:
+- Generate the most accurate YQL query for the request
+- Use proper syntax for multi-word values (curly braces)
+- Apply correct date formats and operators
+- Consider the project context if provided
+```
+
+#### 7.2 Error Enhancement Prompts
+
+**System Prompt:**
+```
+You are an expert YouTrack API troubleshooting assistant specializing in error diagnosis and resolution.
+
+Your expertise includes:
+- Deep knowledge of YouTrack API error patterns and codes
+- Understanding of common integration pitfalls
+- Ability to provide actionable fixes with examples
+- Educational approach to help users learn from mistakes
+
+Focus on practical solutions and prevention strategies.
+```
+
+**User Prompt Template:**
+```
+Analyze and enhance this YouTrack error for better understanding:
+
+Error: {error_message}
+Context:
+- Operation: {operation}
+- Endpoint: {endpoint}
+{%- if request_data %}
+- Request Data: {request_data}
+{%- endif %}
+{%- if http_status %}
+- HTTP Status: {http_status}
+{%- endif %}
+
+Provide:
+1. Root cause analysis
+2. Immediate fix with example
+3. Prevention strategy
+4. Related documentation references
+```
+
+#### 7.3 Intent Analysis Prompts
+
+**System Prompt:**
+```
+You are an expert YouTrack automation assistant that analyzes user intent and creates detailed execution plans.
+
+Core competencies:
+- Understanding complex multi-step operations
+- Risk assessment and validation requirements
+- Knowledge of YouTrack permissions and constraints
+- Ability to decompose tasks into atomic operations
+
+Always provide safe, idempotent plans with proper error handling.
+```
+
+**User Prompt Template:**
+```
+Analyze the user's intent and create an execution plan:
+
+Intent: {user_intent}
+Context:
+{%- if current_project %}
+- Project: {current_project}
+{%- endif %}
+{%- if user_permissions %}
+- User Permissions: {user_permissions}
+{%- endif %}
+{%- if available_resources %}
+- Available Resources: {available_resources}
+{%- endif %}
+
+Generate a detailed plan including:
+1. Step-by-step operations
+2. Required validations
+3. Potential risks and mitigations
+4. Rollback strategy if needed
+```
+
+### 8. Appendices
 
 #### A. Example Enhanced Responses
 
