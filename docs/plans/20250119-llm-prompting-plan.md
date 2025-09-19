@@ -2,7 +2,7 @@
 
 **Version**: 2.0
 **Date**: 2025-01-19
-**Status**: SUPERSEDED (See: 20250119-llm-prompting-refinement-plan.md)
+**Status**: SUPERSEDED (See: 20250120-llm-prompting-refinement-plan.md)
 
 ## Executive Summary
 

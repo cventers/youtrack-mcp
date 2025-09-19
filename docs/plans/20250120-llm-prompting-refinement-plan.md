@@ -1,7 +1,7 @@
 # LLM Prompting System Refinement Plan
 
 **Version**: 3.0
-**Date**: 2025-01-19
+**Date**: 2025-01-20
 **Status**: APPROVED
 **Supersedes**: 20250119-llm-prompting-plan.md (v2.0)
 
@@ -30,7 +30,7 @@ This refinement plan addresses fundamental architectural issues discovered in th
 - **Convert**: All AI tool methods to async
 - **Convert**: AIService methods to async-only
 - **Remove**: `asyncio.run()` calls
-- **Ensure**: Clean async call chain from MCP tools to OpenAI
+- **Ensure**: Clean async call chain from MCP tools to LiteLLM/Instructor
 
 ### 3. Jinja2 Template System
 - **Create**: Template directory structure
@@ -48,9 +48,10 @@ This refinement plan addresses fundamental architectural issues discovered in th
 ### 5. Simplified Configuration
 - **Remove**: `LLMConfig.output_mode` (instructor handles modes)
 - **Remove**: `LLMConfig.extract_json_from_markdown`
-- **Remove**: Custom retry parameters (use instructor defaults)
+- **Replace**: Custom retry parameters with instructor configurables
 - **Keep**: Provider selection and API keys
-- **Add**: Instructor-specific settings if needed
+- **Add**: Instructor retry configuration (max_retries, timeout, etc.)
+- **Add**: LiteLLM conversation logging configuration
 
 ## Implementation Plan
 
@@ -223,7 +224,7 @@ async def autosearch(self, query: str, context: str = None) -> dict:
 #### 4.1 Simplified Config (`youtrack_mcp/config.py`)
 ```python
 class LLMConfig(BaseSettings):
-    """Simplified LLM configuration."""
+    """Simplified LLM configuration with instructor/litellm support."""
 
     model_config = ConfigDict(
         env_prefix="LLM_",
@@ -238,9 +239,17 @@ class LLMConfig(BaseSettings):
     api_key: SecretStr = Field(..., description="API key for provider")
     api_base: Optional[str] = Field(None, description="Custom API endpoint")
 
-    # Instructor configuration
-    max_retries: int = Field(3, description="Max retries for validation")
+    # Instructor retry configuration (hoisted from instructor)
+    max_retries: int = Field(3, description="Max validation retries")
+    retry_on_validation_error: bool = Field(True, description="Retry on validation errors")
+    timeout: float = Field(60.0, description="Request timeout in seconds")
     temperature: float = Field(0.3, description="Temperature for responses")
+
+    # LiteLLM conversation logging
+    log_conversations: bool = Field(False, description="Enable conversation logging")
+    log_level: str = Field("INFO", description="Logging level for LLM conversations")
+    log_format: str = Field("json", description="Format for conversation logs (json/text)")
+    redact_api_keys: bool = Field(True, description="Redact API keys from logs")
 
     # Template configuration
     template_dir: Path = Field("ai/templates", description="Template directory")
@@ -250,7 +259,7 @@ class LLMConfig(BaseSettings):
 - `output_mode` - Instructor handles this automatically
 - `json_schema`, `json_object`, `inline` modes - Not needed
 - `extract_json_from_markdown` - Instructor handles extraction
-- `initial_backoff`, `backoff_multiplier` - Use instructor defaults
+- `initial_backoff`, `backoff_multiplier` - Replaced with instructor configurables
 
 ### Phase 5: Registry Update
 
@@ -258,16 +267,76 @@ class LLMConfig(BaseSettings):
 ```python
 class AIServiceRegistry:
     def _initialize_llm_client(self):
-        """Initialize LiteLLM + Instructor client."""
+        """Initialize LiteLLM + Instructor client with logging."""
         settings = Settings()
+
+        # Configure LiteLLM logging
+        if settings.llm.log_conversations:
+            import litellm
+            litellm.success_callback = ["logger"]
+            litellm.failure_callback = ["logger"]
+            litellm.set_verbose = settings.llm.log_level == "DEBUG"
+
+            # Configure our custom logger for conversations
+            self._setup_conversation_logger(settings.llm)
 
         self._llm_client = LLMClient(
             model=f"{settings.llm.provider}/{settings.llm.model}",
             api_key=settings.llm.api_key.get_secret_value(),
             api_base=settings.llm.api_base,
             max_retries=settings.llm.max_retries,
+            retry_on_validation_error=settings.llm.retry_on_validation_error,
+            timeout=settings.llm.timeout,
             temperature=settings.llm.temperature
         )
+
+    def _setup_conversation_logger(self, llm_config):
+        """Setup conversation logging with configurable format."""
+        import logging
+        import json
+
+        logger = logging.getLogger("llm.conversations")
+        logger.setLevel(getattr(logging, llm_config.log_level))
+
+        # Create formatter based on config
+        if llm_config.log_format == "json":
+            formatter = logging.Formatter(
+                '{"timestamp": "%(asctime)s", "level": "%(levelname)s", '
+                '"message": "%(message)s"}'
+            )
+        else:
+            formatter = logging.Formatter(
+                '%(asctime)s - LLM - %(levelname)s - %(message)s'
+            )
+
+        # Add handler if not present
+        if not logger.handlers:
+            handler = logging.StreamHandler()
+            handler.setFormatter(formatter)
+            logger.addHandler(handler)
+
+        # Hook into LiteLLM callbacks for conversation dumping
+        def log_conversation(kwargs, response, start_time, end_time):
+            """Log LLM conversation with configurable redaction."""
+            conversation = {
+                "model": kwargs.get("model"),
+                "messages": kwargs.get("messages"),
+                "response": response.model_dump() if hasattr(response, 'model_dump') else str(response),
+                "duration": end_time - start_time
+            }
+
+            if llm_config.redact_api_keys:
+                # Redact API keys from logged data
+                conversation = self._redact_sensitive_data(conversation)
+
+            if llm_config.log_format == "json":
+                logger.info(json.dumps(conversation))
+            else:
+                logger.info(f"LLM Call: {conversation}")
+
+        # Register callback with LiteLLM
+        import litellm
+        litellm.success_callback.append(log_conversation)
 ```
 
 ## Migration Strategy
