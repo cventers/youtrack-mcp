@@ -1,25 +1,31 @@
 """
-Core AI Tools for YouTrack MCP - Minimal Implementation.
+Core AI Tools for YouTrack MCP.
 
-Implements the 1 core AI tool:
-- ai.plan: Plan-only translator
+Provides AI-powered functionality:
+- MCP Tool: ai.plan - Plan user intent actions
+- Internal: translate_to_yql - Natural language to YQL translation (used by SearchTools)
+- Internal: enhance_error_message - Error message enhancement
 """
 
 import json
 import logging
 from typing import Any, Dict, Optional
 
-from youtrack_mcp.tools.ai.ai_tools import AITools as AIToolsImpl
+from youtrack_mcp.ai.registry import ai_registry
+from youtrack_mcp.utils import format_json_response
 
 logger = logging.getLogger(__name__)
 
 
 class AITools:
-    """Minimal AI tools with clean interfaces."""
+    """AI-powered tools for YouTrack operations."""
 
     def __init__(self):
-        """Initialize AI planning tools."""
-        self.ai_tools = AIToolsImpl()
+        """Initialize AI tools using shared registry."""
+        # Use shared AI service instance from registry
+        self.ai_service = ai_registry.ai_service
+        self.error_handler = ai_registry.error_handler
+        logger.info("AITools initialized using shared AI registry")
 
     async def plan(self, intent: str, context: Optional[Dict[str, Any]] = None) -> str:
         """
@@ -36,8 +42,7 @@ class AITools:
         """
         try:
             # Use LLM to analyze intent and create execution plan
-            plan_result = await self._llm_analyze_intent(intent, context or {})
-
+            plan_result = await self._analyze_intent_with_llm(intent, context or {})
             return json.dumps(plan_result)
 
         except Exception as e:
@@ -49,25 +54,25 @@ class AITools:
                 "requires_confirmation": True
             })
 
-    async def _llm_analyze_intent(self, intent: str, context: Dict[str, Any]) -> Dict[str, Any]:
+    async def _analyze_intent_with_llm(self, intent: str, context: Dict[str, Any]) -> Dict[str, Any]:
         """Use LLM to analyze intent and create execution plan."""
         try:
-            # Use the AI tools analyze_intent method which uses LLM
-            result = self.ai_tools.analyze_intent(intent, context)
+            # Try LLM-based analysis if available
+            if self.ai_service:
+                result = self.ai_service.analyze_intent_sync(intent, context)
 
-            # Handle both dict and JSON string responses for compatibility
-            if isinstance(result, str):
-                result = json.loads(result)
+                # Handle both dict and JSON string responses
+                if isinstance(result, str):
+                    result = json.loads(result)
 
-            # Extract the actual plan data from the response
-            if 'error' in result:
-                raise RuntimeError(result['error'])
-
-            return result
+                if 'error' not in result:
+                    return result
 
         except Exception as e:
             logger.error(f"LLM analysis failed, falling back to rule-based: {e}")
-            return self._analyze_intent(intent, context)
+
+        # Fallback to rule-based analysis
+        return self._analyze_intent(intent, context)
 
     def _analyze_intent(self, intent: str, context: Dict[str, Any]) -> Dict[str, Any]:
         """Analyze user intent and create execution plan."""
@@ -156,6 +161,48 @@ class AITools:
             plan["explanations"].append(f"Will use project context: {context['project']}")
 
         return plan
+
+    async def translate_to_yql(self, natural_language_query: str, project_context: Optional[str] = None) -> dict:
+        """
+        Translate natural language to YouTrack Query Language (YQL).
+        Internal method used by SearchTools.
+
+        Args:
+            natural_language_query: Natural language description of the search
+            project_context: Optional project ID for context-aware translation
+
+        Returns:
+            Dict with YQL query and metadata
+        """
+        try:
+            if not self.ai_service:
+                # No LLM available, return fallback
+                return {
+                    "error": "LLM service not available",
+                    "fallback_query": f"text: {natural_language_query}"
+                }
+
+            result = self.ai_service.translate_nl_to_yql_sync(
+                natural_language_query,
+                project_context
+            )
+
+            return {
+                "original_query": result.original_input,
+                "yql_query": result.yql_query,
+                "confidence": result.confidence,
+                "reasoning": result.reasoning,
+                "detected_entities": result.detected_entities,
+                "suggestions": result.suggestions,
+                "ai_provider": "llm"
+            }
+        except Exception as e:
+            logger.exception(f"Error translating to YQL: {e}")
+            return {
+                "error": str(e),
+                "error_type": type(e).__name__,
+                "fallback_query": f"text: {natural_language_query}"
+            }
 
     def get_tool_definitions(self) -> Dict[str, Dict[str, Any]]:
         """Get core AI tool definitions."""

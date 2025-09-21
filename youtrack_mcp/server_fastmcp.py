@@ -16,7 +16,6 @@ from youtrack_mcp.tools.search_tools import SearchTools
 from youtrack_mcp.tools.issues_tools import IssuesTools
 from youtrack_mcp.tools.projects_tools import ProjectsTools
 from youtrack_mcp.tools.users_tools import UsersTools
-from youtrack_mcp.tools.ai_tools import AITools
 from youtrack_mcp.tools.resources_tools import ResourcesTools
 from youtrack_mcp.tools.projects_admin_tools import ProjectsAdminTools
 from youtrack_mcp.tools.users_admin_tools import UsersAdminTools
@@ -35,12 +34,17 @@ class AutoSearchInput(BaseModel):
 # Initialize FastMCP server
 mcp = FastMCP("youtrack")
 
-# Initialize tool classes
-search_tools = SearchTools()
+# Initialize AI tools first (if LLM is configured)
+ai_tools = None
+if config.llm.enabled and config.llm.api_key:
+    from youtrack_mcp.tools.ai_tools import AITools
+    ai_tools = AITools()
+
+# Initialize tool classes (pass ai_tools to SearchTools)
+search_tools = SearchTools(ai_tools=ai_tools)
 issues_tools = IssuesTools()
 projects_tools = ProjectsTools()
 users_tools = UsersTools()
-ai_tools = AITools()
 resources_tools = ResourcesTools()
 projects_admin_tools = ProjectsAdminTools()
 users_admin_tools = UsersAdminTools()
@@ -55,10 +59,12 @@ async def search_query(query: str, limit: int = 50, sort_by: Optional[str] = Non
     """Execute explicit YouTrack Query Language."""
     return await search_tools.query(query, limit, sort_by, sort_order)
 
-@mcp.tool()
-async def search_autosearch(data: AutoSearchInput) -> dict:
-    """Natural language to YQL translation."""
-    return await search_tools.autosearch(data.natural_language_query, data.project_context)
+# Only register autosearch if LLM is configured
+if ai_tools:
+    @mcp.tool()
+    async def search_autosearch(data: AutoSearchInput) -> dict:
+        """Natural language to YQL translation."""
+        return await search_tools.autosearch(data.natural_language_query, data.project_context)
 
 @mcp.tool()
 async def projects_list(include_archived: bool = False) -> dict:
@@ -95,8 +101,17 @@ async def issues_patch(issue_id: str, fields: Optional[Dict[str, Any]] = None, o
     """Update issue with /fields/<FieldName> support and schema-aware coercion."""
     return await issues_tools.patch(issue_id, fields, ops)
 
-# Note: users_search and ai_plan tools removed due to method availability issues
-# These can be added back when the corresponding tool classes are fixed
+@mcp.tool()
+async def users_search(query: str, limit: int = 10) -> dict:
+    """Search for users by name or login."""
+    return await users_tools.search(query, limit)
+
+# Only register ai.plan if LLM is configured
+if ai_tools:
+    @mcp.tool()
+    async def ai_plan(intent: str, context: Optional[Dict[str, Any]] = None) -> str:
+        """LLM-powered intent planning and analysis."""
+        return await ai_tools.plan(intent, context)
 
 # Register resources using existing handlers
 @mcp.resource("youtrack://query-syntax")

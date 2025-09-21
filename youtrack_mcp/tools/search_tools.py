@@ -12,7 +12,6 @@ from typing import Any, Dict, Optional
 
 from youtrack_mcp.api.client import YouTrackClient
 from youtrack_mcp.api.issues import IssuesClient
-from youtrack_mcp.tools.ai_tools import AITools
 
 logger = logging.getLogger(__name__)
 
@@ -20,11 +19,15 @@ logger = logging.getLogger(__name__)
 class SearchTools:
     """Minimal search tools with clean interfaces."""
 
-    def __init__(self):
-        """Initialize core search tools."""
+    def __init__(self, ai_tools=None):
+        """Initialize core search tools.
+
+        Args:
+            ai_tools: Optional AITools instance to use for NL to YQL translation
+        """
         self.client = YouTrackClient()
         self.issues_api = IssuesClient(self.client)
-        self.ai_tools = AITools()
+        self.ai_tools = ai_tools  # Will be None if not provided
 
     def _detect_date_syntax_errors(self, query: str) -> Optional[Dict[str, Any]]:
         """
@@ -193,7 +196,10 @@ class SearchTools:
             JSON with YQL query, confidence, results, notes, degraded?
         """
         try:
-            # Use AI to translate natural language to YQL
+            # AI tools are required for autosearch
+            if not self.ai_tools:
+                raise RuntimeError("AI translation service not available - autosearch requires LLM configuration")
+
             translation_result = await self.ai_tools.translate_to_yql(
                 natural_language_query,
                 project_context
