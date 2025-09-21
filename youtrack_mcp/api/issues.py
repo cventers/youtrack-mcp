@@ -2124,7 +2124,7 @@ class IssuesClient:
             "value": field_value
         }
 
-    def _create_enhanced_field_object(self, project_id: str, field_name: str, field_value: str) -> Dict[str, Any]:
+    def _create_field_object(self, project_id: str, field_name: str, field_value: str) -> Dict[str, Any]:
         """Create enhanced field object with proper YouTrack objects and actual IDs."""
         try:
             field_name_lower = field_name.lower()

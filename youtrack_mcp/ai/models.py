@@ -146,12 +146,3 @@ class IntentAnalysisResponse(BaseModel):
             raise ValueError(f"Plan steps must be sequential from 1 to {len(v)}")
 
         return v
-
-
-# Re-export for backward compatibility
-__all__ = [
-    'YQLTranslationResponse',
-    'ErrorEnhancementResponse',
-    'IntentAnalysisResponse',
-    'IntentPlanStep'
-]

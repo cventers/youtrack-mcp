@@ -33,14 +33,9 @@ URI_TEMPLATES = {
 class ResourcesTools:
     """MCP Resources implementation for YouTrack."""
 
-    def __init__(self):
-        """Initialize the resources tools."""
-        self.client = YouTrackClient()
-        self.issues_api = IssuesClient(self.client)
-        self.projects_api = ProjectsClient(self.client)
-
-        # Cache for resource subscriptions
-        self.subscriptions = set()
+    def __init__(self) -> None:
+        """Initialize resources tools."""
+        pass
 
     def list_resources(self) -> dict:
         """

@@ -4,8 +4,9 @@ Tests for AIService.
 
 import pytest
 from unittest.mock import Mock, patch
-from youtrack_mcp.ai.service import AIService, ErrorEnhancementResult
-from youtrack_mcp.ai import QueryTranslationResult
+from youtrack_mcp.ai.service import AIService
+from youtrack_mcp.utils import ErrorEnhancementResult
+from youtrack_mcp.ai.models import YQLTranslationResponse
 
 
 class TestAIService:
@@ -50,10 +51,10 @@ class TestAIService:
         service = AIService()
         result = service.translate_nl_to_yql("test query")
 
-        assert isinstance(result, QueryTranslationResult)
+        assert isinstance(result, YQLTranslationResponse)
         assert result.yql_query == ""
         assert result.confidence == 0.0
-        assert "not configured" in result.reasoning
+        assert "not configured" in result.explanation
 
     def test_translate_nl_to_yql_with_client(self):
         """Test NL to YQL with OpenAI client."""
@@ -67,10 +68,10 @@ class TestAIService:
         service = AIService(openai_client=mock_client)
         result = service.translate_nl_to_yql("bugs assigned to me")
 
-        assert isinstance(result, QueryTranslationResult)
+        assert isinstance(result, YQLTranslationResponse)
         assert result.yql_query == "assignee: me"
         assert result.confidence == 0.8
-        assert result.reasoning == "LLM translation"
+        assert result.explanation == "LLM translation"
         mock_client.complete.assert_called_once()
 
     def test_enhance_error_message_rule_based(self):

@@ -104,7 +104,7 @@ class LLMConfig(BaseSettings):
 
     @field_validator('api_key', mode='before')
     def handle_openai_env(cls, v, info):
-        """Handle OPENAI_API_KEY env var for backward compatibility."""
+        """Handle OPENAI_API_KEY env var."""
         if not v and info.data.get('provider') == 'openai':
             # Check for OPENAI_API_KEY env var
             openai_key = os.getenv("OPENAI_API_KEY")
@@ -239,3 +239,7 @@ class Settings(BaseSettings):
             return self.youtrack.token_file.read_text().strip()
 
         raise ValueError("No API token found. Set YOUTRACK_API_TOKEN or use --token-file")
+
+
+# Create global config instance
+config = Settings()

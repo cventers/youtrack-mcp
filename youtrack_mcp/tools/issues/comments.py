@@ -21,10 +21,9 @@ logger = logging.getLogger(__name__)
 class CommentOperations:
     """Operations for managing issue comments."""
 
-    def __init__(self, issues_api, projects_api):
-        """Initialize with API clients."""
+    def __init__(self, issues_api) -> None:
+        """Initialize with API client."""
         self.issues_api = issues_api
-        self.projects_api = projects_api
         self.client = issues_api.client  # Direct access for complex queries
 
     @sync_wrapper  

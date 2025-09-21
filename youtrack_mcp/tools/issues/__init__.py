@@ -39,7 +39,7 @@ class IssueTools:
     backward compatibility with the original monolithic interface.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize with API clients and create module instances."""
         # Initialize API clients like other tool classes
         self.client = YouTrackClient()
@@ -231,4 +231,4 @@ __all__ = [
     "Attachments",
     "Utilities",
     "CommentOperations",
-] 
+]

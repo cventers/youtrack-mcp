@@ -12,8 +12,8 @@ import structlog
 
 from .llm_client import LLMClient
 from .template_manager import TemplateManager
-from .service_v3 import AIService
-from ..config_v3 import Settings
+from .service import AIService
+from ..config import Settings
 from ..utils import ErrorHandler
 
 logger = structlog.get_logger(__name__)

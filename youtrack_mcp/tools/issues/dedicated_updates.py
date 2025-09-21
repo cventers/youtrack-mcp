@@ -23,11 +23,10 @@ logger = logging.getLogger(__name__)
 class DedicatedUpdates:
     """Specialized update functions for common YouTrack operations."""
 
-    def __init__(self, issues_api, projects_api, custom_fields=None):
-        """Initialize with API clients."""
-        self.issues_api = issues_api
-        self.projects_api = projects_api
-        self.custom_fields = custom_fields
+    def __init__(self, client: YouTrackClient) -> None:
+        """Initialize with shared YouTrack client."""
+        self.client = client
+        self.issues_api = IssuesClient(self.client)
 
     def update_issue_state(self, issue_id: str, new_state: str) -> dict:
         """

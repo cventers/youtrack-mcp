@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 class CustomFields:
     """Custom field management functions for YouTrack issues."""
 
-    def __init__(self, issues_api, projects_api):
+    def __init__(self, issues_api, projects_api) -> None:
         """Initialize with API clients."""
         self.issues_api = issues_api
         self.projects_api = projects_api
@@ -356,4 +356,4 @@ class CustomFields:
                     "field_name": "Custom field name like 'Priority', 'State', 'Type'"
                 }
             }
-        } 
+        }

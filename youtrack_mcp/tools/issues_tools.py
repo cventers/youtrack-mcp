@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 class IssuesTools:
     """Minimal issues tools with clean interfaces."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize core issues tools."""
         self.client = YouTrackClient()
         self.issues_api = IssuesClient(self.client)
