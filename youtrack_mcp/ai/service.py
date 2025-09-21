@@ -1,7 +1,7 @@
 """
-AI Service v3 for YouTrack MCP Server.
+AI Service for YouTrack MCP Server.
 
-Fully async service using LiteLLM + Instructor for structured outputs.
+Async service using LiteLLM + Instructor for structured outputs.
 """
 
 from typing import Dict, Optional, Any
@@ -21,7 +21,7 @@ logger = structlog.get_logger(__name__)
 
 
 class AIService:
-    """Unified AI service with async-only operations."""
+    """Unified AI service with async operations."""
 
     def __init__(
         self,
@@ -44,7 +44,7 @@ class AIService:
         self.query_cache = TTLCache(maxsize=1000, ttl=3600)  # 1 hour
         self.error_cache = TTLCache(maxsize=500, ttl=1800)  # 30 minutes
 
-        logger.info("AIService v3 initialized with async-only architecture")
+        logger.info("AIService initialized")
 
     async def translate_nl_to_yql(
         self,

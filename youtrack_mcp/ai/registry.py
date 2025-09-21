@@ -1,5 +1,5 @@
 """
-AI Service Registry v3 - Singleton pattern for AI components.
+AI Service Registry - Singleton pattern for AI components.
 
 Provides centralized, lazy initialization of AI services with LiteLLM/Instructor.
 """
@@ -35,22 +35,10 @@ class AIServiceRegistry:
             cls._instance = super().__new__(cls)
         return cls._instance
 
-    def _log_settings_once(self):
-        """Log settings info once on first access."""
-        if not self._initialized:
-            logger.info(
-                "Initialized settings",
-                llm_enabled=config.llm.enabled,
-                provider=config.llm.provider
-            )
-            self._initialized = True
-
     def _initialize_llm_client(self):
         """Initialize LiteLLM + Instructor client with logging."""
         if self._llm_client is not None:
             return
-
-        self._log_settings_once()
 
         # Skip if LLM is disabled
         if not config.llm.enabled:
@@ -203,8 +191,6 @@ class AIServiceRegistry:
         if self._template_manager is not None:
             return
 
-        self._log_settings_once()
-
         # Use configured template dir or default
         template_dir = config.llm.template_dir
         if template_dir is None:
@@ -246,7 +232,7 @@ class AIServiceRegistry:
             error_handler=self._error_handler
         )
 
-        logger.info("Initialized AI service v3")
+        logger.info("Initialized AI service")
 
     @property
     def llm_client(self) -> Optional[LLMClient]:
@@ -275,21 +261,6 @@ class AIServiceRegistry:
         if self._ai_service is None:
             self._initialize_ai_service()
         return self._ai_service
-
-    @property
-    def settings(self) -> Config:
-        """Get global settings."""
-        self._log_settings_once()
-        return config
-
-    def reset(self):
-        """Reset all components (mainly for testing)."""
-        self._llm_client = None
-        self._template_manager = None
-        self._ai_service = None
-        self._error_handler = None
-        self._initialized = False
-        logger.info("Reset AI service registry")
 
 
 # Global singleton instance
