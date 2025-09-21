@@ -50,34 +50,20 @@ class AIServiceRegistry:
             logger.warning("No LLM API key configured, LLM features will be limited")
             return
 
-        try:
-            # Configure LiteLLM logging if enabled
-            if config.llm.log_conversations:
-                self._setup_conversation_logger(config.llm)
+        # Configure LiteLLM logging if enabled
+        if config.llm.log_conversations:
+            self._setup_conversation_logger(config.llm)
 
-            # Create LLM client
-            self._llm_client = LLMClient(
-                model=config.llm.full_model_name,
-                api_key=config.llm.api_key.get_secret_value() if config.llm.api_key else None,
-                api_base=config.llm.api_base,
-                max_retries=config.llm.max_retries,
-                retry_on_validation_error=config.llm.retry_on_validation_error,
-                timeout=config.llm.timeout,
-                temperature=config.llm.temperature
-            )
-
-            logger.info(
-                "Initialized LLM client",
-                provider=config.llm.provider,
-                model=config.llm.model
-            )
-        except Exception as e:
-            logger.error(
-                "Failed to initialize LLM client",
-                error=str(e),
-                provider=config.llm.provider
-            )
-            # Don't raise - allow service to run without LLM features
+        # Create LLM client
+        self._llm_client = LLMClient(
+            model=config.llm.full_model_name,
+            api_key=config.llm.api_key.get_secret_value(),
+            api_base=config.llm.api_base,
+            max_retries=config.llm.max_retries,
+            retry_on_validation_error=config.llm.retry_on_validation_error,
+            timeout=config.llm.timeout,
+            temperature=config.llm.temperature
+        )
 
     def _setup_conversation_logger(self, llm_config):
         """Setup conversation logging with configurable format."""
@@ -197,13 +183,7 @@ class AIServiceRegistry:
             # Default to ai/templates relative to this file
             template_dir = Path(__file__).parent / "templates"
 
-        try:
-            self._template_manager = TemplateManager(template_dir)
-            logger.info("Initialized template manager", template_dir=str(template_dir))
-        except Exception as e:
-            logger.error("Failed to initialize template manager", error=str(e))
-            # Create a minimal template manager with defaults
-            self._template_manager = None
+        self._template_manager = TemplateManager(template_dir)
 
     def _initialize_error_handler(self):
         """Initialize error handler."""
