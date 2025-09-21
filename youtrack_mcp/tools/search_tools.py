@@ -12,8 +12,6 @@ from typing import Any, Dict, Optional
 
 from youtrack_mcp.api.client import YouTrackClient
 from youtrack_mcp.api.issues import IssuesClient
-
-
 from youtrack_mcp.tools.ai_tools import AITools
 
 logger = logging.getLogger(__name__)

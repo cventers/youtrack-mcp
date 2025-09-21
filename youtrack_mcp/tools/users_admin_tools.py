@@ -20,9 +20,9 @@ logger = logging.getLogger(__name__)
 class UsersAdminTools:
     """Administrative user tools with permission gating."""
 
-    def __init__(self, client: YouTrackClient) -> None:
+    def __init__(self) -> None:
         """Initialize with YouTrack client."""
-        self.client = client
+        self.client = YouTrackClient()
         self.users_api = UsersClient(self.client)
 
     async def _check_admin_permissions(self) -> bool:

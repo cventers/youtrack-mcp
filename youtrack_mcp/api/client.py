@@ -100,22 +100,22 @@ class YouTrackClient:
         Initialize YouTrack API client.
 
         Args:
-            base_url: YouTrack instance URL, defaults to config.get_base_url()
-            api_token: API token for authentication, defaults to config.YOUTRACK_API_TOKEN
-            verify_ssl: Whether to verify SSL certificates, defaults to config.VERIFY_SSL
+            base_url: YouTrack instance URL, defaults to config.youtrack.url
+            api_token: API token for authentication, defaults to config.get_api_token()
+            verify_ssl: Whether to verify SSL certificates, defaults to config.youtrack.verify_ssl
             max_retries: Maximum number of retries for transient errors
             retry_delay: Initial delay between retries in seconds (increases exponentially)
             token_ttl_seconds: Time-to-live for cached tokens in seconds (default: 1 hour)
             enable_token_refresh: Whether to enable automatic token refresh (default: True)
         """
-        self.base_url = base_url or config.get_base_url()
+        self.base_url = base_url or config.youtrack.url
         self._api_token = api_token  # Store provided token or None
         self._token_loaded = api_token is not None  # Track if token was provided
         self._token_timestamp = None  # Track when token was loaded
-        self._token_ttl = token_ttl_seconds if token_ttl_seconds != 3600 else config.TOKEN_TTL_SECONDS
-        self._enable_token_refresh = enable_token_refresh if enable_token_refresh else config.ENABLE_TOKEN_REFRESH
+        self._token_ttl = token_ttl_seconds if token_ttl_seconds != 3600 else config.youtrack.token_ttl_seconds
+        self._enable_token_refresh = enable_token_refresh if enable_token_refresh else config.youtrack.enable_token_refresh
         self.verify_ssl = (
-            verify_ssl if verify_ssl is not None else config.VERIFY_SSL
+            verify_ssl if verify_ssl is not None else config.youtrack.verify_ssl
         )
         self.max_retries = max_retries
         self.retry_delay = retry_delay
@@ -177,7 +177,7 @@ class YouTrackClient:
         self.client = None
 
         logger.debug(
-            f"YouTrack client initialized for {'YouTrack Cloud' if config.is_cloud_instance() else self.base_url} "
+            f"YouTrack client initialized for {'YouTrack Cloud' if config.youtrack.cloud else self.base_url} "
             f"(token TTL: {self._token_ttl}s, refresh: {self._enable_token_refresh})"
         )
 

@@ -13,7 +13,7 @@ import structlog
 from .llm_client import LLMClient
 from .template_manager import TemplateManager
 from .service import AIService
-from ..config import Settings
+from ..config import Config, config
 from ..utils import ErrorHandler
 
 logger = structlog.get_logger(__name__)
@@ -27,7 +27,6 @@ class AIServiceRegistry:
     _template_manager: Optional[TemplateManager] = None
     _ai_service: Optional[AIService] = None
     _error_handler: Optional[ErrorHandler] = None
-    _settings: Optional[Settings] = None
     _initialized: bool = False
 
     def __new__(cls):
@@ -36,60 +35,59 @@ class AIServiceRegistry:
             cls._instance = super().__new__(cls)
         return cls._instance
 
-    def _initialize_settings(self):
-        """Initialize settings if not already done."""
-        if self._settings is None:
-            self._settings = Settings()
+    def _log_settings_once(self):
+        """Log settings info once on first access."""
+        if not self._initialized:
             logger.info(
                 "Initialized settings",
-                llm_enabled=self._settings.llm.enabled,
-                provider=self._settings.llm.provider
+                llm_enabled=config.llm.enabled,
+                provider=config.llm.provider
             )
+            self._initialized = True
 
     def _initialize_llm_client(self):
         """Initialize LiteLLM + Instructor client with logging."""
         if self._llm_client is not None:
             return
 
-        self._initialize_settings()
-        settings = self._settings
+        self._log_settings_once()
 
         # Skip if LLM is disabled
-        if not settings.llm.enabled:
+        if not config.llm.enabled:
             logger.info("LLM features disabled in configuration")
             return
 
         # Check for API key
-        if not settings.llm.api_key:
+        if not config.llm.api_key:
             logger.warning("No LLM API key configured, LLM features will be limited")
             return
 
         try:
             # Configure LiteLLM logging if enabled
-            if settings.llm.log_conversations:
-                self._setup_conversation_logger(settings.llm)
+            if config.llm.log_conversations:
+                self._setup_conversation_logger(config.llm)
 
             # Create LLM client
             self._llm_client = LLMClient(
-                model=settings.llm.full_model_name,
-                api_key=settings.llm.api_key.get_secret_value() if settings.llm.api_key else None,
-                api_base=settings.llm.api_base,
-                max_retries=settings.llm.max_retries,
-                retry_on_validation_error=settings.llm.retry_on_validation_error,
-                timeout=settings.llm.timeout,
-                temperature=settings.llm.temperature
+                model=config.llm.full_model_name,
+                api_key=config.llm.api_key.get_secret_value() if config.llm.api_key else None,
+                api_base=config.llm.api_base,
+                max_retries=config.llm.max_retries,
+                retry_on_validation_error=config.llm.retry_on_validation_error,
+                timeout=config.llm.timeout,
+                temperature=config.llm.temperature
             )
 
             logger.info(
                 "Initialized LLM client",
-                provider=settings.llm.provider,
-                model=settings.llm.model
+                provider=config.llm.provider,
+                model=config.llm.model
             )
         except Exception as e:
             logger.error(
                 "Failed to initialize LLM client",
                 error=str(e),
-                provider=settings.llm.provider
+                provider=config.llm.provider
             )
             # Don't raise - allow service to run without LLM features
 
@@ -205,10 +203,10 @@ class AIServiceRegistry:
         if self._template_manager is not None:
             return
 
-        self._initialize_settings()
+        self._log_settings_once()
 
         # Use configured template dir or default
-        template_dir = self._settings.llm.template_dir
+        template_dir = config.llm.template_dir
         if template_dir is None:
             # Default to ai/templates relative to this file
             template_dir = Path(__file__).parent / "templates"
@@ -279,11 +277,10 @@ class AIServiceRegistry:
         return self._ai_service
 
     @property
-    def settings(self) -> Settings:
-        """Get or create settings."""
-        if self._settings is None:
-            self._initialize_settings()
-        return self._settings
+    def settings(self) -> Config:
+        """Get global settings."""
+        self._log_settings_once()
+        return config
 
     def reset(self):
         """Reset all components (mainly for testing)."""
@@ -291,7 +288,6 @@ class AIServiceRegistry:
         self._template_manager = None
         self._ai_service = None
         self._error_handler = None
-        self._settings = None
         self._initialized = False
         logger.info("Reset AI service registry")
 

@@ -10,6 +10,8 @@ import sys
 from typing import Dict, Any, Optional
 import json
 from contextlib import asynccontextmanager
+from pathlib import Path
+from pydantic import SecretStr
 
 # Try importing nest_asyncio but don't fail if it's not available
 try:
@@ -59,67 +61,47 @@ def load_config():
             logger.info(f"Loading configuration from YAML file: {yaml_file}")
             config.load_from_yaml(yaml_file)
         except Exception as e:
-            logger.warning(f"Failed to YAML configuration from {yaml_file}: {e}")
+            logger.warning(f"Failed to load YAML configuration from {yaml_file}: {e}")
             logger.info("Falling back to environment variables and defaults")
 
-    # Environment variables have higher priority than config file
-    env_config = {}
-
-    # Extract config variables from environment
-    for key in dir(Config):
-        if key.isupper() and not key.startswith("_"):
-            env_key = f"YOUTRACK_MCP_{key}"
-            if env_key in os.environ:
-                env_value = os.environ[env_key]
-                # Convert string booleans to actual booleans
-                if env_value.lower() in ("true", "false"):
-                    env_value = env_value.lower() == "true"
-                env_config[key] = env_value
-
-    # Create config instance from environment variables
-    if env_config:
-        logger.info("Loading configuration from environment variables")
-        Config.from_dict(env_config)
+    # Get token value for validation
+    token_value = ""
+    try:
+        token_value = config.get_api_token()
+    except ValueError:
+        # Token not configured yet, that's ok
+        pass
 
     # Ensure token is properly formatted for YouTrack Cloud
-    if config.YOUTRACK_API_TOKEN and not config.YOUTRACK_API_TOKEN.startswith(("perm:", "perm-")):
+    if token_value and not token_value.startswith(("perm:", "perm-")):
         # Check if we need to add the perm- prefix
-        if "." in config.YOUTRACK_API_TOKEN and "=" in config.YOUTRACK_API_TOKEN:
-            config.YOUTRACK_API_TOKEN = f"perm-{config.YOUTRACK_API_TOKEN}"
+        if "." in token_value and "=" in token_value:
+            config.youtrack.api_token = SecretStr(f"perm-{token_value}")
             logger.info("Added 'perm-' prefix to the API token")
         else:
             # For traditional tokens
-            config.YOUTRACK_API_TOKEN = f"perm:{config.YOUTRACK_API_TOKEN}"
+            config.youtrack.api_token = SecretStr(f"perm:{token_value}")
             logger.info("Added 'perm:' prefix to the API token")
 
-    # Force YouTrack URL to be properly formatted
-    if config.YOUTRACK_URL and config.YOUTRACK_URL.endswith("/"):
-        config.YOUTRACK_URL = config.YOUTRACK_URL.rstrip("/")
-        logger.info("Removed trailing slash from YouTrack URL")
-
-    # Initialize configuration from environment variables
-    config.validate()
-
-    # Use environment variable for URL if specified instead of auto-detection
+    # URL is already cleaned in the validator, but we can still check env
     env_url = os.getenv("YOUTRACK_URL")
-    if env_url and not config.YOUTRACK_URL:
+    if env_url and not config.youtrack.url:
         logger.info(f"Using URL from environment: {env_url}")
-        config.YOUTRACK_URL = env_url
+        config.youtrack.url = env_url.rstrip("/")
 
     # Log configuration status
-    if config.YOUTRACK_URL:
-        logger.info(f"Configured for YouTrack instance at: {config.YOUTRACK_URL}")
+    if config.youtrack.url:
+        logger.info(f"Configured for YouTrack instance at: {config.youtrack.url}")
     else:
         logger.info("Configured for YouTrack Cloud instance")
 
-    logger.info(f"SSL verification: {'Enabled' if config.VERIFY_SSL else 'Disabled'}")
+    logger.info(f"SSL verification: {'Enabled' if config.youtrack.verify_ssl else 'Disabled'}")
 
 
 # Load configuration before importing server_fastmcp to ensure YouTrackResources is created with proper config
 load_config()
 
 from youtrack_mcp.server_fastmcp import mcp
-from youtrack_mcp.utils.loader import load_all_tools
 
 # Check if structlog is available
 structlog_available = False
@@ -250,13 +232,12 @@ async def lifespan(app: FastAPI):
         global server
         server = mcp
 
-        # Load all tools
-        all_tools = load_all_tools()
-        tools = all_tools
-
         # Tools are already registered in server_fastmcp.py
+        # Don't create duplicate instances by calling load_all_tools()
+        # all_tools = load_all_tools()
+        # tools = all_tools
 
-        logger.info(f"HTTP server started with {len(all_tools)} tools")
+        # logger.info(f"HTTP server started with {len(all_tools)} tools")
 
         yield
 
@@ -412,32 +393,27 @@ def parse_args():
 def apply_cli_args(args):
     """Apply command line arguments to configuration."""
     # Apply YouTrack configuration
-    config_dict = {}
-
     if args.youtrack_url:
-        config_dict["YOUTRACK_URL"] = args.youtrack_url
+        config.youtrack.url = args.youtrack_url
 
     if args.api_token:
-        config_dict["YOUTRACK_API_TOKEN"] = args.api_token
+        config.youtrack.api_token = SecretStr(args.api_token)
 
     if args.verify_ssl is not None:
-        config_dict["VERIFY_SSL"] = args.verify_ssl
+        config.youtrack.verify_ssl = args.verify_ssl
 
     if args.openai_api_key:
-        config_dict["OPENAI_API_KEY"] = args.openai_api_key
+        config.llm.api_key = SecretStr(args.openai_api_key)
 
     # Apply logging configuration
     if hasattr(args, 'log_level') and args.log_level:
-        config_dict["LOG_LEVEL"] = args.log_level
+        config.logging.level = args.log_level
 
     if hasattr(args, 'log_file') and args.log_file:
-        config_dict["LOG_FILE"] = args.log_file
+        config.logging.file = Path(args.log_file)
 
     if hasattr(args, 'no_console_log') and args.no_console_log:
-        config_dict["LOG_CONSOLE_DISABLE"] = True
-
-    if config_dict:
-        config.from_dict(config_dict)
+        config.logging.console_disable = True
 
 def handle_signal(signum: int, frame) -> None:
     """

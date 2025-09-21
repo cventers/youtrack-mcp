@@ -169,7 +169,7 @@ class DisplayConfig(BaseSettings):
     timezone: Optional[str] = Field("America/Chicago", description="Timezone for date/time operations")
 
 
-class Settings(BaseSettings):
+class Config(BaseSettings):
     """Main configuration settings for YouTrack MCP server v3."""
 
     model_config = SettingsConfigDict(
@@ -242,4 +242,4 @@ class Settings(BaseSettings):
 
 
 # Create global config instance
-config = Settings()
+config = Config()
