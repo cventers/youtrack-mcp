@@ -116,7 +116,7 @@ class LLMClient:
         )
 
         try:
-            response = await self.client.create(**call_kwargs)
+            response = await self.client.chat.completions.create(**call_kwargs)
             logger.debug(
                 "Received structured response",
                 model=self.model,
