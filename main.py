@@ -53,16 +53,10 @@ def load_config():
         for possible_file in possible_files:
             if os.path.exists(possible_file):
                 yaml_file = possible_file
-                logger.info(f"Found configuration file: {yaml_file}")
                 break
 
     if yaml_file:
-        try:
-            logger.info(f"Loading configuration from YAML file: {yaml_file}")
-            config.load_from_yaml(yaml_file)
-        except Exception as e:
-            logger.warning(f"Failed to load YAML configuration from {yaml_file}: {e}")
-            logger.info("Falling back to environment variables and defaults")
+        config.load_from_yaml(yaml_file)
 
     # Get token value for validation
     token_value = ""
@@ -462,6 +456,12 @@ def main():
     from youtrack_mcp.server_fastmcp import mcp
     global server
     server = mcp
+
+    # Log which config file was loaded
+    if config._config_file_path:
+        logger.info(f"Configuration loaded from: {config._config_file_path}")
+    else:
+        logger.info("No configuration file found, using environment variables and defaults")
 
     # Log version information
     logger.info(f"Starting YouTrack MCP Server v{APP_VERSION}")

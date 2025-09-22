@@ -187,6 +187,8 @@ class Config(BaseSettings):
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
     display: DisplayConfig = Field(default_factory=DisplayConfig)
 
+    _config_file_path: Optional[str] = None  # Track which config file was loaded
+
     def load_from_yaml(self, yaml_file: str) -> None:
         """Load configuration from a YAML file.
 
@@ -216,6 +218,9 @@ class Config(BaseSettings):
                     self.logging = LoggingConfig(**yaml_config['logging'])
                 if 'display' in yaml_config:
                     self.display = DisplayConfig(**yaml_config['display'])
+
+            # Store the path of the loaded config file
+            self._config_file_path = yaml_file
         except yaml.YAMLError as e:
             raise ValueError(f"Invalid YAML file {yaml_file}: {e}")
 
