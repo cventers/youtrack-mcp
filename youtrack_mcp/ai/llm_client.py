@@ -44,11 +44,13 @@ class LLMClient:
         self.timeout = timeout
 
         # Create instructor client from litellm's async completion
-        self.client = instructor.from_litellm(
-            acompletion,
-            max_retries=max_retries,
-            retry_on_validation_error=retry_on_validation_error
-        )
+        # Note: max_retries should NOT be passed here as it causes conflicts
+        # It should only be passed in the create() call
+        self.client = instructor.from_litellm(acompletion)
+
+        # Store retry settings for use in create() calls
+        self.max_retries = max_retries
+        self.retry_on_validation_error = retry_on_validation_error
 
         # Store additional kwargs for provider-specific settings
         self.kwargs = kwargs
@@ -116,7 +118,10 @@ class LLMClient:
         )
 
         try:
-            response = await self.client.chat.completions.create(**call_kwargs)
+            response = await self.client.chat.completions.create(
+                max_retries=self.max_retries,
+                **call_kwargs
+            )
             logger.debug(
                 "Received structured response",
                 model=self.model,
