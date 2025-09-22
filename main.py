@@ -168,7 +168,7 @@ def setup_logging():
                     structlog.stdlib.add_logger_name,
                     structlog.stdlib.add_log_level,
                     structlog.processors.CallsiteParameterAdder(
-                        parameters=[structlog.processors.CallsiteParameter.PROCESS_ID]
+                        parameters=[structlog.processors.CallsiteParameter.PROCESS]
                     ),
                     structlog.stdlib.PositionalArgumentsFormatter(),
                     structlog.processors.TimeStamper(fmt="iso"),
