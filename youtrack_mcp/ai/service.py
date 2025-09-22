@@ -76,6 +76,7 @@ class AIService:
 
             # Get structured response
             response = await self.llm_client.complete_structured(
+                prompt="",  # Not used when messages is provided
                 messages=messages,
                 response_model=YQLTranslationResponse
             )
@@ -143,6 +144,7 @@ class AIService:
 
             # Get structured response
             response = await self.llm_client.complete_structured(
+                prompt="",  # Not used when messages is provided
                 messages=messages,
                 response_model=ErrorEnhancementResponse
             )
@@ -199,6 +201,7 @@ class AIService:
 
             # Get structured response
             response = await self.llm_client.complete_structured(
+                prompt="",  # Not used when messages is provided
                 messages=messages,
                 response_model=IntentAnalysisResponse
             )
