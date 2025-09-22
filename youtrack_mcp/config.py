@@ -76,9 +76,8 @@ class LLMConfig(BaseSettings):
         case_sensitive=False,
     )
 
-    # Provider configuration
-    provider: str = Field("openai", description="LLM provider (openai, anthropic, gemini, etc.)")
-    model: str = Field("gpt-4o-mini", description="Model name without provider prefix")
+    # Model configuration
+    model: str = Field("gpt-4o-mini", description="Model name with provider prefix (e.g., groq/llama-3.3-70b)")
 
     # API configuration
     api_key: Optional[SecretStr] = Field(None, description="API key for provider")
@@ -104,7 +103,7 @@ class LLMConfig(BaseSettings):
     @field_validator('api_key', mode='before')
     def handle_openai_env(cls, v, info):
         """Handle OPENAI_API_KEY env var."""
-        if not v and info.data.get('provider') == 'openai':
+        if not v:
             # Check for OPENAI_API_KEY env var
             openai_key = os.getenv("OPENAI_API_KEY")
             if openai_key:
@@ -119,14 +118,6 @@ class LLMConfig(BaseSettings):
         # Auto-enable if we have an API key
         return bool(info.data.get('api_key'))
 
-    @property
-    def full_model_name(self) -> str:
-        """Get full model name with provider prefix for litellm."""
-        if "/" in self.model:
-            # Already has provider prefix
-            return self.model
-        # Add provider prefix
-        return f"{self.provider}/{self.model}"
 
 
 class CacheConfig(BaseSettings):

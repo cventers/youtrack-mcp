@@ -56,7 +56,7 @@ class AIServiceRegistry:
 
         # Create LLM client
         self._llm_client = LLMClient(
-            model=config.llm.full_model_name,
+            model=config.llm.model,
             api_key=config.llm.api_key.get_secret_value(),
             api_base=config.llm.api_base,
             max_retries=config.llm.max_retries,
