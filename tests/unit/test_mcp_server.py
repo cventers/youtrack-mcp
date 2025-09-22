@@ -9,7 +9,7 @@ import pytest
 from unittest.mock import Mock, patch
 
 from youtrack_mcp.server_fastmcp import mcp
-from youtrack_mcp.utils.loader import load_all_tools
+# Tool loader no longer needed - tools are registered via FastMCP
 
 
 class TestFastMCPServer:

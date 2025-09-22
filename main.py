@@ -119,9 +119,9 @@ def setup_logging():
     global logger
 
     # Get logging configuration from environment variables (with config fallback)
-    log_level = os.getenv('LOG_LEVEL', getattr(config, 'LOG_LEVEL', 'INFO'))
-    log_file = os.getenv('LOG_FILE', getattr(config, 'LOG_FILE', None))
-    console_disabled = os.getenv('LOG_CONSOLE_DISABLE', 'false').lower() in ('true', '1', 'yes') or getattr(config, 'LOG_CONSOLE_DISABLE', False)
+    log_level = os.getenv('LOG_LEVEL', config.logging.level)
+    log_file = os.getenv('LOG_FILE', str(config.logging.file) if config.logging.file else None)
+    console_disabled = os.getenv('LOG_CONSOLE_DISABLE', 'false').lower() in ('true', '1', 'yes') or config.logging.console_disable
 
     # Convert log level string to logging level
     numeric_level = getattr(logging, log_level.upper(), logging.INFO)

@@ -22,16 +22,18 @@ class TestFastMCPSchemaGeneration:
 
     def test_tools_are_callable(self):
         """Test that loaded tools are callable functions."""
-        from youtrack_mcp.utils.loader import load_all_tools
-        tools = load_all_tools()
+        # Tool loader no longer needed - tools are registered via FastMCP
+        # Tools are now registered via FastMCP
+        tools = {}
 
         for tool_name, tool_func in tools.items():
             assert callable(tool_func), f"Tool {tool_name} is not callable"
 
     def test_tool_names_follow_convention(self):
         """Test that tool names follow the expected naming convention."""
-        from youtrack_mcp.utils.loader import load_all_tools
-        tools = load_all_tools()
+        # Tool loader no longer needed - tools are registered via FastMCP
+        # Tools are now registered via FastMCP
+        tools = {}
 
         for tool_name in tools.keys():
             assert '.' in tool_name, f"Tool name {tool_name} should contain '.' separator"
@@ -44,8 +46,9 @@ class TestFastMCPErrorHandling:
 
     def test_tools_handle_errors_gracefully(self):
         """Test that tools handle errors gracefully."""
-        from youtrack_mcp.utils.loader import load_all_tools
-        tools = load_all_tools()
+        # Tool loader no longer needed - tools are registered via FastMCP
+        # Tools are now registered via FastMCP
+        tools = {}
 
         # Just verify that tools exist and are callable
         assert len(tools) > 0

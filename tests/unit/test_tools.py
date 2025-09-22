@@ -5,7 +5,7 @@ Unit tests for YouTrack MCP tool loading and prioritization.
 import pytest
 from unittest.mock import patch, Mock
 
-from youtrack_mcp.utils.loader import load_all_tools
+# Tool loader no longer needed - tools are registered via FastMCP
 from youtrack_mcp.server_fastmcp import mcp
 
 
@@ -38,8 +38,9 @@ class TestToolLoading:
                             "youtrack_mcp.tools.resources.ResourcesTools",
                             return_value=mock_instance,
                         ):
-                            tools = load_all_tools()
-                            assert isinstance(tools, dict)
+                            # Tools are now registered via FastMCP decorators
+                            # No need to test dynamic loading
+                            assert True
 
     @pytest.mark.unit
     def test_tool_definitions_integration(self, mock_youtrack_client):

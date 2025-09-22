@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from youtrack_mcp.tools.projects_tools import ProjectsTools
 from youtrack_mcp.tools.issues_tools import IssuesTools
-from youtrack_mcp.utils.loader import load_all_tools
+# Tool loader no longer needed - tools are registered via FastMCP
 
 
 class TestProjectsSchema:

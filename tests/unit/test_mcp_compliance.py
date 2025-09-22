@@ -12,8 +12,6 @@ from unittest.mock import Mock, patch, AsyncMock
 from typing import Dict, Any
 
 from youtrack_mcp.server_fastmcp import mcp
-from youtrack_mcp.utils.loader import load_all_tools
-
 
 class TestMCPCompliance:
     """Test MCP protocol compliance."""
@@ -21,7 +19,7 @@ class TestMCPCompliance:
     def setup_method(self):
         """Set up test fixtures."""
         self.mcp_server = mcp
-        self.tools = load_all_tools()
+        # FastMCP manages tools internally
 
     def test_server_initialization(self):
         """Test that MCP server initializes correctly."""
@@ -29,16 +27,20 @@ class TestMCPCompliance:
         assert hasattr(self.mcp_server, 'name')
         assert self.mcp_server.name == "youtrack"
 
-    def test_tool_registration(self):
+    @pytest.mark.asyncio
+    async def test_tool_registration(self):
         """Test that tools are properly registered."""
+        # Get tools from FastMCP server
+        tools = await self.mcp_server.list_tools()
+        
         # Verify tools are loaded
-        assert len(self.tools) > 0
-
+        assert len(tools) > 0
+        
         # Check that core tools are present
-        tool_names = list(self.tools.keys())
-        assert any('issues.' in name for name in tool_names)
-        assert any('projects.' in name for name in tool_names)
-        assert any('search.' in name for name in tool_names)
+        tool_names = [tool.name for tool in tools]
+        assert any('issues_' in name for name in tool_names)
+        assert any('projects_' in name for name in tool_names)
+        assert any('search_' in name for name in tool_names)
 
     def test_tool_definitions_format(self):
         """Test that tool definitions follow expected format."""

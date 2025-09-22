@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from cachetools import TTLCache
 
 from .help_resources import get_help_resource
-from .loader import load_all_tools
+# Tool loader removed - tools are registered via FastMCP
 
 logger = logging.getLogger(__name__)
 

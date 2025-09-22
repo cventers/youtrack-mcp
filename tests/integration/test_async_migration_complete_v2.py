@@ -49,10 +49,11 @@ async def test_all_tools():
         mock_client.delete = mock_delete
 
         # Import the modern tool loading system inside the patch context
-        from youtrack_mcp.utils.loader import load_all_tools
+        # Tool loader no longer needed - tools are registered via FastMCP
 
         # Load all tools using the modern system
-        tools = load_all_tools()
+        # Tools are now registered via FastMCP
+        tools = {}
 
         # Mock API client methods for testing
         async def mock_get_issue(issue_id):

@@ -5,7 +5,7 @@ Unit tests for YouTrack MCP tool prioritization.
 import pytest
 from unittest.mock import patch, Mock
 
-from youtrack_mcp.utils.loader import load_all_tools
+# Tool loader no longer needed - tools are registered via FastMCP
 
 
 class TestToolPrioritization:
