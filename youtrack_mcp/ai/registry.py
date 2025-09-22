@@ -60,7 +60,6 @@ class AIServiceRegistry:
             api_key=config.llm.api_key.get_secret_value(),
             api_base=config.llm.api_base,
             max_retries=config.llm.max_retries,
-            retry_on_validation_error=config.llm.retry_on_validation_error,
             timeout=config.llm.timeout,
             temperature=config.llm.temperature
         )

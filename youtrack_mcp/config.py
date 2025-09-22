@@ -85,8 +85,7 @@ class LLMConfig(BaseSettings):
     api_base: Optional[str] = Field(None, description="Custom API endpoint")
 
     # Instructor retry configuration
-    max_retries: int = Field(3, description="Max validation retries")
-    retry_on_validation_error: bool = Field(True, description="Retry on validation errors")
+    max_retries: int = Field(3, description="Max validation retries (0 disables, >0 auto-retries on validation errors)")
     timeout: float = Field(60.0, description="Request timeout in seconds")
     temperature: float = Field(0.3, description="Temperature for responses (0.0-2.0)")
 

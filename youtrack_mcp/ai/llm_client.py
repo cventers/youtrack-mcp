@@ -20,7 +20,6 @@ class LLMClient:
         api_key: Optional[str] = None,
         api_base: Optional[str] = None,
         max_retries: int = 3,
-        retry_on_validation_error: bool = True,
         timeout: float = 60.0,
         temperature: float = 0.3,
         **kwargs
@@ -31,8 +30,7 @@ class LLMClient:
             model: Model name with optional provider prefix (e.g., "openai/gpt-4o-mini")
             api_key: API key for the provider
             api_base: Optional custom API base URL
-            max_retries: Maximum number of retries for validation errors
-            retry_on_validation_error: Whether to retry on Pydantic validation errors
+            max_retries: Maximum number of retries for validation errors (0 disables retries)
             timeout: Request timeout in seconds
             temperature: Temperature for responses (0.0-2.0)
             **kwargs: Additional provider-specific parameters
@@ -49,8 +47,8 @@ class LLMClient:
         self.client = instructor.from_litellm(acompletion)
 
         # Store retry settings for use in create() calls
+        # When max_retries > 0, Instructor automatically retries on validation errors
         self.max_retries = max_retries
-        self.retry_on_validation_error = retry_on_validation_error
 
         # Store additional kwargs for provider-specific settings
         self.kwargs = kwargs
