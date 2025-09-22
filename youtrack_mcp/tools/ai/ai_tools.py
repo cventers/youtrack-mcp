@@ -42,7 +42,7 @@ class AITools:
             JSON string with YQL query and metadata
         """
         try:
-            result = self.ai_service.translate_nl_to_yql_sync(
+            result = await self.ai_service.translate_nl_to_yql(
                 natural_language_query,
                 project_context
             )

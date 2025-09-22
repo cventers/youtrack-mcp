@@ -59,7 +59,7 @@ class AITools:
         try:
             # Try LLM-based analysis if available
             if self.ai_service:
-                result = self.ai_service.analyze_intent_sync(intent, context)
+                result = await self.ai_service.analyze_intent(intent, context)
 
                 # Handle both dict and JSON string responses
                 if isinstance(result, str):
@@ -182,7 +182,7 @@ class AITools:
                     "fallback_query": f"text: {natural_language_query}"
                 }
 
-            result = self.ai_service.translate_nl_to_yql_sync(
+            result = await self.ai_service.translate_nl_to_yql(
                 natural_language_query,
                 project_context
             )

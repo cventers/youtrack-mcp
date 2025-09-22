@@ -98,11 +98,6 @@ def load_config():
     logger.info(f"SSL verification: {'Enabled' if config.youtrack.verify_ssl else 'Disabled'}")
 
 
-# Load configuration before importing server_fastmcp to ensure YouTrackResources is created with proper config
-load_config()
-
-from youtrack_mcp.server_fastmcp import mcp
-
 # Check if structlog is available
 structlog_available = False
 try:
@@ -111,8 +106,11 @@ try:
 except ImportError:
     pass
 
-# Global logger instance (will be initialized after config is loaded)
+# Global logger instance
 logger = logging.getLogger(__name__)
+
+# Don't load config here - will be done in main() after setting up basic logging
+# from youtrack_mcp.server_fastmcp import mcp will be imported after config is loaded
 
 def setup_logging():
     """Set up logging configuration based on config values."""
@@ -228,7 +226,8 @@ async def lifespan(app: FastAPI):
         # Store client in app state for use by tools
         app.state.http_client = http_client
 
-        # Use the FastMCP server instance
+        # Import and use the FastMCP server instance
+        from youtrack_mcp.server_fastmcp import mcp
         global server
         server = mcp
 
@@ -447,12 +446,19 @@ def main():
         print(f"YouTrack MCP Server v{APP_VERSION}")
         sys.exit(0)
     
-    # Apply command line arguments
+    # Load configuration first
+    load_config()
+    
+    # Apply command line arguments (which may override config)
     apply_cli_args(args)
 
-    # Configuration is already loaded at module level
     # Set up logging based on configuration
     setup_logging()
+    
+    # Now import mcp server after config is loaded
+    from youtrack_mcp.server_fastmcp import mcp
+    global server
+    server = mcp
 
     # Log version information
     logger.info(f"Starting YouTrack MCP Server v{APP_VERSION}")
@@ -467,9 +473,7 @@ def main():
         import uvicorn
         uvicorn.run(app, host=args.host, port=8000, log_level=args.log_level.lower())
     else:
-        # Use the FastMCP server instance
-        global server
-        server = mcp
+        # Use the FastMCP server instance (already set as global in main)
 
         # Tools are already registered in server_fastmcp.py
         # No need to load them again here
