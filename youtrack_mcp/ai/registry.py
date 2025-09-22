@@ -107,12 +107,19 @@ class AIServiceRegistry:
             def log_success(kwargs, response, start_time, end_time):
                 """Log successful LLM calls."""
                 try:
+                    # Calculate duration in seconds
+                    duration_seconds = None
+                    if start_time and end_time:
+                        duration = end_time - start_time
+                        # Convert timedelta to seconds (float)
+                        duration_seconds = duration.total_seconds() if hasattr(duration, 'total_seconds') else float(duration)
+
                     conversation = {
                         "status": "success",
                         "model": kwargs.get("model"),
                         "messages": kwargs.get("messages", []),
                         "response": response.model_dump() if hasattr(response, 'model_dump') else str(response),
-                        "duration": end_time - start_time if start_time and end_time else None
+                        "duration_seconds": duration_seconds
                     }
 
                     if llm_config.redact_api_keys:
@@ -129,12 +136,19 @@ class AIServiceRegistry:
             def log_failure(kwargs, response, start_time, end_time):
                 """Log failed LLM calls."""
                 try:
+                    # Calculate duration in seconds
+                    duration_seconds = None
+                    if start_time and end_time:
+                        duration = end_time - start_time
+                        # Convert timedelta to seconds (float)
+                        duration_seconds = duration.total_seconds() if hasattr(duration, 'total_seconds') else float(duration)
+
                     conversation = {
                         "status": "failure",
                         "model": kwargs.get("model"),
                         "messages": kwargs.get("messages", []),
                         "error": str(response),
-                        "duration": end_time - start_time if start_time and end_time else None
+                        "duration_seconds": duration_seconds
                     }
 
                     if llm_config.redact_api_keys:
