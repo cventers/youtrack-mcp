@@ -93,12 +93,12 @@ class AITools:
         )
 
         return {
-            "original_query": result.original_input,
+            "original_query": natural_language_query,
             "yql_query": result.yql_query,
             "confidence": result.confidence,
             "reasoning": result.reasoning,
             "detected_entities": result.detected_entities,
-            "suggestions": result.suggestions,
+            "suggestions": result.alternative_queries,
             "ai_provider": "llm"
         }
 
