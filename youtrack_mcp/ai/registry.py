@@ -94,9 +94,14 @@ class AIServiceRegistry:
         # Configure litellm logging
         try:
             import litellm
+            import os
 
-            # Set litellm verbosity
-            litellm.set_verbose = (llm_config.log_level == "DEBUG")
+            # Set litellm verbosity using environment variable (set_verbose is deprecated)
+            if llm_config.log_level == "DEBUG":
+                os.environ['LITELLM_LOG'] = 'DEBUG'
+            else:
+                # Remove the env var if not debugging to avoid verbose logs
+                os.environ.pop('LITELLM_LOG', None)
 
             # Custom success callback for conversation logging
             def log_success(kwargs, response, start_time, end_time):
