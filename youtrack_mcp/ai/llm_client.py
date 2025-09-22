@@ -62,19 +62,19 @@ class LLMClient:
 
     async def complete_structured(
         self,
-        prompt: str,
         response_model: Type[T],
-        system: Optional[str] = None,
         messages: Optional[List[Dict[str, str]]] = None,
+        prompt: Optional[str] = None,
+        system: Optional[str] = None,
         **kwargs
     ) -> T:
         """Get a structured response from the LLM.
 
         Args:
-            prompt: User prompt (ignored if messages provided)
             response_model: Pydantic model for structured output
-            system: System message (ignored if messages provided)
-            messages: Pre-formatted messages list (overrides prompt/system)
+            messages: Pre-formatted messages list (if provided, overrides prompt/system)
+            prompt: User prompt (only used if messages not provided)
+            system: System message (only used if messages not provided)
             **kwargs: Additional parameters to pass to LiteLLM
 
         Returns:
@@ -82,6 +82,8 @@ class LLMClient:
         """
         # Build messages if not provided
         if messages is None:
+            if prompt is None:
+                raise ValueError("Either messages or prompt must be provided")
             messages = []
             if system:
                 messages.append({"role": "system", "content": system})
