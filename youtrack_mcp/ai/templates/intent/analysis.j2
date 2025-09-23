@@ -10,13 +10,9 @@ Your expertise includes:
 - Handling dependencies between operations
 - Providing clear, step-by-step plans
 
-Operation Types:
-- Issue creation and updates
-- Bulk operations on multiple issues
-- Project configuration changes
-- Custom field management
-- Workflow automation
-- Search and reporting
+{{ available_tools }}
+
+IMPORTANT: When creating a plan, you MUST use only the tools listed above. The "tool" field in each step must exactly match one of the tool names shown above (e.g., "search_query", "issues_create", "issues_patch", etc.).
 {% endblock %}
 
 {% block user %}
@@ -28,18 +24,23 @@ Context:
 {{ context | tojson(indent=2) }}
 {% endif %}
 
-Create a detailed plan that includes:
-1. Clear identification of the user's goal
-2. Required YouTrack operations in sequence
-3. Any necessary data gathering steps
-4. Validation checkpoints
-5. Error handling considerations
-6. Expected outcomes
+Create a detailed plan with the following structure:
 
-Structure the plan as actionable steps with:
-- Step description
-- Required API operation
-- Input parameters needed
-- Dependencies on previous steps
-- Success criteria
+For the overall analysis:
+- intent: Clear statement of what the user wants to achieve
+- intent_category: One of "create", "read", "update", "delete", "search", "bulk", or "analysis"
+- confidence: Your confidence level (0.0 to 1.0)
+- estimated_complexity: "low", "medium", or "high"
+- requires_confirmation: true if the operation is destructive or complex
+- detected_entities: Dictionary of detected entities (projects, users, states, etc.)
+- warnings: List of any warnings about the operation
+- alternative_interpretations: Other ways to interpret the intent
+
+For each step in the plan:
+- step: Sequential number (1, 2, 3, etc.) - MUST be an integer
+- tool: The specific tool to use (e.g., "search.query", "issues.create", "issues.patch")
+- description: Clear description of what this step does
+- parameters: Dictionary of parameters for the tool
+- expected_result: What we expect from this step
+- error_handling: How to handle errors ("stop", "skip", or "retry")
 {% endblock %}

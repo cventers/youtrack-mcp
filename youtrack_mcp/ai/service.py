@@ -4,7 +4,7 @@ AI Service for YouTrack MCP Server.
 Async service using LiteLLM + Instructor for structured outputs.
 """
 
-from typing import Dict, Optional, Any
+from typing import Dict, Optional, Any, List
 from cachetools import TTLCache
 import structlog
 
@@ -20,6 +20,51 @@ from ..utils import ErrorHandler
 logger = structlog.get_logger(__name__)
 
 
+def get_mcp_tools_info(mcp_instance: Any) -> str:
+    """Extract and format MCP tool information for LLM prompts.
+
+    Args:
+        mcp_instance: FastMCP server instance
+
+    Returns:
+        Formatted string describing available tools
+    """
+    try:
+        # Try to get tools from FastMCP's tool manager
+        if hasattr(mcp_instance, '_tool_manager') and hasattr(mcp_instance._tool_manager, 'list_tools'):
+            tools = mcp_instance._tool_manager.list_tools()
+
+            lines = ["Available MCP Tools:\n"]
+            for tool in tools:
+                lines.append(f"- {tool.name}: {tool.description or 'No description'}")
+                if hasattr(tool, 'inputSchema') and tool.inputSchema:
+                    schema = tool.inputSchema
+                    if 'required' in schema:
+                        lines.append(f"  Required: {', '.join(schema['required'])}")
+                    if 'properties' in schema:
+                        optional = set(schema['properties'].keys()) - set(schema.get('required', []))
+                        if optional:
+                            lines.append(f"  Optional: {', '.join(optional)}")
+
+            return '\n'.join(lines)
+    except Exception as e:
+        logger.warning(f"Could not extract tool info: {e}")
+
+    # Fallback: return basic tool list
+    return """Available MCP Tools:
+- search_query: Execute YouTrack Query Language
+- search_autosearch: Natural language search (if AI enabled)
+- issues_get: Get issue details
+- issues_create: Create new issue
+- issues_patch: Update issue
+- projects_list: List projects
+- projects_get: Get project details
+- projects_create: Create project
+- projects_patch: Update project
+- users_search: Search users
+- ai_plan: Plan intent execution (if AI enabled)"""
+
+
 class AIService:
     """Unified AI service with async operations."""
 
@@ -27,7 +72,8 @@ class AIService:
         self,
         llm_client: LLMClient,
         template_manager: Optional[TemplateManager] = None,
-        error_handler: Optional[ErrorHandler] = None
+        error_handler: Optional[ErrorHandler] = None,
+        mcp_instance: Optional[Any] = None
     ):
         """Initialize AI service.
 
@@ -35,10 +81,12 @@ class AIService:
             llm_client: LLMClient instance for structured outputs
             template_manager: Optional template manager (will create if not provided)
             error_handler: Optional error handler for rule-based enhancement
+            mcp_instance: Optional FastMCP instance for tool introspection
         """
         self.llm_client = llm_client
         self.template_manager = template_manager or TemplateManager()
         self.error_handler = error_handler or ErrorHandler()
+        self.mcp_instance = mcp_instance
 
         # Caches
         self.query_cache = TTLCache(maxsize=1000, ttl=3600)  # 1 hour
@@ -190,11 +238,22 @@ class AIService:
             IntentAnalysisResponse with execution plan
         """
         try:
-            # Render template
+            # Get available tools for the prompt
+            tools_info = get_mcp_tools_info(self.mcp_instance) if self.mcp_instance else """Available MCP Tools:
+- search_query: Execute YouTrack Query Language
+- issues_get: Get issue details
+- issues_create: Create new issue
+- issues_patch: Update issue
+- projects_list: List projects
+- projects_get: Get project details
+- users_search: Search users"""
+
+            # Render template with tool information
             messages = self.template_manager.render_messages(
                 "intent/analysis.j2",
                 intent=intent,
-                context=context or {}
+                context=context or {},
+                available_tools=tools_info
             )
 
             # Get structured response

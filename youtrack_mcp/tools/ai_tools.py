@@ -58,17 +58,11 @@ class AITools:
         """Use LLM to analyze intent and create execution plan."""
         if not self.ai_service:
             raise ValueError("AI service not available - LLM features require proper API configuration")
-        
+
         result = await self.ai_service.analyze_intent(intent, context)
-        
-        # Handle both dict and JSON string responses
-        if isinstance(result, str):
-            result = json.loads(result)
-        
-        if 'error' in result:
-            raise ValueError(f"LLM analysis failed: {result.get('error')}")
-        
-        return result
+
+        # Convert Pydantic model to dictionary
+        return result.model_dump()
 
 
 

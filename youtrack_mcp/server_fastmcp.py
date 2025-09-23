@@ -11,6 +11,7 @@ from pydantic import BaseModel
 
 from mcp.server import FastMCP
 
+from youtrack_mcp.ai.registry import ai_registry
 from youtrack_mcp.config import config
 from youtrack_mcp.tools.search_tools import SearchTools
 from youtrack_mcp.tools.issues_tools import IssuesTools
@@ -133,5 +134,8 @@ async def get_users_directory() -> str:
     return await handle_users_directory_resource()
 
 if __name__ == "__main__":
+    # Set the MCP instance in AI registry for tool introspection
+    ai_registry.set_mcp_instance(mcp)
+
     # Run the MCP server
     mcp.run_stdio()

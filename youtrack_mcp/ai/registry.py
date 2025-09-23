@@ -6,13 +6,12 @@ Provides centralized, lazy initialization of AI services with LiteLLM/Instructor
 
 import logging
 import json
-from typing import Optional
+from typing import Optional, Any
 from pathlib import Path
 import structlog
 
 from .llm_client import LLMClient
 from .template_manager import TemplateManager
-from .service import AIService
 from ..config import Config, config
 from ..utils import ErrorHandler
 
@@ -25,8 +24,9 @@ class AIServiceRegistry:
     _instance = None
     _llm_client: Optional[LLMClient] = None
     _template_manager: Optional[TemplateManager] = None
-    _ai_service: Optional[AIService] = None
+    _ai_service: Optional['AIService'] = None
     _error_handler: Optional[ErrorHandler] = None
+    _mcp_instance: Optional[Any] = None
     _initialized: bool = False
 
     def __new__(cls):
@@ -224,10 +224,13 @@ class AIServiceRegistry:
             logger.warning("AI service not initialized - no LLM client available")
             return
 
+        from .service import AIService  # Lazy import to avoid circular dependency
+
         self._ai_service = AIService(
             llm_client=self._llm_client,
             template_manager=self._template_manager,
-            error_handler=self._error_handler
+            error_handler=self._error_handler,
+            mcp_instance=self._mcp_instance
         )
 
         logger.info("Initialized AI service")
@@ -254,11 +257,22 @@ class AIServiceRegistry:
         return self._error_handler
 
     @property
-    def ai_service(self) -> Optional[AIService]:
+    def ai_service(self) -> Optional['AIService']:
         """Get or create AI service."""
         if self._ai_service is None:
             self._initialize_ai_service()
         return self._ai_service
+
+    def set_mcp_instance(self, mcp_instance: Any) -> None:
+        """Set the MCP instance for tool introspection.
+
+        Args:
+            mcp_instance: The FastMCP server instance
+        """
+        self._mcp_instance = mcp_instance
+        # If AI service already exists, update it
+        if self._ai_service:
+            self._ai_service.mcp_instance = mcp_instance
 
 
 # Global singleton instance
