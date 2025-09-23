@@ -224,17 +224,18 @@ class SearchTools:
             # Execute the translated query
             search_response = await self.query(yql_query, limit=10)
 
-            # Check if the query execution returned an error due to date syntax
-            if "error" in search_response and "date" in search_response.get("explanation", "").lower():
+            # Check if the query execution returned an error
+            if "error" in search_response:
                 return {
                     "yql": yql_query,
                     "confidence": confidence,
                     "results": [],
-                    "notes": f"Query contains date syntax error: {search_response.get('explanation', '')}",
+                    "notes": f"Query execution failed: {search_response.get('error', 'Unknown error')}",
                     "degraded": True,
-                    "suggestions": search_response.get("suggestions", []),
-                    "examples": search_response.get("examples", []),
-                    "detected_entities": ai_response.get("detected_entities", [])
+                    "error": search_response.get("error"),
+                    "error_type": search_response.get("error_type", "ValidationError"),
+                    "suggestions": ai_response.get("suggestions", []),
+                    "detected_entities": ai_response.get("detected_entities", {})
                 }
 
             return {
@@ -243,7 +244,7 @@ class SearchTools:
                 "results": search_response.get("results", []),
                 "notes": ai_response.get("reasoning", ""),
                 "degraded": False,
-                "detected_entities": ai_response.get("detected_entities", [])
+                "detected_entities": ai_response.get("detected_entities", {})
             }
 
         except Exception as e:
