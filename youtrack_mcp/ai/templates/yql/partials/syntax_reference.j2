@@ -1,0 +1,119 @@
+{# Comprehensive YQL Syntax Reference - Logically compressed from official docs + ChatGPT insights #}
+
+## YQL Core Syntax
+
+### Value Formats
+- **Single value**: `field: value` 
+- **Multiple values (list)**: `field: A, B, C` — commas separate values for ONE field
+- **Values with spaces**: `field: {Multi Word}` — braces ONLY for spaces, not lists!
+- **Multiple with spaces**: `state: Open, {In Progress}` — mix as needed
+
+### Common Pitfalls (NEVER DO)
+❌ `project: {A, B, C}` — DON'T wrap entire list in braces
+❌ `reporter: user` — Use `created by` (YouTrack), not `reporter` (that's Jira)
+✅ `project: A, B, C` or `in: A, B, C` — correct list syntax
+✅ `created by: cventers` or `by: cventers` — correct creator field
+
+### Field Aliases (all mean same thing)
+- **Creator**: `created by` = `by` = `reported by` = `reporter` (but prefer `created by`)
+- **Assignee**: `assignee` = `for` = `assigned to`
+- **Project**: `project` = `in`
+- **Updated**: `updated by` = `updater`
+
+### Operators & Logic
+- **AND**: space or `and` — `project: A state: Open` = `project: A and state: Open`
+- **OR**: explicit — `state: Open or state: {In Progress}` or `(project: A or project: B)`
+- **NOT**: minus prefix — `-state: Resolved` excludes resolved
+- **Grouping**: parens — `(state: A or state: B) and priority: High`
+
+### Dates & Time
+**Absolute**: `YYYY-MM-DD` — `created: 2025-01-15`
+**Ranges**: `..` — `created: 2025-01-01 .. 2025-01-31`
+**Relative**: `{minus/plus Xunit}` where unit = d/w/m/y
+- `created: {minus 7d}` — last 7 days
+- `updated: {minus 1w} .. *` — last week to now
+- `resolved: * .. {plus 30d}` — anytime to 30 days future
+
+**Named periods**:
+- `{Today}`, `{Yesterday}`, `{Tomorrow}`
+- `{Last week}`, `{This week}`, `{Next week}`
+- `{Last month}`, `{This month}`, `{Next month}`
+
+### Special Symbols
+- `#` — single value shortcut: `#Unresolved`, `#PROJ-123`
+- `*` — wildcard: `summary: bug*`, `assignee: *` (any value)
+- `..` — range operator: dates, numbers
+- `,` — value separator within field
+- `-` — negation/exclusion prefix
+- `{}` — multi-word value wrapper (NOT for lists!)
+
+### Custom Fields
+Always wrapped: `{Field Name}: value`
+- `{Priority}: Critical`
+- `{Due Date}: {minus 3d}`
+- `{Component}: Backend, Frontend` — multiple values OK
+
+## Query Patterns
+
+### Multi-Project Search (3 correct ways)
+1. **List syntax**: `project: OPS, PAY, SP`
+2. **Explicit OR**: `project: OPS or project: PAY or project: SP`  
+3. **With alias**: `in: OPS, PAY, SP`
+
+### User Filters
+- **Created by user**: `created by: john` or `by: john`
+- **Assigned to user**: `for: john` or `assignee: john`
+- **Any involvement**: `by: john or for: john or updated by: john`
+
+### State & Priority
+- **Single state**: `state: Open`
+- **Multiple states**: `state: Open, {In Progress}`
+- **Exclude states**: `-state: Resolved, Obsolete`
+- **Priority range**: `priority: Critical, Major`
+
+### Date Patterns
+- **Recent activity**: `updated: {minus 7d} .. *`
+- **Created this month**: `created: {This month}`
+- **Overdue**: `{Due Date}: * .. {Yesterday}`
+- **Upcoming**: `{Due Date}: {Today} .. {plus 7d}`
+
+### Complex Queries
+```
+# All critical bugs assigned to me this week
+project: PROJ type: Bug priority: Critical for: me created: {This week}
+
+# Open issues in multiple projects, not assigned
+in: OPS, PAY, SP state: Open -assignee: *
+
+# Recently updated by specific user, excluding resolved
+updated by: john updated: {minus 3d} .. * -state: Resolved
+```
+
+## API Usage
+
+### URL Encoding
+When in REST URLs, encode:
+- Space → `%20` or `+`
+- `:` → `%3A`
+- `{` → `%7B`, `}` → `%7D`
+
+Example: `project: {My Project}` → `project%3A%20%7BMy%20Project%7D`
+
+## Best Practices
+
+1. **Be specific**: Use exact field names over text search
+2. **Order matters**: Narrow scope first (project) then filter (state)
+3. **Avoid over-bracing**: Only use `{}` when spaces present
+4. **Use aliases wisely**: Pick one convention and stick to it
+5. **Test complex queries**: Build incrementally, test each part
+
+## Quick Reference Table
+
+| What | Wrong ❌ | Right ✅ |
+|------|----------|----------|
+| Multiple projects | `project: {A, B, C}` | `project: A, B, C` |
+| Creator field | `reporter: john` | `created by: john` |
+| Multi-word value | `state: In Progress` | `state: {In Progress}` |
+| Date range | `created: 7 days ago` | `created: {minus 7d}` |
+| Exclusion | `not state: Resolved` | `-state: Resolved` |
+| Multiple + spaces | `priority: {High, Critical}` | `priority: High, Critical` |
