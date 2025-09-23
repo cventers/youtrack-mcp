@@ -17,13 +17,21 @@ YQL Syntax Rules:
 - Logical operators: and, or, not
 - Special characters: * for wildcards, # for issue IDs
 
-Common Fields:
-- project: Project identifier
+Common YouTrack Fields (NOT Jira!):
+- project: Project identifier (use {A, B, C} for multiple)
 - state: Issue state (Open, {In Progress}, Resolved, etc.)
 - assignee: User assigned to issue
+- created by or #createdBy: Issue creator (NOT "reporter" - that's Jira!)
+- updated by: Who last updated the issue
 - created/updated/resolved: Date fields
 - priority: Issue priority
 - type: Issue type (Bug, Feature, Task, etc.)
+
+IMPORTANT YouTrack vs Jira differences:
+- Use "created by" NOT "reporter" for who created the issue
+- Use "updated by" NOT "modifier" for who updated the issue
+- Always close curly braces: {value} not {value
+- Multiple projects: project: {A, B, C} not project: A, B, C
 {% endblock %}
 
 {% block user %}
@@ -37,10 +45,27 @@ Project Context: {{ project_context }}
 
 Requirements:
 1. Generate syntactically correct YQL
-2. Use {} for multi-word values
+2. Use {} for multi-word values AND always close them
 3. Apply correct date formats (YYYY-MM-DD or relative dates)
 4. Optimize for performance (avoid unnecessary wildcards)
 5. Include relevant fields based on the query intent
 
-Respond with a valid YQL query that captures the intent of the natural language query.
+Examples of CORRECT YQL:
+- "tickets created by john doe" → created by: {john doe}
+- "issues by John in projects A, B, C" → project: {A, B, C} created by: {John}
+- "bugs assigned to me in DEMO" → project: DEMO type: Bug assignee: me
+- "open issues created last week" → state: Open created: {Last week}
+
+Examples of WRONG YQL (DO NOT DO THIS):
+- reporter: {John} ← WRONG! Use "created by" not "reporter"
+- project: A, B, C ← WRONG! Use project: {A, B, C}
+- created by: {John ← WRONG! Missing closing brace
+
+Generate a response with:
+- yql_query: The correct YQL query string
+- confidence: Your confidence level (0.0 to 1.0)
+- reasoning: Brief explanation of the translation
+- detected_entities: Dictionary of detected entities (projects, users, states)
+- alternative_queries: List of alternative YQL queries if applicable
+- warnings: List of any warnings about the query
 {% endblock %}
