@@ -11,6 +11,15 @@ Translation Guidelines:
 3. Apply proper syntax (commas for lists, braces only for spaces)
 4. Optimize for performance (specific fields over wildcards)
 5. Handle edge cases gracefully with warnings
+
+CRITICAL PEOPLE FIELD RULES:
+- For ALL people fields (reporter, assignee, updatedBy, created by, for, etc.), ALWAYS output the YouTrack login (e.g., cventers), never full names
+- If the query contains a display name (contains spaces like "Chase Venters") or email (contains @), you MUST call the users_search tool to resolve it to a login
+- Never include spaces in user identifiers - use the login form only
+- Common people field mappings:
+  - "created by" / "reporter" → created by: login
+  - "assigned to" / "assignee" → for: login or assignee: login  
+  - "updated by" → updatedBy: login
 {% endblock %}
 
 {% block user %}
@@ -35,6 +44,8 @@ Example Translations:
 - "critical bugs assigned to me last week" → `priority: Critical type: Bug for: me created: {minus 7d} .. *`
 - "open issues in Sample Project" → `project: {Sample Project} state: Open`
 - "unassigned tasks created today" → `type: Task -assignee: * created: {Today}`
+- "tickets created by Chase Venters" → [MUST call users_search first, then use login] → `created by: cventers`
+- "assigned to someone@company.com" → [MUST call users_search first, then use login] → `for: resolved_login`
 
 Generate a structured response with:
 - yql_query: The correct YQL query string

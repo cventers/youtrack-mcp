@@ -122,11 +122,84 @@ class AIService:
                 project_context=project_context
             )
 
-            # Get structured response
-            response = await self.llm_client.complete_structured(
-                response_model=YQLTranslationResponse,
-                messages=messages
-            )
+            # Define the users_search tool for the LLM
+            tools = [{
+                "type": "function",
+                "function": {
+                    "name": "users_search",
+                    "description": "Resolve a person name/email/login to YouTrack users and return candidates",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "query": {
+                                "type": "string",
+                                "description": "Name, email, or login to search"
+                            },
+                            "limit": {
+                                "type": "integer",
+                                "default": 5,
+                                "description": "Max results"
+                            }
+                        },
+                        "required": ["query"]
+                    }
+                }
+            }]
+
+            # Create tool handler if we have mcp_instance with users tools
+            tool_handler = None
+            if self.mcp_instance:
+                async def handle_tool_call(tool_name: str, args: dict) -> dict:
+                    """Handle tool calls from the LLM."""
+                    if tool_name == "users_search":
+                        # Get the users tools from the mcp instance
+                        users_tools = None
+                        for tool_name_key, tool_instance in self.mcp_instance.tools.items():
+                            if hasattr(tool_instance, '__class__') and tool_instance.__class__.__name__ == 'UsersTools':
+                                users_tools = tool_instance
+                                break
+                        
+                        if users_tools:
+                            # Call the search method
+                            result = await users_tools.search(
+                                query=args.get("query", ""),
+                                limit=args.get("limit", 5)
+                            )
+                            
+                            # Format the response for the LLM
+                            if "users" in result:
+                                users_info = []
+                                for user in result["users"]:
+                                    users_info.append({
+                                        "login": user.get("login"),
+                                        "fullName": user.get("fullName"),
+                                        "email": user.get("email")
+                                    })
+                                return {
+                                    "users": users_info,
+                                    "count": len(users_info)
+                                }
+                        
+                        return {"error": "UsersTools not available", "users": []}
+                    
+                    return {"error": f"Unknown tool: {tool_name}"}
+                
+                tool_handler = handle_tool_call
+
+            # Get structured response with tool support
+            if tool_handler and hasattr(self.llm_client, 'complete_with_tools'):
+                response = await self.llm_client.complete_with_tools(
+                    response_model=YQLTranslationResponse,
+                    messages=messages,
+                    tools=tools,
+                    tool_handler=tool_handler
+                )
+            else:
+                # Fallback to regular structured completion
+                response = await self.llm_client.complete_structured(
+                    response_model=YQLTranslationResponse,
+                    messages=messages
+                )
 
             # Cache result
             self.query_cache[cache_key] = response

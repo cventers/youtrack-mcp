@@ -2,9 +2,10 @@
 
 import instructor
 from litellm import acompletion
-from typing import Type, TypeVar, Optional, List, Dict, Any
+from typing import Type, TypeVar, Optional, List, Dict, Any, Callable
 from pydantic import BaseModel
 import structlog
+import asyncio
 
 T = TypeVar('T', bound=BaseModel)
 
@@ -197,6 +198,137 @@ class LLMClient:
         except Exception as e:
             logger.error(
                 "LLM text completion failed",
+                model=self.model,
+                error=str(e)
+            )
+            raise
+
+    async def complete_with_tools(
+        self,
+        response_model: Type[T],
+        messages: List[Dict[str, str]],
+        tools: Optional[List[Dict[str, Any]]] = None,
+        tool_handler: Optional[Callable[[str, Dict[str, Any]], Any]] = None,
+        **kwargs
+    ) -> T:
+        """Get a structured response from the LLM with optional tool calling support.
+
+        Args:
+            response_model: Pydantic model for structured output
+            messages: Pre-formatted messages list
+            tools: Optional list of tool definitions for the LLM to use
+            tool_handler: Optional async function to execute tool calls (name, args) -> result
+            **kwargs: Additional parameters to pass to LiteLLM
+
+        Returns:
+            Instance of response_model with validated data
+        """
+        # If no tools provided, use regular structured completion
+        if not tools or not tool_handler:
+            return await self.complete_structured(
+                response_model=response_model,
+                messages=messages,
+                **kwargs
+            )
+
+        # First, make a call with tools to see if the LLM wants to use any
+        call_kwargs = {
+            "model": self.model,
+            "messages": messages,
+            "tools": tools,
+            "temperature": self.temperature,
+            "timeout": self.timeout,
+            **self.kwargs
+        }
+
+        # Add API key and base if provided
+        if self.api_key:
+            call_kwargs["api_key"] = self.api_key
+        if self.api_base:
+            call_kwargs["api_base"] = self.api_base
+
+        # Override with call-specific kwargs
+        call_kwargs.update(kwargs)
+
+        logger.debug(
+            "Making LLM completion request with tools",
+            model=self.model,
+            tool_count=len(tools) if tools else 0,
+            message_count=len(messages)
+        )
+
+        try:
+            # Use litellm directly for tool calling
+            import litellm
+            response = await litellm.acompletion(**call_kwargs)
+            
+            # Check if the model wants to use tools
+            if hasattr(response, 'choices') and response.choices:
+                choice = response.choices[0]
+                if hasattr(choice.message, 'tool_calls') and choice.message.tool_calls:
+                    # Execute tool calls
+                    tool_messages = messages.copy()
+                    tool_messages.append(choice.message.model_dump())
+                    
+                    for tool_call in choice.message.tool_calls:
+                        logger.debug(
+                            "Executing tool call",
+                            tool_name=tool_call.function.name,
+                            tool_args=tool_call.function.arguments
+                        )
+                        
+                        # Parse arguments
+                        import json
+                        args = json.loads(tool_call.function.arguments)
+                        
+                        # Execute the tool
+                        if asyncio.iscoroutinefunction(tool_handler):
+                            result = await tool_handler(tool_call.function.name, args)
+                        else:
+                            result = tool_handler(tool_call.function.name, args)
+                        
+                        # Add tool response to messages
+                        tool_messages.append({
+                            "role": "tool",
+                            "tool_call_id": tool_call.id,
+                            "content": json.dumps(result) if not isinstance(result, str) else result
+                        })
+                    
+                    # Now get the final structured response with tool results
+                    return await self.complete_structured(
+                        response_model=response_model,
+                        messages=tool_messages,
+                        **kwargs
+                    )
+            
+            # No tool calls, get structured response from the initial response
+            # Extract content and use it to create structured response
+            content = choice.message.content if hasattr(choice.message, 'content') else str(choice.message)
+            
+            # Parse the content into the response model
+            if content:
+                import json
+                try:
+                    data = json.loads(content)
+                    return response_model(**data)
+                except:
+                    # Fallback to regular structured completion
+                    return await self.complete_structured(
+                        response_model=response_model,
+                        messages=messages,
+                        **kwargs
+                    )
+            else:
+                # Fallback to regular structured completion
+                return await self.complete_structured(
+                    response_model=response_model,
+                    messages=messages,
+                    **kwargs
+                )
+                
+        except Exception as e:
+            logger.error(
+                "LLM completion with tools failed",
                 model=self.model,
                 error=str(e)
             )
