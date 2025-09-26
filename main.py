@@ -212,33 +212,13 @@ tools = {}
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifespan event handler for FastAPI application."""
-    global tools, server
-
-    # Load configuration
-    load_config()
-
-    # Initialize httpx client for the application
-    import httpx
-    async with httpx.AsyncClient() as http_client:
-        # Store client in app state for use by tools
-        app.state.http_client = http_client
-
-        # Import and use the FastMCP server instance
-        from youtrack_mcp.server_fastmcp import mcp
-        global server
-        server = mcp
-
-        # Tools are already registered in server_fastmcp.py
-        # Don't create duplicate instances by calling load_all_tools()
-        # all_tools = load_all_tools()
-        # tools = all_tools
-
-        # logger.info(f"HTTP server started with {len(all_tools)} tools")
-
-        yield
-
-        # Cleanup when the application is shutting down
-        logger.info("Shutting down HTTP server")
+    # Server and config are already set up in main() before this runs
+    logger.info("HTTP server starting")
+    
+    yield
+    
+    # Cleanup when the application is shutting down
+    logger.info("Shutting down HTTP server")
 
 # FastAPI app for HTTP mode
 app = FastAPI(
@@ -454,6 +434,12 @@ def main():
     
     # Now import mcp server after config is loaded
     from youtrack_mcp.server_fastmcp import mcp
+    from youtrack_mcp.middleware import TimestampMiddleware
+    
+    # Apply timestamp middleware
+    timestamp_middleware = TimestampMiddleware(enable=True)
+    timestamp_middleware.apply_to_mcp_server(mcp)
+    
     global server
     server = mcp
 

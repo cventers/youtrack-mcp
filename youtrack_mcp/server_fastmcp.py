@@ -22,6 +22,7 @@ from youtrack_mcp.tools.projects_admin_tools import ProjectsAdminTools
 from youtrack_mcp.tools.users_admin_tools import UsersAdminTools
 from youtrack_mcp.tools.custom_fields import CustomFieldsTools
 from youtrack_mcp.mcp_resources import YouTrackResources
+from youtrack_mcp.middleware import TimestampMiddleware
 
 logger = logging.getLogger(__name__)
 
@@ -132,10 +133,3 @@ async def get_users_directory() -> str:
     """Directory of available users."""
     from youtrack_mcp.mcp_resources import handle_users_directory_resource
     return await handle_users_directory_resource()
-
-if __name__ == "__main__":
-    # Set the MCP instance in AI registry for tool introspection
-    ai_registry.set_mcp_instance(mcp)
-
-    # Run the MCP server
-    mcp.run_stdio()
