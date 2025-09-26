@@ -10,7 +10,7 @@ from pathlib import Path
 from pydantic import Field, SecretStr, field_validator, ConfigDict
 from pydantic_settings import BaseSettings, SettingsConfigDict
 import logging
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 logger = logging.getLogger(__name__)
 
@@ -165,23 +165,10 @@ class DisplayConfig(BaseSettings):
         if self._zone_info is None:
             try:
                 self._zone_info = ZoneInfo(self.timezone) if self.timezone else ZoneInfo("UTC")
-            except Exception as e:
+            except ZoneInfoNotFoundError as e:
                 logger.warning(f"Invalid timezone '{self.timezone}': {e}, using UTC")
                 self._zone_info = ZoneInfo("UTC")
         return self._zone_info
-
-    @field_validator('timezone', mode='after')
-    def validate_and_cache_timezone(cls, v):
-        """Validate timezone and cache ZoneInfo object."""
-        if v:
-            try:
-                # Validate by trying to create ZoneInfo
-                _ = ZoneInfo(v)
-                return v
-            except Exception as e:
-                logger.warning(f"Invalid timezone '{v}': {e}, using America/Chicago")
-                return "America/Chicago"
-        return v
 
 
 class CompatConfig(BaseSettings):
