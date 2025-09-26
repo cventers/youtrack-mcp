@@ -35,7 +35,6 @@ class TimestampMiddleware:
         self.enabled = enable
         # Get compatibility setting from config
         self.include_numeric = config.compat.include_numeric_date
-        logger.info(f"TimestampMiddleware initialized (enabled={enable}, include_numeric={self.include_numeric})")
     
     def wrap_tool(self, tool_func: Callable) -> Callable:
         """
@@ -114,30 +113,31 @@ class TimestampMiddleware:
     def apply_to_mcp_server(self, mcp_server):
         """
         Apply timestamp middleware to all tools in a FastMCP server.
-        
+
         Args:
             mcp_server: The FastMCP server instance
         """
         if not self.enabled:
             logger.info("TimestampMiddleware is disabled, skipping tool wrapping")
             return
-        
-        # FastMCP stores tools in the _tools dictionary
-        if hasattr(mcp_server, '_tools'):
+
+        # FastMCP stores tools in _tool_manager._tools
+        if hasattr(mcp_server, '_tool_manager') and hasattr(mcp_server._tool_manager, '_tools'):
             wrapped_count = 0
-            
-            for tool_name in list(mcp_server._tools.keys()):
-                tool_info = mcp_server._tools[tool_name]
-                
+            tools_dict = mcp_server._tool_manager._tools
+
+            for tool_name in list(tools_dict.keys()):
+                tool_info = tools_dict[tool_name]
+
                 # Wrap the handler function
                 if 'handler' in tool_info:
                     original_handler = tool_info['handler']
                     tool_info['handler'] = self.wrap_tool(original_handler)
                     wrapped_count += 1
-            
+
             logger.info(f"Applied TimestampMiddleware to {wrapped_count} tools")
         else:
-            logger.warning("MCP server doesn't have _tools attribute, cannot apply middleware")
+            raise AttributeError("MCP server doesn't have _tool_manager._tools attribute, cannot apply middleware")
 
 
 # Global instance for convenience
