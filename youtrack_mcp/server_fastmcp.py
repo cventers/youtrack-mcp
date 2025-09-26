@@ -21,7 +21,12 @@ from youtrack_mcp.tools.resources_tools import ResourcesTools
 from youtrack_mcp.tools.projects_admin_tools import ProjectsAdminTools
 from youtrack_mcp.tools.users_admin_tools import UsersAdminTools
 from youtrack_mcp.tools.custom_fields import CustomFieldsTools
-from youtrack_mcp.mcp_resources import YouTrackResources
+from youtrack_mcp.mcp_resources import (
+    YouTrackResources, 
+    handle_query_syntax_resource,
+    handle_projects_list_resource,
+    handle_users_directory_resource
+)
 from youtrack_mcp.middleware import TimestampMiddleware
 
 logger = logging.getLogger(__name__)
@@ -119,17 +124,14 @@ if ai_tools:
 @mcp.resource("youtrack://query-syntax")
 async def get_query_syntax() -> str:
     """YouTrack Query Language syntax guide."""
-    from youtrack_mcp.mcp_resources import handle_query_syntax_resource
     return await handle_query_syntax_resource()
 
 @mcp.resource("youtrack://projects")
 async def get_projects_list() -> str:
     """List of all available projects."""
-    from youtrack_mcp.mcp_resources import handle_projects_list_resource
     return await handle_projects_list_resource()
 
 @mcp.resource("youtrack://users")
 async def get_users_directory() -> str:
     """Directory of available users."""
-    from youtrack_mcp.mcp_resources import handle_users_directory_resource
     return await handle_users_directory_resource()

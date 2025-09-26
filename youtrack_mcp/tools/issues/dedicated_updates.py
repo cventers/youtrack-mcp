@@ -16,6 +16,8 @@ import json
 import logging
 from typing import Any, Dict
 
+from youtrack_mcp.tools.issues.custom_fields import CustomFields
+
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +30,7 @@ class DedicatedUpdates:
         self.client = client
         self.issues_api = IssuesClient(self.client)
 
-    def update_issue_state(self, issue_id: str, new_state: str) -> dict:
+    async def update_state(self, issue_id: str, new_state: str) -> Dict[str, Any]:
         """
         Update an issue's state using the proven working REST API approach.
         
@@ -206,7 +208,7 @@ class DedicatedUpdates:
                 "suggestion": "Check issue ID format and verify it exists in YouTrack"
             }
 
-    def update_issue_priority(self, issue_id: str, new_priority: str) -> dict:
+    async def update_priority(self, issue_id: str, new_priority: str) -> Dict[str, Any]:
         """
         Update an issue's priority using the proven working REST API approach.
         
@@ -245,10 +247,9 @@ class DedicatedUpdates:
             
             # Use the proven simple string format for custom field updates
             # We need to import the update_custom_fields function - this will be handled by the main class
-            from youtrack_mcp.tools.issues.custom_fields import CustomFields
-            custom_fields_handler = CustomFields(self.issues_api, self.projects_api)
+            custom_fields = CustomFields(self.client)
             
-            result = custom_fields_handler.update_custom_fields(
+            result = custom_fields.update_custom_fields(
                 issue_id=issue_id,
                 custom_fields={"Priority": new_priority}
             )
@@ -291,7 +292,7 @@ class DedicatedUpdates:
                 "suggestion": "Check issue ID format and verify it exists in YouTrack"
             }
 
-    def update_issue_assignee(self, issue_id: str, assignee: str) -> dict:
+    async def update_assignee(self, issue_id: str, assignee: str) -> Dict[str, Any]:
         """
         Update an issue's assignee using the proven working REST API approach.
         
@@ -329,10 +330,9 @@ class DedicatedUpdates:
             logger.info(f"Updating issue {issue_id} assignee to '{assignee}' using proven simple string format")
             
             # Use the proven simple string format for custom field updates
-            from youtrack_mcp.tools.issues.custom_fields import CustomFields
-            custom_fields_handler = CustomFields(self.issues_api, self.projects_api)
+            custom_fields = CustomFields(self.client)
             
-            result = custom_fields_handler.update_custom_fields(
+            result = custom_fields.update_custom_fields(
                 issue_id=issue_id,
                 custom_fields={"Assignee": assignee}
             )
@@ -375,7 +375,7 @@ class DedicatedUpdates:
                 "suggestion": "Check issue ID format and verify user exists in YouTrack"
             }
 
-    def update_issue_type(self, issue_id: str, issue_type: str) -> dict:
+    async def update_type(self, issue_id: str, issue_type: str) -> Dict[str, Any]:
         """
         Update an issue's type using the proven working REST API approach.
         
@@ -413,10 +413,9 @@ class DedicatedUpdates:
             logger.info(f"Updating issue {issue_id} type to '{issue_type}' using proven simple string format")
             
             # Use the proven simple string format for custom field updates
-            from youtrack_mcp.tools.issues.custom_fields import CustomFields
-            custom_fields_handler = CustomFields(self.issues_api, self.projects_api)
+            custom_fields = CustomFields(self.client)
             
-            result = custom_fields_handler.update_custom_fields(
+            result = custom_fields.update_custom_fields(
                 issue_id=issue_id,
                 custom_fields={"Type": issue_type}
             )

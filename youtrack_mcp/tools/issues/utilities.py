@@ -12,6 +12,13 @@ These functions provide infrastructure support for the issue management system.
 import logging
 from typing import Any, Dict
 
+from .dedicated_updates import DedicatedUpdates
+from .diagnostics import Diagnostics
+from .custom_fields import CustomFields
+from .basic_operations import BasicOperations
+from .linking import Linking
+from .attachments import Attachments
+
 logger = logging.getLogger(__name__)
 
 
@@ -45,40 +52,33 @@ class Utilities:
         Returns:
             Dictionary mapping tool names to their configuration
         """
-        # Import the modules to get their tool definitions
+        # Module imports have been moved to the top of the file
         try:
-            from .dedicated_updates import DedicatedUpdates
-            from .diagnostics import Diagnostics
-            from .custom_fields import CustomFields
-            from .basic_operations import BasicOperations
-            from .linking import Linking
-            from .attachments import Attachments
-        except ImportError as e:
-            logger.error(f"Failed to import issue modules: {e}")
+            # Initialize module instances (they need the API clients for tool definitions)
+            modules = [
+                DedicatedUpdates(self.issues_api, self.projects_api),
+                Diagnostics(self.issues_api, self.projects_api),
+                CustomFields(self.issues_api, self.projects_api),
+                BasicOperations(self.issues_api, self.projects_api),
+                Linking(self.issues_api, self.projects_api),
+                Attachments(self.issues_api, self.projects_api),
+            ]
+
+            # Consolidate tool definitions from all modules
+            consolidated_definitions = {}
+            
+            for module in modules:
+                try:
+                    module_definitions = module.get_tool_definitions()
+                    consolidated_definitions.update(module_definitions)
+                except Exception as e:
+                    logger.warning(f"Failed to get tool definitions from {module.__class__.__name__}: {e}")
+
+            logger.info(f"Consolidated {len(consolidated_definitions)} tool definitions from {len(modules)} modules")
+            return consolidated_definitions
+        except Exception as e:
+            logger.error(f"Failed to get tool definitions: {e}")
             return {}
-
-        # Initialize module instances (they need the API clients for tool definitions)
-        modules = [
-            DedicatedUpdates(self.issues_api, self.projects_api),
-            Diagnostics(self.issues_api, self.projects_api),
-            CustomFields(self.issues_api, self.projects_api),
-            BasicOperations(self.issues_api, self.projects_api),
-            Linking(self.issues_api, self.projects_api),
-            Attachments(self.issues_api, self.projects_api),
-        ]
-
-        # Consolidate tool definitions from all modules
-        consolidated_definitions = {}
-        
-        for module in modules:
-            try:
-                module_definitions = module.get_tool_definitions()
-                consolidated_definitions.update(module_definitions)
-            except Exception as e:
-                logger.warning(f"Failed to get tool definitions from {module.__class__.__name__}: {e}")
-
-        logger.info(f"Consolidated {len(consolidated_definitions)} tool definitions from {len(modules)} modules")
-        return consolidated_definitions
 
     def get_tool_definitions_legacy(self) -> Dict[str, Dict[str, Any]]:
         """

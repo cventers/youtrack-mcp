@@ -141,7 +141,7 @@ class ProjectsTools:
                 "project": project_data,
                 "expansions": expansions,
                 "expansions_requested": include or []
-            })
+            }
 
         except Exception as e:
             logger.exception(f"Error getting project {project_id}")
@@ -149,7 +149,7 @@ class ProjectsTools:
                 "error": str(e),
                 "error_type": type(e).__name__,
                 "project_id": project_id
-            })
+            }
 
     async def patch(self, project_id: str, ops: Optional[List[Dict[str, Any]]] = None) -> dict:
         """
@@ -201,7 +201,7 @@ class ProjectsTools:
             if not updates:
                 return {
                     "error": "No valid operations provided"
-                })
+                }
 
             # Apply updates via direct API call
             await self.client.post(f"admin/projects/{project_id}", data=updates)
@@ -219,7 +219,7 @@ class ProjectsTools:
                 "project": project_data,
                 "updated": True,
                 "operations_applied": len(ops)
-            })
+            }
 
         except Exception as e:
             logger.exception(f"Error patching project {project_id}")
@@ -228,7 +228,7 @@ class ProjectsTools:
                 "error_type": type(e).__name__,
                 "project_id": project_id,
                 "operations_requested": len(ops) if ops else 0
-            })
+            }
 
 
     async def schema(self, project_id: str) -> str:
@@ -272,7 +272,7 @@ class ProjectsTools:
                     "for_issue_creation": "Include required_fields in custom_fields parameter when creating issues",
                     "example": "issues.create(project='CLUSTER', summary='Test', custom_fields={'Type': 'Bug', 'Priority': 'High'})"
                 }
-            })
+            }
 
         except Exception as e:
             logger.exception(f"Error getting custom fields for project {project_id}")
@@ -281,7 +281,7 @@ class ProjectsTools:
                 "error_type": type(e).__name__,
                 "project_id": project_id,
                 "suggestion": "Check project ID/name and ensure you have permission to view custom fields"
-            })
+            }
 
 
     async def create(self, name: str, short_name: str, lead_id: str) -> str:
@@ -314,7 +314,7 @@ class ProjectsTools:
             return {
                 "project": project_data,
                 "created": True
-            })
+            }
 
         except Exception as e:
             logger.exception(f"Error creating project {name}")
@@ -324,7 +324,7 @@ class ProjectsTools:
                 "name": name,
                 "short_name": short_name,
                 "lead_id": lead_id
-            })
+            }
 
     def get_tool_definitions(self) -> Dict[str, Dict[str, Any]]:
         """Get core projects tool definitions."""

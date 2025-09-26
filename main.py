@@ -3,16 +3,24 @@
 YouTrack MCP Server - A Model Context Protocol server for JetBrains YouTrack.
 """
 import argparse
+import json
 import logging
 import os
 import signal
 import sys
-from typing import Dict, Any, Optional
-import json
 from contextlib import asynccontextmanager
 from pathlib import Path
-from pydantic import SecretStr
+from typing import Dict, Any, Optional
 
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field, SecretStr
+
+from youtrack_mcp.config import Config, config
+from youtrack_mcp.version import __version__ as APP_VERSION
+
+# Optional imports - these are kept as runtime imports due to being optional dependencies
 # Try importing nest_asyncio but don't fail if it's not available
 try:
     import nest_asyncio
@@ -22,75 +30,6 @@ try:
 except ImportError:
     logger = logging.getLogger(__name__)
     logger.warning("nest_asyncio not available, event loop nesting may cause issues")
-
-# App version - now imported from version.py to ensure consistency
-from youtrack_mcp.version import __version__ as APP_VERSION
-
-
-from fastapi import FastAPI, Request
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
-
-from youtrack_mcp.config import Config, config
-
-def load_config():
-    """Load configuration from environment variables, YAML file, or defaults."""
-    # First, try to load from YAML file if specified
-    yaml_file = os.getenv("YOUTRACK_CONFIG_FILE", "")
-    if not yaml_file:
-        # Try configuration file locations in priority order
-        possible_files = [
-            "./local/youtrack-mcp.yaml",      # Project local config (highest priority)
-            "./local/youtrack-mcp.yml",
-            os.path.expanduser("~/.config/youtrack-mcp.yaml"),  # User config
-            os.path.expanduser("~/.config/youtrack-mcp.yml"),
-            "./youtrack-mcp-config.yaml",     # Project root config
-            "./config.yaml",
-            "./youtrack-mcp.yaml",
-            "/etc/youtrack-mcp/config.yaml"   # System config (lowest priority)
-        ]
-        for possible_file in possible_files:
-            if os.path.exists(possible_file):
-                yaml_file = possible_file
-                break
-
-    if yaml_file:
-        config.load_from_yaml(yaml_file)
-
-    # Get token value for validation
-    token_value = ""
-    try:
-        token_value = config.get_api_token()
-    except ValueError:
-        # Token not configured yet, that's ok
-        pass
-
-    # Ensure token is properly formatted for YouTrack Cloud
-    if token_value and not token_value.startswith(("perm:", "perm-")):
-        # Check if we need to add the perm- prefix
-        if "." in token_value and "=" in token_value:
-            config.youtrack.api_token = SecretStr(f"perm-{token_value}")
-            logger.info("Added 'perm-' prefix to the API token")
-        else:
-            # For traditional tokens
-            config.youtrack.api_token = SecretStr(f"perm:{token_value}")
-            logger.info("Added 'perm:' prefix to the API token")
-
-    # URL is already cleaned in the validator, but we can still check env
-    env_url = os.getenv("YOUTRACK_URL")
-    if env_url and not config.youtrack.url:
-        logger.info(f"Using URL from environment: {env_url}")
-        config.youtrack.url = env_url.rstrip("/")
-
-    # Log configuration status
-    if config.youtrack.url:
-        logger.info(f"Configured for YouTrack instance at: {config.youtrack.url}")
-    else:
-        logger.info("Configured for YouTrack Cloud instance")
-
-    logger.info(f"SSL verification: {'Enabled' if config.youtrack.verify_ssl else 'Disabled'}")
-
 
 # Check if structlog is available
 structlog_available = False
@@ -414,8 +353,70 @@ def handle_signal(signum: int, frame) -> None:
     logger.info("Forcing process termination...")
     os._exit(0)
 
+def load_config():
+    """Load configuration from environment variables, YAML file, or defaults."""
+    # First, try to load from YAML file if specified
+    yaml_file = os.getenv("YOUTRACK_CONFIG_FILE", "")
+    if not yaml_file:
+        # Try configuration file locations in priority order
+        possible_files = [
+            "./local/youtrack-mcp.yaml",      # Project local config (highest priority)
+            "./local/youtrack-mcp.yml",
+            os.path.expanduser("~/.config/youtrack-mcp.yaml"),  # User config
+            os.path.expanduser("~/.config/youtrack-mcp.yml"),
+            "./youtrack-mcp-config.yaml",     # Project root config
+            "./config.yaml",
+            "./youtrack-mcp.yaml",
+            "/etc/youtrack-mcp/config.yaml"   # System config (lowest priority)
+        ]
+        for possible_file in possible_files:
+            if os.path.exists(possible_file):
+                yaml_file = possible_file
+                break
+
+    if yaml_file:
+        config.load_from_yaml(yaml_file)
+
+    # Get token value for validation
+    token_value = ""
+    try:
+        token_value = config.get_api_token()
+    except ValueError:
+        # Token not configured yet, that's ok
+        pass
+
+    # Ensure token is properly formatted for YouTrack Cloud
+    if token_value and not token_value.startswith(("perm:", "perm-")):
+        # Check if we need to add the perm- prefix
+        if "." in token_value and "=" in token_value:
+            config.youtrack.api_token = SecretStr(f"perm-{token_value}")
+            logger.info("Added 'perm-' prefix to the API token")
+        else:
+            # For traditional tokens
+            config.youtrack.api_token = SecretStr(f"perm:{token_value}")
+            logger.info("Added 'perm:' prefix to the API token")
+
+    # URL is already cleaned in the validator, but we can still check env
+    env_url = os.getenv("YOUTRACK_URL")
+    if env_url and not config.youtrack.url:
+        logger.info(f"Using URL from environment: {env_url}")
+        config.youtrack.url = env_url.rstrip("/")
+
+    # Log configuration status
+    if config.youtrack.url:
+        logger.info(f"Configured for YouTrack instance at: {config.youtrack.url}")
+    else:
+        logger.info("Configured for YouTrack Cloud instance")
+
+    logger.info(f"SSL verification: {'Enabled' if config.youtrack.verify_ssl else 'Disabled'}")
+
+
 def main():
     """Run the MCP server."""
+    # Import these here as they require config to be loaded first
+    from youtrack_mcp.server_fastmcp import mcp
+    from youtrack_mcp.middleware import TimestampMiddleware
+    
     args = parse_args()
     
     # Check if version information was requested
@@ -431,10 +432,6 @@ def main():
 
     # Set up logging based on configuration
     setup_logging()
-    
-    # Now import mcp server after config is loaded
-    from youtrack_mcp.server_fastmcp import mcp
-    from youtrack_mcp.middleware import TimestampMiddleware
     
     # Apply timestamp middleware
     timestamp_middleware = TimestampMiddleware(enable=True)

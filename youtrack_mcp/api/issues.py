@@ -886,7 +886,6 @@ class IssuesClient:
             normalized_value = await self._normalize_field_value(field_value)
             
             # Get allowed values to find the actual ID
-            from youtrack_mcp.api.projects import ProjectsClient
             projects_client = ProjectsClient(self.client)
             allowed_values = await projects_client.get_custom_field_allowed_values(project_id, field_name)
             
@@ -929,7 +928,6 @@ class IssuesClient:
             normalized_value = await self._normalize_field_value(field_value)
             
             # Get user ID by login
-            from youtrack_mcp.api.users import UsersClient
             users_client = UsersClient(self.client)
             user_data = await users_client.get_user(normalized_value)
             
@@ -1278,7 +1276,7 @@ class IssuesClient:
         full_url = f"{base_url}/{attachment_url}"
 
         # Make the request to get the attachment content
-        from youtrack_mcp.api.client import YouTrackAPIError
+        # YouTrackAPIError is already imported at the top of the file
 
         response = self.client.session.get(full_url)
 
@@ -1499,12 +1497,12 @@ class IssuesClient:
             if not field_schema:
                 return []
 
-            field_type = field_schema.get("fieldType", {}).get("valueType")
-            if field_type in ["enum", "state"]:
+            field_type_info = field_schema.get("fieldType", {}).get("valueType")
+            if field_type_info in ["enum", "state"]:
                 # Get bundle values
                 bundle_id = field_schema.get("fieldType", {}).get("id")
                 if bundle_id:
-                    bundle = await self.client.get(f"admin/customFieldSettings/bundles/{field_type}/{bundle_id}")
+                    bundle = await self.client.get(f"admin/customFieldSettings/bundles/{field_type_info}/{bundle_id}")
                     return [value.get("name", "") for value in bundle.get("values", [])]
 
             return []
@@ -2658,7 +2656,7 @@ class IssuesClient:
         full_url = f"{base_url}/{attachment_url}"
 
         # Make the request to get the attachment content
-        from youtrack_mcp.api.client import YouTrackAPIError
+        # YouTrackAPIError is already imported at the top of the file
 
         response = await self.client.session.get(full_url)
 
