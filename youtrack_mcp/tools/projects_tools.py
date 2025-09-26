@@ -231,7 +231,7 @@ class ProjectsTools:
             }
 
 
-    async def schema(self, project_id: str) -> str:
+    async def schema(self, project_id: str) -> dict:
         """Get project schema with custom fields and validation rules."""
         try:
             # Get custom fields schema
@@ -284,16 +284,17 @@ class ProjectsTools:
             }
 
 
-    async def create(self, name: str, short_name: str, lead_id: str) -> str:
+    async def create(self, name: str, short_name: str, lead_id: str, description: Optional[str] = None) -> dict:
         """
         Create new projects.
 
-        FORMAT: projects.create(name="Demo Project", short_name="DEMO", lead_id="admin")
+        FORMAT: projects.create(name="Demo Project", short_name="DEMO", lead_id="admin", description="Optional description")
 
         Args:
             name: Project name
             short_name: Project short name/key
             lead_id: Project leader user ID
+            description: Optional project description
 
         Returns:
             JSON with created project data
@@ -302,7 +303,8 @@ class ProjectsTools:
             project = await self.projects_api.create_project(
                 name=name,
                 short_name=short_name,
-                lead_id=lead_id
+                lead_id=lead_id,
+                description=description
             )
 
             # Convert to dict for JSON response

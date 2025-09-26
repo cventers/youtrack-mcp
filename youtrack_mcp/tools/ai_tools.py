@@ -52,7 +52,7 @@ class AITools:
                 "error_type": type(e).__name__,
                 "intent": intent,
                 "requires_confirmation": True
-            })
+            }
 
     async def _analyze_intent_with_llm(self, intent: str, context: Dict[str, Any]) -> Dict[str, Any]:
         """Use LLM to analyze intent and create execution plan."""

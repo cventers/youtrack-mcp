@@ -11,18 +11,17 @@ from youtrack_mcp.utils import add_iso8601_timestamps, convert_timestamp_to_iso8
 
 async def test_timestamp_conversion():
     """Test the timestamp conversion functions."""
-    
+
     print("Testing timestamp conversion functionality:\n")
-    
+
     # Test 1: Single timestamp conversion
     print("1. Testing single timestamp conversion:")
     timestamp_ms = 1737047429000  # Example timestamp
     iso_timestamp = convert_timestamp_to_iso8601(timestamp_ms)
     print(f"   Input: {timestamp_ms}")
     print(f"   Output: {iso_timestamp}")
-    print(f"   Conversion successful
-")
-    
+    print("   Conversion successful\n")
+
     # Test 2: Simple dict with timestamps
     print("2. Testing dict with created/updated fields:")
     test_data = {
@@ -32,18 +31,17 @@ async def test_timestamp_conversion():
         "updated": 1737048000000,
         "status": "Open"
     }
-    
+
     enhanced_data = add_iso8601_timestamps(test_data)
     print(f"   Input: {json.dumps(test_data, indent=2)}")
     print(f"   Output: {json.dumps(enhanced_data, indent=2)}")
-    
-    # Verify the timestamps were added
-    assert "created_iso8601" in enhanced_data
-    assert "updated_iso8601" in enhanced_data
-    assert enhanced_data["created"] == test_data["created"]  # Original preserved
-    print(f"   Timestamps added correctly
-")
-    
+
+    # Verify the timestamps were converted (modern mode)
+    assert isinstance(enhanced_data["created"], str)  # Should be ISO8601 string
+    assert isinstance(enhanced_data["updated"], str)  # Should be ISO8601 string
+    assert enhanced_data["created"] != test_data["created"]  # Should be converted
+    print("   Timestamps converted correctly\n")
+
     # Test 3: Nested structure
     print("3. Testing nested structure:")
     nested_data = {
@@ -60,25 +58,24 @@ async def test_timestamp_conversion():
             "updated": 1737041000000
         }
     }
-    
+
     enhanced_nested = add_iso8601_timestamps(nested_data)
-    print(f"   Original nested created fields:")
+    print("   Original nested created fields:")
     print(f"     - issue.created: {nested_data['issue']['created']}")
     print(f"     - comments[0].created: {nested_data['issue']['comments'][0]['created']}")
     print(f"     - project.created: {nested_data['project']['created']}")
-    
-    print(f"\n   Enhanced with ISO8601:")
-    print(f"     - issue.created_iso8601: {enhanced_nested['issue'].get('created_iso8601')}")
-    print(f"     - comments[0].created_iso8601: {enhanced_nested['issue']['comments'][0].get('created_iso8601')}")
-    print(f"     - project.created_iso8601: {enhanced_nested['project'].get('created_iso8601')}")
-    
-    # Verify nested timestamps
-    assert "created_iso8601" in enhanced_nested["issue"]
-    assert "created_iso8601" in enhanced_nested["issue"]["comments"][0]
-    assert "created_iso8601" in enhanced_nested["project"]
-    print(f"   Nested timestamps added correctly
-")
-    
+
+    print("\n   Enhanced with ISO8601:")
+    print(f"     - issue.created: {enhanced_nested['issue'].get('created')}")
+    print(f"     - comments[0].created: {enhanced_nested['issue']['comments'][0].get('created')}")
+    print(f"     - project.created: {enhanced_nested['project'].get('created')}")
+
+    # Verify nested timestamps (modern mode - replaced)
+    assert isinstance(enhanced_nested["issue"]["created"], str)
+    assert isinstance(enhanced_nested["issue"]["comments"][0]["created"], str)
+    assert isinstance(enhanced_nested["project"]["created"], str)
+    print("   Nested timestamps converted correctly\n")
+
     # Test 4: List of items
     print("4. Testing list of items:")
     list_data = [
@@ -86,18 +83,17 @@ async def test_timestamp_conversion():
         {"id": 2, "created": 1737047430000},
         {"id": 3, "created": 1737047431000}
     ]
-    
+
     enhanced_list = add_iso8601_timestamps(list_data)
     print(f"   Number of items: {len(list_data)}")
     for i, item in enumerate(enhanced_list):
-        if "created_iso8601" in item:
-            print(f"   Item {i}: Has created_iso8601")
-    
-    # Verify all items have timestamps
-    assert all("created_iso8601" in item for item in enhanced_list)
-    print(f"   All list items have timestamps
-")
-    
+        if isinstance(item.get("created"), str):
+            print(f"   Item {i}: Has converted created timestamp")
+
+    # Verify all items have converted timestamps
+    assert all(isinstance(item.get("created"), str) for item in enhanced_list)
+    print("   All list items have converted timestamps\n")
+
     # Test 5: Non-timestamp fields unchanged
     print("5. Testing non-timestamp fields remain unchanged:")
     other_data = {
@@ -107,12 +103,11 @@ async def test_timestamp_conversion():
         "tags": ["bug", "urgent"],
         "metadata": {"key": "value"}
     }
-    
+
     enhanced_other = add_iso8601_timestamps(other_data)
     assert enhanced_other == other_data
-    print(f"   Non-timestamp data unchanged
-")
-    
+    print("   Non-timestamp data unchanged\n")
+
     print("All timestamp conversion tests passed!")
 
 
@@ -121,36 +116,34 @@ async def test_middleware_integration():
     print("\n" + "="*60)
     print("Testing Middleware Integration")
     print("="*60 + "\n")
-    
+
     try:
         # Import the server components
         from youtrack_mcp.server_fastmcp import mcp
         from youtrack_mcp.middleware import TimestampMiddleware
-        
+
         # Create and apply middleware
         middleware = TimestampMiddleware(enable=True)
-        
+
         print("1. Checking MCP server structure:")
-        if hasattr(mcp, '_tools'):
-            print(f"   MCP server has _tools attribute")
-            print(f"   Number of tools: {len(mcp._tools)}")
-            
+        if hasattr(mcp, '_tool_manager') and hasattr(mcp._tool_manager, 'list_tools'):
+            tools = mcp._tool_manager.list_tools()
+            print("   MCP server has _tool_manager.list_tools()")
+            print(f"   Number of tools: {len(tools)}")
+
             # Apply middleware
             middleware.apply_to_mcp_server(mcp)
-            print(f"   Middleware applied successfully
-")
-            
+            print("   Middleware applied successfully\n")
+
             # Show some registered tools
             print("2. Sample of registered tools:")
-            tool_names = list(mcp._tools.keys())[:5]
-            for name in tool_names:
-                print(f"   - {name}")
-            
-            print(f"
-Middleware integration successful!")
+            for tool in tools[:5]:
+                print(f"   - {tool.name}")
+
+            print("\nMiddleware integration successful!")
         else:
             print("   WARNING: MCP server structure different than expected")
-            
+
     except ImportError as e:
         print(f"WARNING: Could not import server components: {e}")
         print("  This is expected if running outside the proper environment")
@@ -162,13 +155,13 @@ async def main():
     """Run all tests."""
     print("YouTrack MCP Timestamp Middleware Test Suite")
     print("=" * 60 + "\n")
-    
+
     # Run conversion tests
     await test_timestamp_conversion()
-    
+
     # Run integration tests
     await test_middleware_integration()
-    
+
     print("\n" + "=" * 60)
     print("All tests completed!")
     print("=" * 60)

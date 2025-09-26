@@ -121,23 +121,23 @@ class TimestampMiddleware:
             logger.info("TimestampMiddleware is disabled, skipping tool wrapping")
             return
 
-        # FastMCP stores tools in _tool_manager._tools
-        if hasattr(mcp_server, '_tool_manager') and hasattr(mcp_server._tool_manager, '_tools'):
-            wrapped_count = 0
-            tools_dict = mcp_server._tool_manager._tools
+        wrapped_count = 0
 
-            for tool_name in list(tools_dict.keys()):
-                tool_info = tools_dict[tool_name]
+        # Apply middleware using FastMCP's list_tools method
+        if hasattr(mcp_server, '_tool_manager') and hasattr(mcp_server._tool_manager, 'list_tools'):
+            tools = mcp_server._tool_manager.list_tools()
 
-                # Wrap the handler function
-                if 'handler' in tool_info:
-                    original_handler = tool_info['handler']
-                    tool_info['handler'] = self.wrap_tool(original_handler)
-                    wrapped_count += 1
+            for tool in tools:
+                # FastMCP uses 'fn' for the function - crash if missing
+                original_fn = tool.fn
+                tool.fn = self.wrap_tool(original_fn)
+                wrapped_count += 1
 
             logger.info(f"Applied TimestampMiddleware to {wrapped_count} tools")
-        else:
-            raise AttributeError("MCP server doesn't have _tool_manager._tools attribute, cannot apply middleware")
+            return
+
+        # If list_tools is not available, this is an error
+        raise AttributeError("MCP server doesn't support middleware application - missing _tool_manager.list_tools")
 
 
 # Global instance for convenience

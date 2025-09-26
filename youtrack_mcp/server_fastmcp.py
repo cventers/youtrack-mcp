@@ -69,9 +69,9 @@ async def search_query(query: str, limit: int = 50, sort_by: Optional[str] = Non
 # Only register autosearch if LLM is configured
 if ai_tools:
     @mcp.tool()
-    async def search_autosearch(data: AutoSearchInput) -> dict:
+    async def search_autosearch(natural_language_query: str, project_context: Optional[str] = None) -> dict:
         """Natural language to YQL translation."""
-        return await search_tools.autosearch(data.natural_language_query, data.project_context)
+        return await search_tools.autosearch(natural_language_query, project_context)
 
 @mcp.tool()
 async def projects_list(include_archived: bool = False) -> dict:
