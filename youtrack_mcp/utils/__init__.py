@@ -38,7 +38,7 @@ def convert_timestamp_to_iso8601(timestamp_ms: int) -> str:
         timestamp_seconds = timestamp_ms / 1000
         
         # Get configured timezone
-        zone_info = config.display.get_zone_info()
+        zone_info = config.display.zone_info
         
         # Create datetime object in configured timezone
         dt = datetime.fromtimestamp(timestamp_seconds, tz=zone_info)

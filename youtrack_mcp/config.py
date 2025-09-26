@@ -158,17 +158,21 @@ class DisplayConfig(BaseSettings):
     )
 
     timezone: Optional[str] = Field("America/Chicago", description="Timezone for date/time operations")
-    _zone_info: Optional[ZoneInfo] = None  # Cached ZoneInfo object
 
-    def get_zone_info(self) -> ZoneInfo:
-        """Get cached ZoneInfo object, creating if necessary."""
-        if self._zone_info is None:
-            try:
-                self._zone_info = ZoneInfo(self.timezone) if self.timezone else ZoneInfo("UTC")
-            except ZoneInfoNotFoundError as e:
-                logger.warning(f"Invalid timezone '{self.timezone}': {e}, using UTC")
-                self._zone_info = ZoneInfo("UTC")
-        return self._zone_info
+    @field_validator('timezone', mode='after')
+    def validate_timezone(cls, v):
+        """Validate timezone, return UTC if invalid."""
+        try:
+            ZoneInfo(v) if v else ZoneInfo("UTC")
+            return v or "UTC"
+        except ZoneInfoNotFoundError as e:
+            logger.warning(f"Invalid timezone '{v}': {e}, using UTC")
+            return "UTC"
+
+    @property
+    def zone_info(self) -> ZoneInfo:
+        """Get ZoneInfo object for the timezone."""
+        return ZoneInfo(self.timezone)  # Always valid due to validator
 
 
 class CompatConfig(BaseSettings):
