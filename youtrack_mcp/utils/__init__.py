@@ -7,6 +7,7 @@ import logging
 import re
 import yaml
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 from pathlib import Path
 from typing import Any, Dict, List, Union
 from dataclasses import dataclass
@@ -21,19 +22,26 @@ logger = logging.getLogger(__name__)
 # Import functions from main utils.py to avoid circular imports
 def convert_timestamp_to_iso8601(timestamp_ms: int) -> str:
     """
-    Convert YouTrack epoch timestamp (in milliseconds) to ISO8601 format in UTC.
+    Convert YouTrack epoch timestamp (in milliseconds) to ISO8601 format in configured timezone.
 
     Args:
         timestamp_ms: Timestamp in milliseconds since Unix epoch
 
     Returns:
-        ISO8601 formatted timestamp string in UTC timezone
+        ISO8601 formatted timestamp string in configured timezone
     """
     try:
+        # Import config here to avoid circular dependency
+        from youtrack_mcp.config import config
+        
         # Convert milliseconds to seconds
         timestamp_seconds = timestamp_ms / 1000
-        # Create datetime object in UTC and format as ISO8601
-        dt = datetime.fromtimestamp(timestamp_seconds, tz=timezone.utc)
+        
+        # Get configured timezone
+        zone_info = config.display.get_zone_info()
+        
+        # Create datetime object in configured timezone
+        dt = datetime.fromtimestamp(timestamp_seconds, tz=zone_info)
         return dt.isoformat()
     except (ValueError, OSError, OverflowError):
         # Return original timestamp as string if conversion fails
