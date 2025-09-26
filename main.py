@@ -426,13 +426,25 @@ def main():
     
     # Load configuration first
     load_config()
-    
+
     # Apply command line arguments (which may override config)
     apply_cli_args(args)
 
+    # Initialize AI tools now that config is loaded
+    if config.llm.enabled and config.llm.api_key:
+        from youtrack_mcp.tools.ai_tools import AITools
+        from youtrack_mcp import server_fastmcp
+        server_fastmcp.ai_tools = AITools()
+        # Update SearchTools with AI tools
+        server_fastmcp.search_tools.ai_tools = server_fastmcp.ai_tools
+
+    # Register MCP tools now that all dependencies are initialized
+    from youtrack_mcp.server_fastmcp import register_mcp_tools
+    register_mcp_tools()
+
     # Set up logging based on configuration
     setup_logging()
-    
+
     # Apply timestamp middleware
     timestamp_middleware = TimestampMiddleware(enable=True)
     timestamp_middleware.apply_to_mcp_server(mcp)
