@@ -111,7 +111,7 @@ async def users_search(query: str, limit: int = 10) -> dict:
 # Only register ai.plan if LLM is configured
 if ai_tools:
     @mcp.tool()
-    async def ai_plan(intent: str, context: Optional[Dict[str, Any]] = None) -> str:
+    async def ai_plan(intent: str, context: Optional[Dict[str, Any]] = None) -> dict:
         """LLM-powered intent planning and analysis."""
         return await ai_tools.plan(intent, context)
 

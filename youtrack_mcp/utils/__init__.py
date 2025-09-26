@@ -42,18 +42,23 @@ def convert_timestamp_to_iso8601(timestamp_ms: int) -> str:
 
 def add_iso8601_timestamps(
     data: Union[Dict, List, Any],
+    include_numeric: bool = False,
 ) -> Union[Dict, List, Any]:
     """
-    Recursively add ISO8601 formatted timestamps to YouTrack data.
+    Recursively add or replace timestamps with ISO8601 formatted values.
 
     This function looks for timestamp fields (created, updated) that contain
-    epoch timestamps in milliseconds and adds corresponding ISO8601 fields.
+    epoch timestamps in milliseconds and either:
+    - Replaces them with ISO8601 strings (default, include_numeric=False)
+    - Adds corresponding _iso8601 fields alongside numeric values (legacy, include_numeric=True)
 
     Args:
         data: The data structure to process (dict, list, or other)
+        include_numeric: If True, keep numeric timestamps and add _iso8601 fields.
+                        If False, replace numeric timestamps with ISO8601 strings.
 
     Returns:
-        The data structure with ISO8601 timestamps added
+        The data structure with timestamps formatted according to include_numeric setting
     """
     if isinstance(data, dict):
         # Create a copy to avoid modifying the original
@@ -63,37 +68,49 @@ def add_iso8601_timestamps(
         timestamp_fields = ["created", "updated"]
         for field in timestamp_fields:
             if field in result and isinstance(result[field], int):
-                iso_field = f"{field}_iso8601"
-                result[iso_field] = convert_timestamp_to_iso8601(result[field])
+                iso_value = convert_timestamp_to_iso8601(result[field])
+
+                if include_numeric:
+                    # Legacy format: keep numeric, add _iso8601 field
+                    iso_field = f"{field}_iso8601"
+                    result[iso_field] = iso_value
+                else:
+                    # New format: replace numeric with ISO8601 string
+                    result[field] = iso_value
 
         # Recursively process nested dictionaries and lists
         for key, value in result.items():
             if isinstance(value, (dict, list)):
-                result[key] = add_iso8601_timestamps(value)
+                result[key] = add_iso8601_timestamps(value, include_numeric)
 
         return result
 
     elif isinstance(data, list):
         # Process each item in the list
-        return [add_iso8601_timestamps(item) for item in data]
+        return [add_iso8601_timestamps(item, include_numeric) for item in data]
 
     else:
         # Return unchanged for other types
         return data
 
 
-def format_json_response(data: Any) -> str:
+def format_json_response(data: Any, include_numeric: bool = False) -> str:
     """
-    Format data as JSON string with ISO8601 timestamps added.
+    Format data as JSON string with ISO8601 timestamps.
+
+    This is a convenience wrapper for add_iso8601_timestamps + json.dumps.
+    Consider using add_iso8601_timestamps directly if you don't need a JSON string.
 
     Args:
         data: The data to format
+        include_numeric: If True, keep numeric timestamps alongside ISO8601 (legacy format).
+                        If False, replace numeric with ISO8601 (new format).
 
     Returns:
-        JSON string with ISO8601 timestamps added
+        JSON string with timestamps formatted according to include_numeric setting
     """
-    # Add ISO8601 timestamps to the data
-    enhanced_data = add_iso8601_timestamps(data)
+    # Add/replace timestamps based on config
+    enhanced_data = add_iso8601_timestamps(data, include_numeric)
 
     # Return formatted JSON
     return json.dumps(enhanced_data, indent=2)

@@ -23,7 +23,7 @@ from youtrack_mcp.api.client import (
 )
 from youtrack_mcp.api.projects import ProjectsClient
 
-from youtrack_mcp.utils import format_json_response
+# format_json_response removed - middleware handles timestamp conversion
 from youtrack_mcp.utils.error_educator import create_llm_friendly_error
 
 logger = logging.getLogger(__name__)
@@ -137,7 +137,7 @@ class ProjectsTools:
                         logger.warning(f"Failed to get project issues: {e}")
                         expansions["issues"] = []
 
-            return format_json_response({
+            return {
                 "project": project_data,
                 "expansions": expansions,
                 "expansions_requested": include or []
@@ -145,7 +145,7 @@ class ProjectsTools:
 
         except Exception as e:
             logger.exception(f"Error getting project {project_id}")
-            return format_json_response({
+            return {
                 "error": str(e),
                 "error_type": type(e).__name__,
                 "project_id": project_id
@@ -199,7 +199,7 @@ class ProjectsTools:
                     pass
 
             if not updates:
-                return format_json_response({
+                return {
                     "error": "No valid operations provided"
                 })
 
@@ -215,7 +215,7 @@ class ProjectsTools:
             else:
                 project_data = updated_project.__dict__ if hasattr(updated_project, "__dict__") else str(updated_project)
 
-            return format_json_response({
+            return {
                 "project": project_data,
                 "updated": True,
                 "operations_applied": len(ops)
@@ -223,7 +223,7 @@ class ProjectsTools:
 
         except Exception as e:
             logger.exception(f"Error patching project {project_id}")
-            return format_json_response({
+            return {
                 "error": str(e),
                 "error_type": type(e).__name__,
                 "project_id": project_id,
@@ -260,7 +260,7 @@ class ProjectsTools:
                         "description": f"Optional {schema.get('type', 'string')} field"
                     })
 
-            return format_json_response({
+            return {
                 "project_id": project_id,
                 "custom_fields": fields,
                 "schemas": schemas,
@@ -276,7 +276,7 @@ class ProjectsTools:
 
         except Exception as e:
             logger.exception(f"Error getting custom fields for project {project_id}")
-            return format_json_response({
+            return {
                 "error": str(e),
                 "error_type": type(e).__name__,
                 "project_id": project_id,
@@ -311,14 +311,14 @@ class ProjectsTools:
             else:
                 project_data = project.__dict__ if hasattr(project, "__dict__") else str(project)
 
-            return format_json_response({
+            return {
                 "project": project_data,
                 "created": True
             })
 
         except Exception as e:
             logger.exception(f"Error creating project {name}")
-            return format_json_response({
+            return {
                 "error": str(e),
                 "error_type": type(e).__name__,
                 "name": name,

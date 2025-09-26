@@ -12,6 +12,7 @@ from typing import Any, Callable, Dict, Union
 from functools import wraps
 
 from youtrack_mcp.utils import add_iso8601_timestamps
+from youtrack_mcp.config import config
 
 logger = logging.getLogger(__name__)
 
@@ -19,20 +20,22 @@ logger = logging.getLogger(__name__)
 class TimestampMiddleware:
     """
     Middleware that adds ISO8601 timestamps to all tool responses.
-    
+
     This restores the timestamp conversion functionality that was present
     in the upstream version but got removed during refactoring.
     """
-    
+
     def __init__(self, enable: bool = True):
         """
         Initialize the timestamp middleware.
-        
+
         Args:
             enable: Whether to enable timestamp conversion (default: True)
         """
         self.enabled = enable
-        logger.info(f"TimestampMiddleware initialized (enabled={enable})")
+        # Get compatibility setting from config
+        self.include_numeric = config.compat.include_numeric_date
+        logger.info(f"TimestampMiddleware initialized (enabled={enable}, include_numeric={self.include_numeric})")
     
     def wrap_tool(self, tool_func: Callable) -> Callable:
         """
@@ -53,14 +56,15 @@ class TimestampMiddleware:
             if not self.enabled:
                 return result
             
-            # Apply timestamp conversion
+            # Apply timestamp conversion with compatibility mode
             try:
-                enhanced_result = add_iso8601_timestamps(result)
-                
+                enhanced_result = add_iso8601_timestamps(result, self.include_numeric)
+
                 # Log if we actually added any timestamps
                 if self._has_timestamp_changes(result, enhanced_result):
-                    logger.debug(f"Added ISO8601 timestamps to {tool_func.__name__} output")
-                
+                    mode = "legacy" if self.include_numeric else "modern"
+                    logger.debug(f"Applied {mode} timestamp format to {tool_func.__name__} output")
+
                 return enhanced_result
                 
             except Exception as e:
@@ -72,29 +76,37 @@ class TimestampMiddleware:
     
     def _has_timestamp_changes(self, original: Any, enhanced: Any) -> bool:
         """
-        Check if timestamp conversion actually added any new fields.
-        
+        Check if timestamp conversion actually added or modified any fields.
+
         Args:
             original: Original data
             enhanced: Enhanced data with potential timestamps
-            
+
         Returns:
-            True if timestamps were added
+            True if timestamps were added or modified
         """
         try:
             # Quick check for dict types
             if isinstance(original, dict) and isinstance(enhanced, dict):
-                # Check if any _iso8601 fields were added
-                for key in enhanced:
-                    if key.endswith('_iso8601') and key not in original:
-                        return True
-            
+                if self.include_numeric:
+                    # In legacy mode, check if any _iso8601 fields were added
+                    for key in enhanced:
+                        if key.endswith('_iso8601') and key not in original:
+                            return True
+                else:
+                    # In modern mode, check if numeric timestamps were replaced
+                    for key in ['created', 'updated']:
+                        if key in original and key in enhanced:
+                            # Check if value changed from int to string
+                            if isinstance(original[key], int) and isinstance(enhanced[key], str):
+                                return True
+
             # For complex nested structures, serialize and compare
             original_json = json.dumps(original, sort_keys=True, default=str)
             enhanced_json = json.dumps(enhanced, sort_keys=True, default=str)
-            
+
             return original_json != enhanced_json
-            
+
         except Exception:
             # If comparison fails, assume changes were made
             return True

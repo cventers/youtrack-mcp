@@ -12,7 +12,7 @@ import logging
 from typing import Any, Dict, Optional
 
 from youtrack_mcp.ai.registry import ai_registry
-from youtrack_mcp.utils import format_json_response
+# Removed format_json_response - middleware handles timestamp conversion
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ class AITools:
         self.error_handler = ai_registry.error_handler
         logger.info("AITools initialized using shared AI registry")
 
-    async def plan(self, intent: str, context: Optional[Dict[str, Any]] = None) -> str:
+    async def plan(self, intent: str, context: Optional[Dict[str, Any]] = None) -> dict:
         """
         LLM-powered intent planning and analysis.
 
@@ -38,16 +38,16 @@ class AITools:
             context: Optional context dictionary
 
         Returns:
-            JSON string with plan, explanations[], requires_confirmation: true
+            Dict with plan, explanations[], requires_confirmation: true
         """
         try:
             # Use LLM to analyze intent and create execution plan
             plan_result = await self._analyze_intent_with_llm(intent, context or {})
-            return json.dumps(plan_result)
+            return plan_result
 
         except Exception as e:
             logger.exception(f"Error planning intent: {intent}")
-            return json.dumps({
+            return {
                 "error": str(e),
                 "error_type": type(e).__name__,
                 "intent": intent,

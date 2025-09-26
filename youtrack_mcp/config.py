@@ -159,6 +159,20 @@ class DisplayConfig(BaseSettings):
     timezone: Optional[str] = Field("America/Chicago", description="Timezone for date/time operations")
 
 
+class CompatConfig(BaseSettings):
+    """Compatibility configuration for output format control."""
+
+    model_config = ConfigDict(
+        env_prefix="COMPAT_",
+        case_sensitive=False,
+    )
+
+    include_numeric_date: bool = Field(
+        False,
+        description="Include numeric timestamps alongside ISO8601 (legacy format)"
+    )
+
+
 class Config(BaseSettings):
     """Main configuration settings for YouTrack MCP server v3."""
 
@@ -177,6 +191,7 @@ class Config(BaseSettings):
     cache: CacheConfig = Field(default_factory=CacheConfig)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
     display: DisplayConfig = Field(default_factory=DisplayConfig)
+    compat: CompatConfig = Field(default_factory=CompatConfig)
 
     _config_file_path: Optional[str] = None  # Track which config file was loaded
 
@@ -209,6 +224,8 @@ class Config(BaseSettings):
                     self.logging = LoggingConfig(**yaml_config['logging'])
                 if 'display' in yaml_config:
                     self.display = DisplayConfig(**yaml_config['display'])
+                if 'compat' in yaml_config:
+                    self.compat = CompatConfig(**yaml_config['compat'])
 
             # Store the path of the loaded config file
             self._config_file_path = yaml_file
