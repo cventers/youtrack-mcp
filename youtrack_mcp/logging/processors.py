@@ -15,12 +15,28 @@ class CustomConsoleRenderer(ConsoleRenderer):
         # Extract the fields we want to control
         logger_name = event_dict.pop("logger", None)
         event = event_dict.pop("event", "")
-        level = event_dict.get("level", "")
 
         # Temporarily modify event_dict to control ordering
         if logger_name:
-            # Create a modified event string that includes logger name
-            modified_event = f"[{logger_name}] {event}"
+            # Find the logger column formatter to get its color style
+            logger_style = ""
+            reset_style = ""
+
+            for column in self._columns:
+                if column.key == "logger":
+                    # Extract color codes from the formatter
+                    if hasattr(column.formatter, 'value_style'):
+                        logger_style = column.formatter.value_style
+                        reset_style = column.formatter.reset_style
+                    break
+
+            # Create a modified event string that includes styled logger name
+            if logger_style:
+                colored_logger = f"[{reset_style}{logger_style}{logger_name}{reset_style}]"
+            else:
+                colored_logger = f"[{logger_name}]"
+
+            modified_event = f"{colored_logger} {event}"
             event_dict["event"] = modified_event
 
         # Call parent renderer
