@@ -1,6 +1,7 @@
 """Log processors for formatting and enriching log output."""
 
 import json
+import os
 from collections import OrderedDict
 from typing import Any, Dict, List, Optional
 
@@ -112,7 +113,7 @@ def get_console_processor(format: str):
     elif format == "json":
         # Use OrderedRenderer for console JSON too
         return OrderedJSONRenderer(
-            key_order=["timestamp", "level", "logger", "event"],
+            key_order=["timestamp", "pid", "level", "logger", "event"],
             indent=None
         )
     else:  # plain
@@ -131,12 +132,12 @@ def get_file_processor(format: str):
     if format == "json":
         # Use OrderedRenderer to ensure timestamp appears first
         return OrderedJSONRenderer(
-            key_order=["timestamp", "level", "logger", "event"],
+            key_order=["timestamp", "pid", "level", "logger", "event"],
             indent=None
         )
     else:  # text
         return KeyValueRenderer(
-            key_order=["timestamp", "level", "logger", "event"],
+            key_order=["timestamp", "pid", "level", "logger", "event"],
             drop_missing=True,
         )
 
@@ -178,6 +179,28 @@ class ContextEnricher:
         if hasattr(logger, '_mcp_context'):
             event_dict['mcp'] = logger._mcp_context
 
+        return event_dict
+
+
+class PIDAdder:
+    """Add process ID to log records."""
+
+    def __init__(self):
+        """Initialize with current process ID."""
+        self.pid = os.getpid()
+
+    def __call__(self, logger, method_name: str, event_dict: Dict[str, Any]) -> Dict[str, Any]:
+        """Add PID to event dict.
+
+        Args:
+            logger: The logger instance
+            method_name: The logging method called
+            event_dict: The event dictionary
+
+        Returns:
+            Event dictionary with added PID
+        """
+        event_dict['pid'] = self.pid
         return event_dict
 
 

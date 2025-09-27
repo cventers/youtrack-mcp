@@ -12,6 +12,7 @@ from .config import LoggingConfig
 from .processors import (
     ContextEnricher,
     ErrorDetailsAdder,
+    PIDAdder,
     get_console_processor,
     get_file_processor,
 )
@@ -47,6 +48,7 @@ def setup_logging(config: Optional[LoggingConfig] = None) -> ContextEnricher:
         structlog.stdlib.PositionalArgumentsFormatter(),
         structlog.processors.StackInfoRenderer(),
         structlog.processors.TimeStamper(fmt="iso"),
+        PIDAdder(),
         ErrorDetailsAdder(),
         _context_enricher,
     ]
