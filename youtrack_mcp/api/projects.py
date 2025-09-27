@@ -396,7 +396,7 @@ class ProjectsClient:
                         "bundle_id": field_type.get("id")
                     }
                     
-                    logger.info(f"Found schema for field '{field_name}': {enhanced_schema}")
+                    logger.info("Found schema for field", field_name=field_name, schema=enhanced_schema)
                     
                     # Add allowed values for enum/state fields
                     if field_type.get("valueType") in ["enum", "state"]:
@@ -408,10 +408,10 @@ class ProjectsClient:
                     
                     return enhanced_schema
             
-            logger.warning(f"Field '{field_name}' not found in project {project_id} custom fields")
+            logger.warning("Field not found in project custom fields", field_name=field_name, project_id=project_id)
             return None
         except Exception as e:
-            logger.error(f"Error getting custom field schema for '{field_name}': {str(e)}")
+            logger.error("Error getting custom field schema", field_name=field_name, error=str(e))
             return None
 
     def get_custom_field_allowed_values(self, project_id: str, field_name: str) -> List[Dict[str, Any]]:
@@ -437,7 +437,7 @@ class ProjectsClient:
                     break
             
             if not field_info:
-                logger.warning(f"Field '{field_name}' not found in project {project_id}")
+                logger.warning("Field not found in project", field_name=field_name, project_id=project_id)
                 return []
             
             # Extract field type information
@@ -446,16 +446,16 @@ class ProjectsClient:
             
             # More robust field type handling
             if not isinstance(field_type, dict):
-                logger.warning(f"Field type for '{field_name}' is not a dictionary: {type(field_type)} - {field_type}")
+                logger.warning("Field type is not a dictionary", field_name=field_name, field_type_class=type(field_type).__name__, field_type=field_type)
                 return []
                 
             value_type = field_type.get("valueType", "")  # enum, state, user, etc.
             bundle_id = field_type.get("id")  # enum[1], state[1], etc.
             
-            logger.info(f"Field '{field_name}' - valueType: {value_type}, bundleId: {bundle_id}")
+            logger.info("Field info", field_name=field_name, value_type=value_type, bundle_id=bundle_id)
             
             if not bundle_id:
-                logger.warning(f"No bundle ID found for field '{field_name}'")
+                logger.warning("No bundle ID found for field", field_name=field_name)
                 return []
             
             # For enum fields, we need to resolve the correct bundle
@@ -474,11 +474,11 @@ class ProjectsClient:
                             if 0 <= index < len(all_enum_bundles):
                                 target_bundle = all_enum_bundles[index]
                                 actual_bundle_id = target_bundle.get('id')
-                                logger.info(f"Resolved bundle index {index} to bundle ID {actual_bundle_id} ({target_bundle.get('name')})")
+                                logger.info("Resolved bundle index to bundle ID", index=index, bundle_id=actual_bundle_id, bundle_name=target_bundle.get('name'))
                                 
                                 # Return values from the correct bundle
                                 values = target_bundle.get('values', [])
-                                logger.info(f"Found {len(values)} values for field '{field_name}' in bundle '{target_bundle.get('name')}'")
+                                logger.info("Found values for field in bundle", count=len(values), field_name=field_name, bundle_name=target_bundle.get('name'))
                                 return [
                                     {
                                         "name": value.get("name", ""),
@@ -498,7 +498,7 @@ class ProjectsClient:
                 try:
                     bundle_data = self.client.get(f"admin/customFieldSettings/bundles/enum/{actual_bundle_id}?fields=id,name,values(id,name,description)")
                     values = bundle_data.get("values", [])
-                    logger.info(f"Found {len(values)} values for enum field '{field_name}'")
+                    logger.info("Found values for enum field", count=len(values), field_name=field_name)
                     return [
                         {
                             "name": value.get("name", ""),
@@ -537,7 +537,7 @@ class ProjectsClient:
                         if 0 <= bundle_index < len(all_bundles):
                             target_bundle = all_bundles[bundle_index]
                             values = target_bundle.get("values", [])
-                            logger.info(f"Found {len(values)} state values for field '{field_name}' from bundle '{target_bundle.get('name')}'")
+                            logger.info("Found state values for field from bundle", count=len(values), field_name=field_name, bundle_name=target_bundle.get('name'))
                             return [
                                 {
                                     "name": value.get("name", ""),
@@ -556,7 +556,7 @@ class ProjectsClient:
                         bundle_data = self.client.get(f"admin/customFieldSettings/bundles/state/{bundle_id}?fields=values(id,name,description,isResolved,color)")
                     
                     values = bundle_data.get("values", [])
-                    logger.info(f"Found {len(values)} state values for field '{field_name}' from bundle '{bundle_data.get('name', 'unknown')}'")
+                    logger.info("Found state values for field from bundle", count=len(values), field_name=field_name, bundle_name=bundle_data.get('name', 'unknown'))
                     return [
                         {
                             "name": value.get("name", ""),
@@ -575,7 +575,7 @@ class ProjectsClient:
                 try:
                     # For user fields, get available users
                     users_data = self.client.get("users?fields=id,login,name,email")
-                    logger.info(f"Found {len(users_data)} users for field '{field_name}'")
+                    logger.info("Found users for field", count=len(users_data), field_name=field_name)
                     return [
                         {
                             "name": user.get("name", ""),
@@ -593,7 +593,7 @@ class ProjectsClient:
                 try:
                     # For subsystem/owned fields, get subsystems for this project
                     subsystems_data = self.client.get(f"admin/projects/{project_id}/subsystems?fields=id,name,description")
-                    logger.info(f"Found {len(subsystems_data)} subsystems for field '{field_name}'")
+                    logger.info("Found subsystems for field", count=len(subsystems_data), field_name=field_name)
                     return [
                         {
                             "name": subsystem.get("name", ""),
@@ -627,7 +627,7 @@ class ProjectsClient:
                 try:
                     # For version fields, get versions for this project
                     versions_data = self.client.get(f"admin/projects/{project_id}/versions?fields=id,name,description,released,releaseDate")
-                    logger.info(f"Found {len(versions_data)} versions for field '{field_name}'")
+                    logger.info("Found versions for field", count=len(versions_data), field_name=field_name)
                     return [
                         {
                             "name": version.get("name", ""),
@@ -672,7 +672,7 @@ class ProjectsClient:
                 try:
                     # For build fields, get builds for this project
                     builds_data = self.client.get(f"admin/projects/{project_id}/builds?fields=id,name,description")
-                    logger.info(f"Found {len(builds_data)} builds for field '{field_name}'")
+                    logger.info("Found builds for field", count=len(builds_data), field_name=field_name)
                     return [
                         {
                             "name": build.get("name", ""),
@@ -705,11 +705,11 @@ class ProjectsClient:
                     ]
             
             else:
-                logger.info(f"Field '{field_name}' type '{value_type}' doesn't support allowed values")
+                logger.info("Field type doesn't support allowed values", field_name=field_name, value_type=value_type)
                 return []
             
         except Exception as e:
-            logger.error(f"Error getting custom field allowed values for '{field_name}': {str(e)}")
+            logger.error("Error getting custom field allowed values", field_name=field_name, error=str(e))
             return []
 
     def get_available_custom_field_values(
@@ -777,7 +777,7 @@ class ProjectsClient:
                             enhanced_schema["allowed_values"] = []
                     
                     schemas[field_name] = enhanced_schema
-                    logger.info(f"Added schema for field '{field_name}': {enhanced_schema}")
+                    logger.info("Added schema for field", field_name=field_name, schema=enhanced_schema)
                 else:
                     logger.warning("field_missing_name_field", field=field)
             
@@ -943,7 +943,7 @@ class ProjectsClient:
             }
             
         except Exception as e:
-            logger.error(f"Error validating field '{field_name}': {str(e)}")
+            logger.error("Error validating field", field_name=field_name, error=str(e))
             return {
                 "valid": False,
                 "error": f"Validation error: {str(e)}",

@@ -231,7 +231,7 @@ class CustomFieldsTools:
                 for field_schema in all_schemas.values():
                     if field_schema.get("name") == field_name:
                         actual_field_type = field_schema.get("type", "text")
-                        logger.info(f"Found actual field type for '{field_name}': {actual_field_type}")
+                        logger.info("Found actual field type", field_name=field_name, field_type=actual_field_type)
                         validation = self._validate_field_value(field_value, actual_field_type)
 
                         return {

@@ -65,7 +65,7 @@ class DedicatedUpdates:
                     "error": "Both issue ID and new state are required"
                 }
             
-            logger.info(f"Updating issue {issue_id} state to '{new_state}' using proven Direct Field Update API")
+            logger.info("Updating issue state using Direct Field Update API", issue_id=issue_id, new_state=new_state)
             
             # Use the proven Direct Field Update API approach
             success = self.issues_api._apply_direct_state_update(issue_id, new_state)
@@ -243,7 +243,7 @@ class DedicatedUpdates:
                     "error": "Both issue ID and new priority are required"
                 }
             
-            logger.info(f"Updating issue {issue_id} priority to '{new_priority}' using proven simple string format")
+            logger.info("Updating issue priority using simple string format", issue_id=issue_id, new_priority=new_priority)
             
             # Use the proven simple string format for custom field updates
             # We need to import the update_custom_fields function - this will be handled by the main class
@@ -327,7 +327,7 @@ class DedicatedUpdates:
                     "error": "Both issue ID and assignee are required"
                 }
             
-            logger.info(f"Updating issue {issue_id} assignee to '{assignee}' using proven simple string format")
+            logger.info("Updating issue assignee using simple string format", issue_id=issue_id, assignee=assignee)
             
             # Use the proven simple string format for custom field updates
             custom_fields = CustomFields(self.client)
@@ -410,7 +410,7 @@ class DedicatedUpdates:
                     "error": "Both issue ID and issue type are required"
                 }
             
-            logger.info(f"Updating issue {issue_id} type to '{issue_type}' using proven simple string format")
+            logger.info("Updating issue type using simple string format", issue_id=issue_id, issue_type=issue_type)
             
             # Use the proven simple string format for custom field updates
             custom_fields = CustomFields(self.client)
@@ -493,7 +493,7 @@ class DedicatedUpdates:
                     "error": "Both issue ID and estimation are required"
                 }
             
-            logger.info(f"Updating issue {issue_id} estimation to '{estimation}' using proven simple string format")
+            logger.info("Updating issue estimation using simple string format", issue_id=issue_id, estimation=estimation)
             
             # Use the existing custom_fields instance or create one if needed
             if self.custom_fields:

@@ -162,7 +162,7 @@ class DisplayConfig(BaseSettings):
             ZoneInfo(v) if v else ZoneInfo("UTC")
             return v or "UTC"
         except ZoneInfoNotFoundError as e:
-            logger.warning(f"Invalid timezone '{v}': {e}, using UTC")
+            logger.warning("Invalid timezone, using UTC", timezone=v, error=str(e))
             return "UTC"
 
     @property

@@ -62,13 +62,13 @@ class TimestampMiddleware:
                 # Log if we actually added any timestamps
                 if self._has_timestamp_changes(result, enhanced_result):
                     mode = "legacy" if self.include_numeric else "modern"
-                    logger.debug(f"Applied {mode} timestamp format to {tool_func.__name__} output")
+                    logger.debug("Applied timestamp format to output", mode=mode, tool_func=tool_func.__name__)
 
                 return enhanced_result
                 
             except Exception as e:
                 # If timestamp conversion fails, log and return original
-                logger.warning(f"Failed to add timestamps to {tool_func.__name__} output: {e}")
+                logger.warning("Failed to add timestamps to output:", tool_func=tool_func.__name__, error=str(e))
                 return result
         
         return wrapper

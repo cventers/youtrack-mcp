@@ -48,7 +48,7 @@ def get_mcp_tools_info(mcp_instance: Any) -> str:
 
             return '\n'.join(lines)
     except Exception as e:
-        logger.warning(f"Could not extract tool info: {e}")
+        logger.warning("Could not extract tool info:", error=str(e))
 
     # Fallback: return basic tool list
     return """Available MCP Tools:

@@ -305,7 +305,7 @@ class YouTrackClient:
                 f"{method} {url} with JSON: {json.dumps(kwargs['json'])}"
             )
         elif "data" in kwargs:
-            logger.debug(f"{method} {url} with data: {kwargs['data']}")
+            logger.debug("API request with data", method=method, url=url, data=kwargs['data'])
         else:
             logger.debug("method_url", method=method, url=url)
 

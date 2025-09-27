@@ -105,7 +105,7 @@ def normalize_datetime(date_input: str, timezone_str: str = "UTC") -> datetime:
         raise ValueError(f"Unsupported date format: {date_input}")
 
     except Exception as e:
-        logger.warning(f"Could not parse date '{date_input}': {e}")
+        logger.warning("Could not parse date", date_input=date_input, error=str(e))
         raise ValueError(f"Could not parse date: {date_input}")
 
 

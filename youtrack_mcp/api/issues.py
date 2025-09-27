@@ -549,7 +549,7 @@ class IssuesClient:
         """
         try:
             # Method 1: Direct Field Update (PROVEN TO WORK in testing)
-            logger.info(f"Attempting direct field update for issue {issue_id} to state '{target_state}'")
+            logger.info("Attempting direct field update for issue to state", issue_id=issue_id, target_state=target_state)
             success = await self._apply_direct_state_update(issue_id, target_state)
 
             if success:
@@ -565,7 +565,7 @@ class IssuesClient:
                         "issues": [{"id": issue_id}]
                     }
 
-                    logger.info(f"Applying state transition command 'State \"{target_state}\"' to issue {issue_id}")
+                    logger.info("Applying state transition command to issue", issue_id=issue_id, target_state=target_state)
                     await self.client.post("commands", data=command_data)
                     logger.info("commandbased_transition_succeeded_for_issue_issue_", issue_id=issue_id)
                     return True
@@ -599,11 +599,11 @@ class IssuesClient:
                 logger.warning("state_machine_detection_failed_sm_error", sm_error=sm_error)
 
             # All methods failed
-            logger.error(f"All state transition methods failed for issue {issue_id} to state '{target_state}'")
+            logger.error("All state transition methods failed for issue to state", issue_id=issue_id, target_state=target_state)
             return False
 
         except Exception as e:
-            logger.error(f"State transition failed for issue {issue_id} to state '{target_state}': {e}")
+            logger.error("State transition failed for issue to state", issue_id=issue_id, target_state=target_state, error=str(e))
             return False
     
     async def _apply_state_machine_transition(self, issue_id: str, target_state: str, possible_events: List[Dict]) -> bool:
@@ -643,10 +643,10 @@ class IssuesClient:
                 }
 
                 await self.client.post(f"issues/{issue_id}", data=update_data)
-                logger.info(f"Applied state machine event '{target_event.get('id')}' to issue {issue_id}")
+                logger.info("Applied state machine event to issue", event_id=target_event.get('id'), issue_id=issue_id)
                 return True
             else:
-                logger.warning(f"No suitable event found for state transition to '{target_state}'")
+                logger.warning("No suitable event found for state transition", target_state=target_state)
                 return False
 
         except Exception as e:
@@ -687,7 +687,7 @@ class IssuesClient:
             }
 
             await self.client.post(f"issues/{issue_id}", data=update_data)
-            logger.info(f"Direct state update succeeded for issue {issue_id} to '{target_state}'")
+            logger.info("Direct state update succeeded for issue", issue_id=issue_id, target_state=target_state)
             return True
 
         except Exception as e:
@@ -857,7 +857,7 @@ class IssuesClient:
                     }
                 }
             else:
-                logger.warning(f"Could not find ID for enum value '{field_value}' in field '{field_name}', trying simple enum object")
+                logger.warning("Could not find ID for enum value in field, trying simple enum object", field_value=field_value, field_name=field_name)
                 # Try simple enum object format if ID lookup fails
                 return {
                     "$type": "SingleEnumIssueCustomField",
@@ -868,7 +868,7 @@ class IssuesClient:
                     }
                 }
         except Exception as e:
-            logger.warning(f"Error creating enum field object for '{field_name}': {e}, trying simple enum object")
+            logger.warning("Error creating enum field object, trying simple enum object", field_name=field_name, error=str(e))
             # Fallback to simple enum object (no ID)
             return {
                 "$type": "SingleEnumIssueCustomField",
@@ -907,14 +907,14 @@ class IssuesClient:
                     }
                 }
             else:
-                logger.warning(f"Could not find ID for state value '{field_value}' in field '{field_name}', using simple value")
+                logger.warning("Could not find ID for state value in field, using simple value", field_value=field_value, field_name=field_name)
                 return {
                     "$type": "StateIssueCustomField",
                     "name": field_name,
                     "value": field_value
                 }
         except Exception as e:
-            logger.warning(f"Error creating state field object for '{field_name}': {e}, using simple value")
+            logger.warning("Error creating state field object, using simple value", field_name=field_name, error=str(e))
             return {
                 "$type": "StateIssueCustomField",
                 "name": field_name,
@@ -942,14 +942,14 @@ class IssuesClient:
                     }
                 }
             else:
-                logger.warning(f"Could not find user ID for login '{field_value}', using simple value")
+                logger.warning("Could not find user ID for login, using simple value", field_value=field_value)
                 return {
                     "$type": "SingleUserIssueCustomField",
                     "name": field_name,
                     "value": field_value
                 }
         except Exception as e:
-            logger.warning(f"Error creating user field object for '{field_name}': {e}, using simple value")
+            logger.warning("Error creating user field object, using simple value", field_name=field_name, error=str(e))
             return {
                 "$type": "SingleUserIssueCustomField",
                 "name": field_name,
@@ -978,14 +978,14 @@ class IssuesClient:
                 }
             else:
                 # Fallback to simple value if parsing fails
-                logger.warning(f"Could not parse period value '{field_value}' for field '{field_name}', using simple value")
+                logger.warning("Could not parse period value for field, using simple value", field_value=field_value, field_name=field_name)
                 return {
                     "$type": "PeriodIssueCustomField",
                     "name": field_name,
                     "value": field_value
                 }
         except Exception as e:
-            logger.warning(f"Error creating period field object for '{field_name}': {e}, using simple value")
+            logger.warning("Error creating period field object, using simple value", field_name=field_name, error=str(e))
             return {
                 "$type": "PeriodIssueCustomField",
                 "name": field_name,
@@ -1021,7 +1021,7 @@ class IssuesClient:
             return total_minutes if total_minutes > 0 else None
             
         except Exception as e:
-            logger.debug(f"Failed to parse time string '{time_str}': {e}")
+            logger.debug("Failed to parse time string", time_str=time_str, error=str(e))
             return None
 
     async def _apply_commands_update(self, issue_id: str, custom_fields: Dict[str, Any]) -> None:
@@ -1036,7 +1036,7 @@ class IssuesClient:
             
             command_data["issues"] = [{"id": issue_id}]
             
-            logger.info(f"Applying command-based update for issue {issue_id} with query: {command_data['query']}")
+            logger.info("Applying command-based update for issue", issue_id=issue_id, query=command_data['query'])
             await self.client.post("commands", data=command_data)
             logger.info("commandbased_update_succeeded_for_issue_issue_id", issue_id=issue_id)
         except Exception as e:
@@ -1611,7 +1611,7 @@ class IssuesClient:
                     return field.get("field", {}).get("id")
             return None
         except Exception as e:
-            logger.warning(f"Error getting field ID for '{field_name}': {str(e)}")
+            logger.warning("Error getting field ID", field_name=field_name, error=str(e))
             return None
 
     def _get_field_type_info(self, project_id: str, field_id: str) -> Dict[str, Any]:
@@ -1630,7 +1630,7 @@ class IssuesClient:
                     }
             return {}
         except Exception as e:
-            logger.warning(f"Error getting field type info for field ID '{field_id}': {str(e)}")
+            logger.warning("Error getting field type info for field ID", field_id=field_id, error=str(e))
             return {}
 
     def _format_custom_field_value_with_id(self, field_id: str, field_value: Any, project_id: str = None) -> Dict[str, Any]:
@@ -2139,7 +2139,7 @@ class IssuesClient:
                 # Default to enum for unknown fields
                 return self._create_enum_field_object(project_id, field_name, field_value)
         except Exception as e:
-            logger.warning(f"Enhanced field creation failed for '{field_name}': {e}, falling back to simple approach")
+            logger.warning("Enhanced field creation failed, falling back to simple approach", field_name=field_name, error=str(e))
             return self._create_simple_field_object(field_name, field_value)
 
     async def _create_enum_field_object(self, project_id: str, field_name: str, field_value: Any) -> Dict[str, Any]:
@@ -2192,7 +2192,7 @@ class IssuesClient:
             }
 
         except Exception as e:
-            logger.warning(f"Error creating enum field object for '{field_name}': {e}, using simple value")
+            logger.warning("Error creating enum field object, using simple value", field_name=field_name, error=str(e))
             return {
                 "$type": "SingleEnumIssueCustomField",
                 "name": field_name,
@@ -2249,7 +2249,7 @@ class IssuesClient:
             }
 
         except Exception as e:
-            logger.warning(f"Error creating state field object for '{field_name}': {e}, using simple value")
+            logger.warning("Error creating state field object, using simple value", field_name=field_name, error=str(e))
             return {
                 "$type": "StateIssueCustomField",
                 "name": field_name,
@@ -2301,7 +2301,7 @@ class IssuesClient:
                 }
 
         except Exception as e:
-            logger.warning(f"Error creating user field object for '{field_name}': {e}, using simple value")
+            logger.warning("Error creating user field object, using simple value", field_name=field_name, error=str(e))
             return {
                 "$type": "SingleUserIssueCustomField",
                 "name": field_name,
@@ -2341,7 +2341,7 @@ class IssuesClient:
                 }
 
         except Exception as e:
-            logger.warning(f"Error creating period field object for '{field_name}': {e}, using simple value")
+            logger.warning("Error creating period field object, using simple value", field_name=field_name, error=str(e))
             return {
                 "$type": "PeriodIssueCustomField",
                 "name": field_name,
@@ -2378,7 +2378,7 @@ class IssuesClient:
             return total_minutes if total_minutes > 0 else None
 
         except Exception as e:
-            logger.warning(f"Error parsing time string '{time_str}': {e}")
+            logger.warning("Error parsing time string", time_str=time_str, error=str(e))
             return None
 
     async def _apply_commands_update(self, issue_id: str, custom_fields: Dict[str, Any]) -> None:
@@ -2393,7 +2393,7 @@ class IssuesClient:
 
             command_data["issues"] = [{"id": issue_id}]
 
-            logger.info(f"Applying command-based update for issue {issue_id} with query: {command_data['query']}")
+            logger.info("Applying command-based update for issue", issue_id=issue_id, query=command_data['query'])
             await self.client.post("commands", data=command_data)
             logger.info("commandbased_update_succeeded_for_issue_issue_id", issue_id=issue_id)
         except Exception as e:
@@ -3015,7 +3015,7 @@ class IssuesClient:
                     return field.get("field", {}).get("id")
             return None
         except Exception as e:
-            logger.warning(f"Error getting field ID for '{field_name}': {str(e)}")
+            logger.warning("Error getting field ID", field_name=field_name, error=str(e))
             return None
 
     async def _get_field_type_info(self, project_id: str, field_id: str) -> Dict[str, Any]:
@@ -3034,7 +3034,7 @@ class IssuesClient:
                     }
             return {}
         except Exception as e:
-            logger.warning(f"Error getting field type info for field ID '{field_id}': {str(e)}")
+            logger.warning("Error getting field type info for field ID", field_id=field_id, error=str(e))
             return {}
 
     async def _format_custom_field_value_with_id(self, field_id: str, field_value: Any, project_id: str = None) -> Dict[str, Any]:
@@ -3187,7 +3187,7 @@ class IssuesClient:
             # For now, return a simple user object
             return type('User', (), {'id': login, 'login': login})()
         except Exception as e:
-            logger.warning(f"Error getting user by login '{login}': {e}")
+            logger.warning("Error getting user by login", login=login, error=str(e))
             return None
 
     async def _determine_field_type(self, field_name: str, value_type: str, bundle_type: str) -> str:
@@ -3222,6 +3222,6 @@ class IssuesClient:
         # Get the appropriate type, defaulting to enum if not found
         field_type = type_mapping.get(value_type.lower(), "SingleEnumIssueCustomField")
         
-        logger.debug(f"Field '{field_name}' (type: {value_type}, bundle: {bundle_type}) mapped to $type: {field_type}")
+        logger.debug("Field mapped to type", field_name=field_name, value_type=value_type, bundle_type=bundle_type, field_type=field_type)
         
         return field_type
