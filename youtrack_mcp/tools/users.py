@@ -2,13 +2,13 @@
 YouTrack User MCP tools.
 """
 
-import logging
+from youtrack_mcp.logging import get_logger
 from typing import Any, Dict, Optional
 
 from youtrack_mcp.api.client import YouTrackClient
 from youtrack_mcp.api.users import UsersClient
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class UserTools:

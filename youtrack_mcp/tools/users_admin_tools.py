@@ -8,13 +8,13 @@ Implements admin-level user operations:
 """
 
 import json
-import logging
+from youtrack_mcp.logging import get_logger
 from typing import Any, Dict, Optional
 
 from youtrack_mcp.api.client import YouTrackClient
 from youtrack_mcp.api.users import UsersClient
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class UsersAdminTools:
@@ -33,7 +33,7 @@ class UsersAdminTools:
             response = await self.client.get("admin/users", params={"$top": 1})
             return response is not None
         except Exception as e:
-            logger.warning(f"Admin permission check failed: {e}")
+            logger.warning("admin_permission_check_failed_e", e=e)
             return False
 
     async def create(self, login: str, name: str, email: Optional[str] = None) -> dict:

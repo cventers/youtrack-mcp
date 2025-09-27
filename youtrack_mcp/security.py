@@ -3,11 +3,11 @@ Security utilities for YouTrack MCP Server.
 
 Provides security audit logging and credential management.
 """
-import logging
+from youtrack_mcp.logging import get_logger
 from datetime import datetime
 from typing import Any, Dict, Optional
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class SecurityAuditLog:
@@ -49,7 +49,7 @@ class SecurityAuditLog:
                 with open(self.log_file, 'a') as f:
                     f.write(f"{timestamp} - {severity} - {event_type}: {details}\n")
             except Exception as e:
-                logger.error(f"Failed to write to audit log file: {e}")
+                logger.error("failed_to_write_to_audit_log_file_e", e=e)
     
     def log_authentication_success(self, client_id: str, token_type: str) -> None:
         """Log successful authentication."""

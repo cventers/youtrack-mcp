@@ -2,7 +2,7 @@
 YouTrack Users API client.
 """
 
-import logging
+from youtrack_mcp.logging import get_logger
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel

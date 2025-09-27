@@ -9,7 +9,7 @@ This module contains utility functions for the issues tools:
 These functions provide infrastructure support for the issue management system.
 """
 
-import logging
+from youtrack_mcp.logging import get_logger
 from typing import Any, Dict
 
 from .dedicated_updates import DedicatedUpdates
@@ -19,7 +19,7 @@ from .basic_operations import BasicOperations
 from .linking import Linking
 from .attachments import Attachments
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class Utilities:
@@ -38,7 +38,7 @@ class Utilities:
                 self.client.close()
                 logger.info("API client closed successfully")
         except Exception as e:
-            logger.warning(f"Error closing API client: {e}")
+            logger.warning("error_closing_api_client_e", e=e)
 
     def get_tool_definitions(self) -> Dict[str, Dict[str, Any]]:
         """
@@ -72,12 +72,12 @@ class Utilities:
                     module_definitions = module.get_tool_definitions()
                     consolidated_definitions.update(module_definitions)
                 except Exception as e:
-                    logger.warning(f"Failed to get tool definitions from {module.__class__.__name__}: {e}")
+                    logger.warning("failed_to_get_tool_definitions_from_module__class_", module=module, e=e)
 
-            logger.info(f"Consolidated {len(consolidated_definitions)} tool definitions from {len(modules)} modules")
+            logger.info("consolidated_lenconsolidated_definitions_tool_defi")
             return consolidated_definitions
         except Exception as e:
-            logger.error(f"Failed to get tool definitions: {e}")
+            logger.error("failed_to_get_tool_definitions_e", e=e)
             return {}
 
     def get_tool_definitions_legacy(self) -> Dict[str, Dict[str, Any]]:

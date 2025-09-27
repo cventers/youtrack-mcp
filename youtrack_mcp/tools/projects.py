@@ -3,14 +3,14 @@ YouTrack Project MCP tools.
 """
 
 import json
-import logging
+from youtrack_mcp.logging import get_logger
 from typing import Any, Dict, Optional
 
 from youtrack_mcp.api.client import YouTrackClient
 from youtrack_mcp.api.issues import IssuesClient
 from youtrack_mcp.api.projects import ProjectsClient
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class ProjectTools:
@@ -459,7 +459,7 @@ class ProjectTools:
                         return existing_project
 
                 # Log the data being sent
-                logger.info(f"Updating project with data: {data}")
+                logger.info("updating_project_with_data_data", data=data)
 
                 # Make direct API call
                 try:
@@ -467,7 +467,7 @@ class ProjectTools:
                     self.client.post(f"admin/projects/{project_id}", data=data)
                     logger.info("Update API call successful")
                 except Exception as e:
-                    logger.warning(f"Update API call error: {str(e)}")
+                    logger.warning("update_api_call_error_stre")
                     # Continue anyway as the update might still have worked
 
                 # Get the updated project data

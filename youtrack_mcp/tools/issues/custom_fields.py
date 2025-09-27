@@ -12,11 +12,11 @@ both simple and complex field types, including enum, state, user, and period fie
 """
 
 import json
-import logging
+from youtrack_mcp.logging import get_logger
 from typing import Any, Dict, List, Optional
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class CustomFields:
@@ -114,22 +114,22 @@ class CustomFields:
         """
         final_updates = []
         try:
-            logger.info(f"Batch update called with: updates={updates}, issues={issues}, custom_fields={custom_fields}")
+            logger.info("batch_update_called_with_updatesupdates_issuesissu", updates=updates, issues=issues, custom_fields=custom_fields)
 
             # Handle different input formats
             if updates:
                 # Format 1: List of update dictionaries
                 final_updates = updates
-                logger.info(f"Using list format with {len(updates)} updates")
+                logger.info("using_list_format_with_lenupdates_updates")
             elif issues and custom_fields:
                 # Format 2: Bulk update same fields for multiple issues
                 final_updates = [
                     {"issue_id": issue_id, "fields": custom_fields}
                     for issue_id in issues
                 ]
-                logger.info(f"Using bulk format: {len(issues)} issues with fields {list(custom_fields.keys())}")
+                logger.info("using_bulk_format_lenissues_issues_with_fields_lis")
             else:
-                logger.warning(f"Invalid parameters: updates={updates}, issues={issues}, custom_fields={custom_fields}")
+                logger.warning("invalid_parameters_updatesupdates_issuesissues_cus", updates=updates, issues=issues, custom_fields=custom_fields)
                 return {
                     "status": "error",
                     "error": "Either 'updates' list or both 'issues' and 'custom_fields' parameters are required",
@@ -156,7 +156,7 @@ class CustomFields:
                     normalized_update['fields'] = normalized_update.pop('custom_fields')
                 normalized_updates.append(normalized_update)
             
-            logger.info(f"Normalized {len(final_updates)} updates for batch processing")
+            logger.info("normalized_lenfinal_updates_updates_for_batch_proc")
             
             # Process batch updates
             results = self.issues_api.batch_update_custom_fields(normalized_updates)

@@ -2,7 +2,7 @@
 Base client for YouTrack REST API.
 """
 
-import logging
+from youtrack_mcp.logging import get_logger
 from typing import Dict, Any, Optional
 import os
 import json
@@ -19,7 +19,7 @@ try:
     import structlog
     logger = structlog.get_logger(__name__)
 except ImportError:
-    logger = logging.getLogger(__name__)
+    logger = get_logger(__name__)
 
 
 class YouTrackAPIError(Exception):
@@ -307,7 +307,7 @@ class YouTrackClient:
         elif "data" in kwargs:
             logger.debug(f"{method} {url} with data: {kwargs['data']}")
         else:
-            logger.debug(f"{method} {url}")
+            logger.debug("method_url", method=method, url=url)
 
         while retries <= self.max_retries:
             try:
@@ -320,7 +320,7 @@ class YouTrackClient:
                 retries += 1
 
                 if retries > self.max_retries:
-                    logger.error(f"Maximum retries reached for {method} {url}")
+                    logger.error("maximum_retries_reached_for_method_url", method=method, url=url)
                     break
 
                 # Calculate backoff delay (exponential with jitter)
@@ -331,13 +331,13 @@ class YouTrackClient:
                 await asyncio.sleep(backoff)
             except YouTrackAPIError as e:
                 # Non-transient errors
-                logger.error(f"API error for {method} {url}: {str(e)}")
+                logger.error("api_error_for_method_url_stre", method=method, url=url)
                 if hasattr(e, "response") and e.response is not None:
                     try:
                         error_content = e.response.content.decode(
                             "utf-8", errors="replace"
                         )
-                        logger.error(f"Response content: {error_content}")
+                        logger.error("response_content_error_content", error_content=error_content)
                     except Exception:
                         pass
                 raise
@@ -393,7 +393,7 @@ class YouTrackClient:
         # If data is provided but json_data is not, use data as json
         if data is not None and json_data is None:
             # Log the data being sent for debugging
-            logger.debug(f"POST {endpoint} with data: {json.dumps(data)}")
+            logger.debug("post_endpoint_with_data_jsondumpsdata", endpoint=endpoint)
 
             # Some endpoints expect parameters in different formats
             # YouTrack API usually expects data as JSON

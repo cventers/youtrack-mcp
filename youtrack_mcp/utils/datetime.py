@@ -6,13 +6,13 @@ supporting various input formats and providing YouTrack-compatible outputs with 
 """
 
 import re
-import logging
+from youtrack_mcp.logging import get_logger
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, Optional
 
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def normalize_datetime(date_input: str, timezone_str: str = "UTC") -> datetime:
@@ -61,7 +61,7 @@ def normalize_datetime(date_input: str, timezone_str: str = "UTC") -> datetime:
                 else:
                     return func(match)
             except Exception as e:
-                logger.warning(f"Error processing relative date pattern {pattern}: {e}")
+                logger.warning("error_processing_relative_date_pattern_pattern_e", pattern=pattern, e=e)
                 continue
 
     # Handle epoch timestamps

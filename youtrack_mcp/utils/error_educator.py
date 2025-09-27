@@ -6,7 +6,7 @@ and provide better user experiences.
 """
 
 import json
-import logging
+from youtrack_mcp.logging import get_logger
 from typing import Dict, Any, Optional, List
 from youtrack_mcp.api.client import (
     YouTrackAPIError,
@@ -18,7 +18,7 @@ from youtrack_mcp.api.client import (
     RateLimitError
 )
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class LLMErrorEducator:

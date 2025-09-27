@@ -4,7 +4,7 @@ AI Service Registry - Singleton pattern for AI components.
 Provides centralized, lazy initialization of AI services with LiteLLM/Instructor.
 """
 
-import logging
+from youtrack_mcp.logging import get_logger
 import json
 from typing import Optional, Any
 from pathlib import Path
@@ -128,9 +128,9 @@ class AIServiceRegistry:
                     if llm_config.log_format == "json":
                         conv_logger.info(json.dumps(conversation))
                     else:
-                        conv_logger.info(f"Success: {conversation}")
+                        conv_logger.info("success_conversation", conversation=conversation)
                 except Exception as e:
-                    conv_logger.error(f"Error logging success: {e}")
+                    conv_logger.error("error_logging_success_e", e=e)
 
             # Custom failure callback
             def log_failure(kwargs, response, start_time, end_time):
@@ -157,9 +157,9 @@ class AIServiceRegistry:
                     if llm_config.log_format == "json":
                         conv_logger.error(json.dumps(conversation))
                     else:
-                        conv_logger.error(f"Failure: {conversation}")
+                        conv_logger.error("failure_conversation", conversation=conversation)
                 except Exception as e:
-                    conv_logger.error(f"Error logging failure: {e}")
+                    conv_logger.error("error_logging_failure_e", e=e)
 
             # Register callbacks
             litellm.success_callback = [log_success]

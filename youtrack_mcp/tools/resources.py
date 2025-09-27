@@ -3,7 +3,7 @@ YouTrack Resources MCP tools for listing projects, users, and other resources.
 """
 
 import json
-import logging
+from youtrack_mcp.logging import get_logger
 from typing import Any, Dict
 from urllib.parse import parse_qs, urlparse
 
@@ -11,7 +11,7 @@ from youtrack_mcp.api.client import YouTrackClient
 from youtrack_mcp.api.issues import IssuesClient
 from youtrack_mcp.api.projects import ProjectsClient
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Resource URI scheme for YouTrack
 YOUTRACK_URI_SCHEME = "youtrack"
@@ -134,7 +134,7 @@ class ResourcesTools:
                             }
                         )
             except Exception as e:
-                logger.warning(f"Could not fetch projects for resources: {e}")
+                logger.warning("could_not_fetch_projects_for_resources_e", e=e)
 
             return json.dumps(
                 {"resources": resources, "resourceTemplates": templates}
@@ -201,25 +201,25 @@ class ResourcesTools:
                 # Resource with ID
                 if path[0] == "projects":
                     project_id = path[1]
-                    logger.debug(f"Fetching project with ID: {project_id}")
+                    logger.debug("fetching_project_with_id_project_id", project_id=project_id)
                     return self.get_project(project_id)
                 elif path[0] == "issues":
                     issue_id = path[1]
-                    logger.debug(f"Fetching issue with ID: {issue_id}")
+                    logger.debug("fetching_issue_with_id_issue_id", issue_id=issue_id)
                     return self.get_issue(issue_id)
                 elif path[0] == "users":
                     user_id = path[1]
-                    logger.debug(f"Fetching user with ID: {user_id}")
+                    logger.debug("fetching_user_with_id_user_id", user_id=user_id)
                     return self.get_user(user_id)
             elif len(path) == 3:
                 # Sub-resources
                 if path[0] == "projects" and path[2] == "issues":
                     project_id = path[1]
-                    logger.debug(f"Fetching issues for project: {project_id}")
+                    logger.debug("fetching_issues_for_project_project_id", project_id=project_id)
                     return self.get_project_issues(project_id)
                 elif path[0] == "issues" and path[2] == "comments":
                     issue_id = path[1]
-                    logger.debug(f"Fetching comments for issue: {issue_id}")
+                    logger.debug("fetching_comments_for_issue_issue_id", issue_id=issue_id)
                     try:
                         return self.get_issue_comments(issue_id)
                     except Exception as e:
@@ -250,7 +250,7 @@ class ResourcesTools:
                             )
                             raise
 
-            logger.warning(f"Unknown resource URI pattern: {uri}")
+            logger.warning("unknown_resource_uri_pattern_uri", uri=uri)
             return json.dumps({"error": f"Unknown resource URI: {uri}"})
         except Exception as e:
             logger.exception(f"Error reading resource: {uri}")
@@ -432,7 +432,7 @@ class ResourcesTools:
                         # If id is missing but we know it's an issue, add the ID from our parameter
                         issue_data["id"] = issue_id
                 except Exception as direct_error:
-                    logger.error(f"Error with direct API call: {direct_error}")
+                    logger.error("error_with_direct_api_call_direct_error", direct_error=direct_error)
                     raise
 
             return json.dumps(

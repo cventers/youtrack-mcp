@@ -9,7 +9,7 @@ This module extends the basic search functionality with:
 """
 
 import json
-import logging
+from youtrack_mcp.logging import get_logger
 import re
 import time
 from collections import defaultdict
@@ -25,7 +25,7 @@ from youtrack_mcp.api.client import YouTrackClient
 from youtrack_mcp.api.issues import IssuesClient
 from youtrack_mcp.api.projects import ProjectsClient
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class SearchOperator(str, Enum):

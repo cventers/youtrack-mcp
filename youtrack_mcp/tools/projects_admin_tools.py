@@ -8,13 +8,13 @@ Implements admin-level project operations:
 """
 
 import json
-import logging
+from youtrack_mcp.logging import get_logger
 from typing import Any, Dict, Optional
 
 from youtrack_mcp.api.client import YouTrackClient
 from youtrack_mcp.api.projects import ProjectsClient
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class ProjectsAdminTools:
@@ -33,7 +33,7 @@ class ProjectsAdminTools:
             response = await self.client.get("admin/projects", params={"$top": 1})
             return response is not None
         except Exception as e:
-            logger.warning(f"Admin permission check failed: {e}")
+            logger.warning("admin_permission_check_failed_e", e=e)
             return False
 
     async def delete(self, project_id: str, permanent: bool = False) -> dict:

@@ -5,7 +5,7 @@ This module provides comprehensive custom field management capabilities,
 including generic field updates, field validation, and field type handling.
 """
 
-import logging
+from youtrack_mcp.logging import get_logger
 import re
 from typing import Dict, Any, List, Optional, Union
 
@@ -13,7 +13,7 @@ from youtrack_mcp.api.client import YouTrackClient
 from youtrack_mcp.api.issues import IssuesClient
 from youtrack_mcp.api.projects import ProjectsClient
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class CustomFieldsTools:
@@ -242,7 +242,7 @@ class CustomFieldsTools:
                             "source": "project_schema"
                         }
             except Exception as e:
-                logger.warning(f"Failed to lookup field type from project schema: {e}. Falling back to type guessing.")
+                logger.warning("failed_to_lookup_field_type_from_project_schema_e_", e=e)
 
         # Fallback: Basic validation based on value type
         if isinstance(field_value, str):

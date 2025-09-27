@@ -12,11 +12,11 @@ These functions enable complex issue workflows and relationship tracking within 
 """
 
 import json
-import logging
+from youtrack_mcp.logging import get_logger
 from typing import Any, Dict
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class Linking:

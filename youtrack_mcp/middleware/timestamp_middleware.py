@@ -7,14 +7,14 @@ human-readable ISO8601 formatted timestamps.
 """
 
 import json
-import logging
+from youtrack_mcp.logging import get_logger
 from typing import Any, Callable, Dict, Union
 from functools import wraps
 
 from youtrack_mcp.utils import add_iso8601_timestamps
 from youtrack_mcp.config import config
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class TimestampMiddleware:
@@ -133,7 +133,7 @@ class TimestampMiddleware:
                 tool.fn = self.wrap_tool(original_fn)
                 wrapped_count += 1
 
-            logger.info(f"Applied TimestampMiddleware to {wrapped_count} tools")
+            logger.info("Applied TimestampMiddleware", tool_count=wrapped_count)
             return
 
         # If list_tools is not available, this is an error

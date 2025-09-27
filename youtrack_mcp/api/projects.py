@@ -8,9 +8,9 @@ import json
 from pydantic import BaseModel, Field
 
 from youtrack_mcp.api.client import YouTrackClient
-import logging
+from youtrack_mcp.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class Project(BaseModel):
@@ -120,7 +120,7 @@ class ProjectsClient:
         Returns:
             List of issues in the project
         """
-        logger.info(f"Getting issues for project {project_id}, limit {limit}")
+        logger.info("getting_issues_for_project_project_id_limit_limit", project_id=project_id, limit=limit)
 
         # Request more fields to get complete issue information
         fields = "id,summary,description,created,updated,reporter(id,login,name),assignee(id,login,name),project(id,name,shortName),customFields(id,name,value($type,name,text,id),projectCustomField(field(name)))"
@@ -178,14 +178,14 @@ class ProjectsClient:
             data["leader"] = {"id": lead_id}
 
         # Debug logging
-        logger.info(f"Creating project with data: {json.dumps(data)}")
+        logger.info("creating_project_with_data_jsondumpsdata")
         logger.info(
             f"Base URL: {self.client.base_url}, API endpoint: admin/projects"
         )
 
         try:
             response = await self.client.post("admin/projects", data=data)
-            logger.info(f"Create project response: {json.dumps(response)}")
+            logger.info("create_project_response_jsondumpsresponse")
 
             # The response might not include all required fields,
             # Try to get the complete project now
@@ -212,7 +212,7 @@ class ProjectsClient:
             try:
                 return Project.model_validate(response)
             except Exception as e:
-                logger.warning(f"Could not validate project model: {str(e)}")
+                logger.warning("could_not_validate_project_model_stre")
                 # As a last resort, create a minimal valid project
                 minimal_project = {
                     "id": response.get("id", "unknown"),
@@ -222,7 +222,7 @@ class ProjectsClient:
                 }
                 return Project.model_validate(minimal_project)
         except Exception as e:
-            logger.error(f"Error creating project: {str(e)}")
+            logger.error("error_creating_project_stre")
             raise
 
     async def update_project(
@@ -247,7 +247,7 @@ class ProjectsClient:
             The updated project data
         """
         # First get the existing project data
-        logger.info(f"Getting existing project data for {project_id}")
+        logger.info("getting_existing_project_data_for_project_id", project_id=project_id)
 
         try:
             # Prepare data for update API call
@@ -270,11 +270,11 @@ class ProjectsClient:
                 )
                 return await self.get_project(project_id)
 
-            logger.info(f"Updating project with data: {data}")
+            logger.info("updating_project_with_data_data", data=data)
             response = await self.client.post(
                 f"admin/projects/{project_id}", data=data
             )
-            logger.info(f"Update project response: {response}")
+            logger.info("update_project_response_response", response=response)
 
             # The API response might not contain all required fields,
             # so we need to get the full project data after the update
@@ -286,7 +286,7 @@ class ProjectsClient:
                 )
                 return updated_project
             except Exception as e:
-                logger.error(f"Error getting updated project: {str(e)}")
+                logger.error("error_getting_updated_project_stre")
                 # If we can't get the updated project, create a partial project with the data we have
                 if isinstance(response, dict) and "id" in response:
                     logger.info(
@@ -312,7 +312,7 @@ class ProjectsClient:
                     # If the response doesn't have an ID, just return it
                     return response
         except Exception as e:
-            logger.error(f"Error updating project {project_id}: {str(e)}")
+            logger.error("error_updating_project_project_id_stre", project_id=project_id)
             raise
 
     async def delete_project(self, project_id: str) -> None:
@@ -403,7 +403,7 @@ class ProjectsClient:
                         try:
                             enhanced_schema["allowed_values"] = self.get_custom_field_allowed_values(project_id, field_name)
                         except Exception as e:
-                            logger.warning(f"Could not get allowed values for {field_name}: {str(e)}")
+                            logger.warning("could_not_get_allowed_values_for_field_name_stre", field_name=field_name)
                             enhanced_schema["allowed_values"] = []
                     
                     return enhanced_schema
@@ -489,7 +489,7 @@ class ProjectsClient:
                                     for value in values
                                 ]
                     except Exception as e:
-                        logger.error(f"Error resolving enum bundle index: {str(e)}")
+                        logger.error("error_resolving_enum_bundle_index_stre")
                 
                 # Fallback: try the bundle_id directly
                 if not actual_bundle_id:
@@ -509,7 +509,7 @@ class ProjectsClient:
                         for value in values
                     ]
                 except Exception as e:
-                    logger.error(f"Error getting enum bundle {actual_bundle_id}: {str(e)}")
+                    logger.error("error_getting_enum_bundle_actual_bundle_id_stre", actual_bundle_id=actual_bundle_id)
                     # Return enhanced guidance instead of empty array
                     return [
                         {
@@ -549,7 +549,7 @@ class ProjectsClient:
                                 for value in values
                             ]
                         else:
-                            logger.error(f"Bundle index {bundle_index} out of range for {len(all_bundles)} state bundles")
+                            logger.error("bundle_index_bundle_index_out_of_range_for_lenall_", bundle_index=bundle_index)
                             return []
                     else:
                         # Direct bundle ID format: get specific bundle
@@ -568,7 +568,7 @@ class ProjectsClient:
                         for value in values
                     ]
                 except Exception as e:
-                    logger.error(f"Error getting state bundle {bundle_id}: {str(e)}")
+                    logger.error("error_getting_state_bundle_bundle_id_stre", bundle_id=bundle_id)
                     return []
             
             elif value_type == "user":
@@ -586,7 +586,7 @@ class ProjectsClient:
                         for user in users_data
                     ]
                 except Exception as e:
-                    logger.error(f"Error getting users: {str(e)}")
+                    logger.error("error_getting_users_stre")
                     return []
             
             elif value_type == "ownedField":
@@ -603,7 +603,7 @@ class ProjectsClient:
                         for subsystem in subsystems_data
                     ]
                 except Exception as e:
-                    logger.error(f"Error getting subsystems: {str(e)}")
+                    logger.error("error_getting_subsystems_stre")
                     # Return comprehensive guidance instead of empty array
                     return [
                         {
@@ -639,7 +639,7 @@ class ProjectsClient:
                         for version in versions_data
                     ]
                 except Exception as e:
-                    logger.error(f"Error getting versions: {str(e)}")
+                    logger.error("error_getting_versions_stre")
                     # Return comprehensive guidance instead of empty array
                     return [
                         {
@@ -682,7 +682,7 @@ class ProjectsClient:
                         for build in builds_data
                     ]
                 except Exception as e:
-                    logger.error(f"Error getting builds: {str(e)}")
+                    logger.error("error_getting_builds_stre")
                     # Return comprehensive guidance instead of empty array
                     return [
                         {
@@ -745,7 +745,7 @@ class ProjectsClient:
             fields = self.client.get(f"admin/projects/{project_id}/customFields?fields={fields_query}")
             schemas = {}
             
-            logger.info(f"Got {len(fields)} custom fields for project {project_id}")
+            logger.info("got_lenfields_custom_fields_for_project_project_id", project_id=project_id)
             
             for field in fields:
                 # Extract field name from the correct structure
@@ -753,7 +753,7 @@ class ProjectsClient:
                 field_name = field_info.get("name")
                 
                 if field_name:
-                    logger.info(f"Processing field: {field_name}")
+                    logger.info("processing_field_field_name", field_name=field_name)
                     # Build schema directly from the field data we already have
                     field_type = field_info.get("fieldType", {})
                     
@@ -773,18 +773,18 @@ class ProjectsClient:
                         try:
                             enhanced_schema["allowed_values"] = self.get_custom_field_allowed_values(project_id, field_name)
                         except Exception as e:
-                            logger.warning(f"Could not get allowed values for {field_name}: {str(e)}")
+                            logger.warning("could_not_get_allowed_values_for_field_name_stre", field_name=field_name)
                             enhanced_schema["allowed_values"] = []
                     
                     schemas[field_name] = enhanced_schema
                     logger.info(f"Added schema for field '{field_name}': {enhanced_schema}")
                 else:
-                    logger.warning(f"Field missing name: {field}")
+                    logger.warning("field_missing_name_field", field=field)
             
-            logger.info(f"Returning {len(schemas)} schemas for project {project_id}")
+            logger.info("returning_lenschemas_schemas_for_project_project_i", project_id=project_id)
             return schemas
         except Exception as e:
-            logger.error(f"Error getting all custom field schemas: {str(e)}")
+            logger.error("error_getting_all_custom_field_schemas_stre")
             return {}
 
     def validate_custom_field_for_project(

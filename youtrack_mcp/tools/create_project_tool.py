@@ -3,13 +3,13 @@ Standalone tool for creating YouTrack projects.
 """
 
 import json
-import logging
+from youtrack_mcp.logging import get_logger
 from typing import Optional
 
 from youtrack_mcp.api.client import YouTrackClient
 from youtrack_mcp.api.projects import ProjectsClient
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def create_project_direct(
@@ -40,7 +40,7 @@ def create_project_direct(
         if description:
             data["description"] = description
 
-        logger.info(f"Creating project with direct tool: {data}")
+        logger.info("creating_project_with_direct_tool_data", data=data)
 
         response = client.post("admin/projects", data=data)
         return json.dumps(response, indent=2)

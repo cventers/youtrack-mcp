@@ -4,7 +4,6 @@ YouTrack MCP Server - A Model Context Protocol server for JetBrains YouTrack.
 """
 import argparse
 import json
-import logging
 import os
 import signal
 import sys
@@ -19,130 +18,49 @@ from pydantic import BaseModel, Field, SecretStr
 
 from youtrack_mcp.config import Config, config
 from youtrack_mcp.version import __version__ as APP_VERSION
+from youtrack_mcp.logging import get_logger, setup_logging as setup_harmonized_logging
 
 # Optional imports - these are kept as runtime imports due to being optional dependencies
 # Try importing nest_asyncio but don't fail if it's not available
 try:
     import nest_asyncio
     nest_asyncio.apply()
-    logger = logging.getLogger(__name__)
-    logger.info("Successfully applied nest_asyncio")
+    # Use temporary logger until harmonized logging is set up
+    import logging as temp_logging
+    temp_logger = temp_logging.getLogger(__name__)
+    temp_logger.info("Successfully applied nest_asyncio")
 except ImportError:
-    logger = logging.getLogger(__name__)
-    logger.warning("nest_asyncio not available, event loop nesting may cause issues")
+    import logging as temp_logging
+    temp_logger = temp_logging.getLogger(__name__)
+    temp_logger.warning("nest_asyncio not available, event loop nesting may cause issues")
 
-# Check if structlog is available
-structlog_available = False
-try:
-    import structlog
-    structlog_available = True
-except ImportError:
-    pass
-
-# Global logger instance
-logger = logging.getLogger(__name__)
+# Global logger instance - will be set up after harmonized logging is configured
+logger = None
 
 # Don't load config here - will be done in main() after setting up basic logging
 # from youtrack_mcp.server_fastmcp import mcp will be imported after config is loaded
 
 def setup_logging():
-    """Set up logging configuration based on config values."""
+    """Set up harmonized logging configuration."""
     global logger
 
-    # Get logging configuration from environment variables (with config fallback)
-    log_level = os.getenv('LOG_LEVEL', config.logging.level)
-    log_file = os.getenv('LOG_FILE', str(config.logging.file) if config.logging.file else None)
-    console_disabled = os.getenv('LOG_CONSOLE_DISABLE', 'false').lower() in ('true', '1', 'yes') or config.logging.console_disable
+    # Setup the harmonized logging system with the config
+    context_enricher = setup_harmonized_logging(config.logging)
 
-    # Convert log level string to logging level
-    numeric_level = getattr(logging, log_level.upper(), logging.INFO)
+    # Get the logger for this module
+    logger = get_logger(__name__)
 
-    # Set up handlers
-    handlers = []
-
-    # Add console handler unless disabled
-    if not console_disabled:
-        console_handler = logging.StreamHandler()
-        if structlog_available:
-            console_handler.setFormatter(logging.Formatter("%(message)s"))
-        else:
-            console_handler.setFormatter(logging.Formatter(
-                "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-            ))
-        handlers.append(console_handler)
-
-    # Add file handler if log file is specified
-    if log_file:
-        try:
-            # Create directory if it doesn't exist
-            os.makedirs(os.path.dirname(log_file), exist_ok=True)
-            file_handler = logging.FileHandler(log_file)
-            if structlog_available:
-                file_handler.setFormatter(logging.Formatter("%(message)s"))
-            else:
-                file_handler.setFormatter(logging.Formatter(
-                    "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-                ))
-            handlers.append(file_handler)
-        except (OSError, IOError) as e:
-            # If we can't create the log file, log to console only
-            if not console_disabled:
-                print(f"Warning: Could not create log file {log_file}: {e}")
-
-    # Configure logging
-    if structlog_available:
-        try:
-            # Import structlog here to avoid linter issues
-            import structlog
-            # Configure structlog for JSON output
-            structlog.configure(
-                processors=[
-                    structlog.stdlib.filter_by_level,
-                    structlog.stdlib.add_logger_name,
-                    structlog.stdlib.add_log_level,
-                    structlog.processors.CallsiteParameterAdder(
-                        parameters=[structlog.processors.CallsiteParameter.PROCESS]
-                    ),
-                    structlog.stdlib.PositionalArgumentsFormatter(),
-                    structlog.processors.TimeStamper(fmt="iso"),
-                    structlog.processors.StackInfoRenderer(),
-                    structlog.processors.format_exc_info,
-                    structlog.processors.UnicodeDecoder(),
-                    structlog.processors.JSONRenderer()
-                ],
-                context_class=dict,
-                logger_factory=structlog.stdlib.LoggerFactory(),
-                wrapper_class=structlog.stdlib.BoundLogger,
-                cache_logger_on_first_use=True,
-            )
-
-            # Replace standard logging with structlog
-            logging.basicConfig(
-                format="%(message)s",
-                level=numeric_level,
-                handlers=handlers
-            )
-
-            logger = structlog.get_logger(__name__)
-            logger.info("Structured JSON logging enabled")
-        except Exception as e:
-            # If structlog setup fails, fall back to standard logging
-            logging.basicConfig(
-                level=numeric_level,
-                format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-                handlers=handlers
-            )
-            logger = logging.getLogger(__name__)
-            logger.warning(f"Failed to set up structlog: {e}, using standard logging")
-    else:
-        # Fallback to standard logging if structlog is not available
-        logging.basicConfig(
-            level=numeric_level,
-            format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-            handlers=handlers
+    # Add global context
+    if context_enricher:
+        context_enricher.add_global_context(
+            server_name=config.mcp.server_name,
+            version=APP_VERSION
         )
-        logger = logging.getLogger(__name__)
-        logger.warning("structlog not available, using standard logging")
+
+    logger.info("Harmonized logging initialized",
+                level=config.logging.level,
+                console_enabled=config.logging.console_enabled,
+                file_enabled=config.logging.file_enabled)
 
 # Global server and tools instances
 server = None
@@ -152,12 +70,14 @@ tools = {}
 async def lifespan(app: FastAPI):
     """Lifespan event handler for FastAPI application."""
     # Server and config are already set up in main() before this runs
-    logger.info("HTTP server starting")
-    
+    if logger:
+        logger.info("HTTP server starting")
+
     yield
-    
+
     # Cleanup when the application is shutting down
-    logger.info("Shutting down HTTP server")
+    if logger:
+        logger.info("Shutting down HTTP server")
 
 # FastAPI app for HTTP mode
 app = FastAPI(
@@ -390,45 +310,55 @@ def load_config():
         # Check if we need to add the perm- prefix
         if "." in token_value and "=" in token_value:
             config.youtrack.api_token = SecretStr(f"perm-{token_value}")
-            logger.info("Added 'perm-' prefix to the API token")
+            # Use print here since logger might not be initialized yet
+            print("Added 'perm-' prefix to the API token")
         else:
             # For traditional tokens
             config.youtrack.api_token = SecretStr(f"perm:{token_value}")
-            logger.info("Added 'perm:' prefix to the API token")
+            print("Added 'perm:' prefix to the API token")
 
     # URL is already cleaned in the validator, but we can still check env
     env_url = os.getenv("YOUTRACK_URL")
     if env_url and not config.youtrack.url:
-        logger.info(f"Using URL from environment: {env_url}")
+        print(f"Using URL from environment: {env_url}")
         config.youtrack.url = env_url.rstrip("/")
 
-    # Log configuration status
+    # Store config info to log later after logger is initialized
+    config._load_messages = []
     if config.youtrack.url:
-        logger.info(f"Configured for YouTrack instance at: {config.youtrack.url}")
+        config._load_messages.append(f"Configured for YouTrack instance at: {config.youtrack.url}")
     else:
-        logger.info("Configured for YouTrack Cloud instance")
+        config._load_messages.append("Configured for YouTrack Cloud instance")
 
-    logger.info(f"SSL verification: {'Enabled' if config.youtrack.verify_ssl else 'Disabled'}")
+    config._load_messages.append(f"SSL verification: {'Enabled' if config.youtrack.verify_ssl else 'Disabled'}")
 
 
 def main():
     """Run the MCP server."""
-    # Import these here as they require config to be loaded first
-    from youtrack_mcp.server_fastmcp import mcp
-    from youtrack_mcp.middleware import TimestampMiddleware
-    
     args = parse_args()
-    
+
     # Check if version information was requested
     if args.version:
         print(f"YouTrack MCP Server v{APP_VERSION}")
         sys.exit(0)
-    
+
     # Load configuration first
     load_config()
 
     # Apply command line arguments (which may override config)
     apply_cli_args(args)
+
+    # Set up logging BEFORE importing modules that use loggers
+    setup_logging()
+
+    # Log the config messages that were saved during load_config()
+    if hasattr(config, '_load_messages'):
+        for msg in config._load_messages:
+            logger.info(msg)
+
+    # Import these AFTER logging is set up
+    from youtrack_mcp.server_fastmcp import mcp
+    from youtrack_mcp.middleware import TimestampMiddleware
 
     # Initialize AI tools now that config is loaded
     if config.llm.enabled and config.llm.api_key:
@@ -441,9 +371,6 @@ def main():
     # Register MCP tools now that all dependencies are initialized
     from youtrack_mcp.server_fastmcp import register_mcp_tools
     register_mcp_tools()
-
-    # Set up logging based on configuration
-    setup_logging()
 
     # Apply timestamp middleware
     timestamp_middleware = TimestampMiddleware(enable=True)

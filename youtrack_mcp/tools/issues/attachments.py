@@ -12,11 +12,11 @@ These functions enable file handling and detailed data access within YouTrack wo
 
 import json
 import base64
-import logging
+from youtrack_mcp.logging import get_logger
 from typing import Any, Dict
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class Attachments:

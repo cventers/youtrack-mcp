@@ -3,7 +3,7 @@ Utility modules for YouTrack MCP server.
 """
 
 import json
-import logging
+from youtrack_mcp.logging import get_logger
 import re
 import yaml
 from datetime import datetime, timezone
@@ -16,7 +16,7 @@ from cachetools import TTLCache
 from .help_resources import get_help_resource
 # Tool loader removed - tools are registered via FastMCP
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 # Import functions from main utils.py to avoid circular imports
@@ -151,7 +151,7 @@ class ErrorHandler:
         # Load error patterns
         self.error_patterns = self._load_error_patterns()
 
-        logger.info(f"ErrorHandler initialized with {len(self.error_patterns)} error patterns")
+        logger.info("ErrorHandler initialized", pattern_count=len(self.error_patterns))
 
     def _load_error_patterns(self) -> List[Dict[str, Any]]:
         """Load error patterns from YAML file."""
@@ -175,11 +175,11 @@ class ErrorHandler:
                     if key not in pattern:
                         raise ValueError(f"Pattern {pattern.get('id', 'unknown')} missing required key: {key}")
 
-            logger.info(f"Loaded {len(patterns)} error patterns")
+            logger.info("Loaded error patterns", count=len(patterns))
             return patterns
 
         except Exception as e:
-            logger.error(f"Failed to load error patterns: {e}")
+            logger.error("Failed to load error patterns", error=str(e))
             raise RuntimeError(f"Cannot load error patterns: {e}")
 
     def enhance_error(self, error: Union[Exception, str], context: Dict[str, Any]) -> ErrorEnhancementResult:

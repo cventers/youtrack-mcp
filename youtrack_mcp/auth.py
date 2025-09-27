@@ -7,7 +7,7 @@ token refresh, and secure credential management.
 import asyncio
 import base64
 import json
-import logging
+from youtrack_mcp.logging import get_logger
 import time
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field, field_validator
 from youtrack_mcp.api.client import YouTrackModel
 from youtrack_mcp.security import SecurityAuditLog
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class OAuth2Config(YouTrackModel):
@@ -187,7 +187,7 @@ class OAuth2Client:
                 "INFO"
             )
             
-            logger.info(f"OAuth2 token refreshed successfully, expires in {token.expires_in} seconds")
+            logger.info("oauth2_token_refreshed_successfully_expires_in_tok", token=token)
             
         except Exception as e:
             # Log token refresh failure
@@ -196,7 +196,7 @@ class OAuth2Client:
                 {"error": str(e), "grant_type": self.config.grant_type},
                 "ERROR"
             )
-            logger.error(f"OAuth2 token refresh failed: {e}")
+            logger.error("oauth2_token_refresh_failed_e", e=e)
             raise
     
     async def _client_credentials_flow(self) -> OAuth2Token:
@@ -364,7 +364,7 @@ class OAuth2Client:
                 {"error": str(e), "token_type_hint": token_type_hint},
                 "WARNING"
             )
-            logger.warning(f"Failed to revoke token: {e}")
+            logger.warning("failed_to_revoke_token_e", e=e)
     
     async def introspect_token(self, token: str) -> Dict[str, Any]:
         """

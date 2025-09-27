@@ -6,14 +6,14 @@ Implements the 1 core resources tool:
 """
 
 import json
-import logging
+from youtrack_mcp.logging import get_logger
 from typing import Any, Dict
 from urllib.parse import urlparse
 
 from youtrack_mcp.api.client import YouTrackClient
 from youtrack_mcp.utils.help_resources import get_help_resource
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Resource URI schemes
 YOUTRACK_URI_SCHEME = "youtrack"

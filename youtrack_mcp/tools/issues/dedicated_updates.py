@@ -13,13 +13,13 @@ with specific workflow guidance and troubleshooting steps.
 """
 
 import json
-import logging
+from youtrack_mcp.logging import get_logger
 from typing import Any, Dict
 
 from youtrack_mcp.tools.issues.custom_fields import CustomFields
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class DedicatedUpdates:
@@ -84,7 +84,7 @@ class DedicatedUpdates:
                 }
             else:
                 # If direct method fails, try command-based approach as fallback
-                logger.info(f"Direct API failed, trying command-based approach for issue {issue_id}")
+                logger.info("direct_api_failed_trying_commandbased_approach_for", issue_id=issue_id)
                 
                 try:
                     command_data = {

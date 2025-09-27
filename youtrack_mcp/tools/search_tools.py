@@ -7,13 +7,13 @@ Implements the 2 core search tools:
 """
 
 import json
-import logging
+from youtrack_mcp.logging import get_logger
 from typing import Any, Dict, Optional
 
 from youtrack_mcp.api.client import YouTrackClient
 from youtrack_mcp.api.issues import IssuesClient
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class SearchTools:

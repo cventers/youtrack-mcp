@@ -13,11 +13,11 @@ for building more complex workflows and operations.
 """
 
 import json
-import logging
+from youtrack_mcp.logging import get_logger
 from typing import Any, Dict, Optional
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class BasicOperations:
@@ -119,7 +119,7 @@ class BasicOperations:
             if project and not project.startswith("0-"):
                 # Try to get the project ID from the short name (e.g., "DEMO")
                 try:
-                    logger.info(f"Looking up project ID for: {project}")
+                    logger.info("looking_up_project_id_for_project", project=project)
                     project_obj = self.projects_api.get_project_by_name(project)
                     if project_obj:
                         logger.info(
@@ -127,7 +127,7 @@ class BasicOperations:
                         )
                         project_id = project_obj.id
                     else:
-                        logger.warning(f"Project not found: {project}")
+                        logger.warning("project_not_found_project", project=project)
                         return json.dumps(
                             {
                                 "error": f"Project not found: {project}",
@@ -135,7 +135,7 @@ class BasicOperations:
                             }
                         )
                 except Exception as e:
-                    logger.warning(f"Error finding project: {str(e)}")
+                    logger.warning("error_finding_project_stre")
                     return json.dumps(
                         {
                             "error": f"Error finding project: {str(e)}",
@@ -143,7 +143,7 @@ class BasicOperations:
                         }
                     )
 
-            logger.info(f"Creating issue in project {project_id}: {summary}")
+            logger.info("creating_issue_in_project_project_id_summary", project_id=project_id, summary=summary)
 
             # Call the API client to create the issue
             try:
@@ -186,7 +186,7 @@ class BasicOperations:
                         error_msg = f"{error_msg} - {error_content}"
                     except Exception:
                         pass
-                logger.error(f"API error creating issue: {error_msg}")
+                logger.error("api_error_creating_issue_error_msg", error_msg=error_msg)
                 return {"error": error_msg, "status": "error"}
                 
 

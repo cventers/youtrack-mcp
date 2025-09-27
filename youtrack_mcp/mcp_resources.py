@@ -10,7 +10,7 @@ limited tool slots. Resources are cached and provide reference data like:
 """
 
 import json
-import logging
+from youtrack_mcp.logging import get_logger
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timezone
 
@@ -18,7 +18,7 @@ from youtrack_mcp.api.client import YouTrackClient
 from youtrack_mcp.api.projects import ProjectsClient
 from youtrack_mcp.api.users import UsersClient
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class YouTrackResources:
@@ -213,7 +213,7 @@ class YouTrackResources:
             return field_info
 
         except Exception as e:
-            logger.warning(f"Failed to get project fields for {project_id}: {e}")
+            logger.warning("failed_to_get_project_fields_for_project_id_e", project_id=project_id, e=e)
             return {
                 "resource_type": "project_fields",
                 "project_id": project_id,
@@ -271,7 +271,7 @@ class YouTrackResources:
             return projects_info
 
         except Exception as e:
-            logger.warning(f"Failed to get projects list: {e}")
+            logger.warning("failed_to_get_projects_list_e", e=e)
             return {
                 "resource_type": "projects_list",
                 "error": f"Could not retrieve projects: {str(e)}",
@@ -328,7 +328,7 @@ class YouTrackResources:
             return users_info
 
         except Exception as e:
-            logger.warning(f"Failed to get users directory: {e}")
+            logger.warning("failed_to_get_users_directory_e", e=e)
             return {
                 "resource_type": "users_directory",
                 "error": f"Could not retrieve users: {str(e)}",

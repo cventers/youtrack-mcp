@@ -8,7 +8,7 @@ Implements the 3 core issues tools:
 """
 
 import json
-import logging
+from youtrack_mcp.logging import get_logger
 from typing import Any, Dict, Optional, List
 
 from youtrack_mcp.api.client import (
@@ -29,7 +29,7 @@ from youtrack_mcp.utils.error_educator import LLMErrorEducator
 # Initialize the error educator
 error_educator = LLMErrorEducator()
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class IssuesTools:

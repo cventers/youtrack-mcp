@@ -2,7 +2,7 @@
 Search functionality for YouTrack API.
 """
 
-import logging
+from youtrack_mcp.logging import get_logger
 from typing import Any, Dict, List, Optional
 
 from youtrack_mcp.api.client import YouTrackClient

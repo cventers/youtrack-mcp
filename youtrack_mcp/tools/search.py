@@ -2,14 +2,14 @@
 YouTrack Search MCP tools.
 """
 
-import logging
+from youtrack_mcp.logging import get_logger
 from datetime import datetime
 from typing import Any, Dict, Optional
 
 from youtrack_mcp.api.client import YouTrackClient
 from youtrack_mcp.api.issues import IssuesClient
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class SearchTools:
@@ -208,14 +208,14 @@ class SearchTools:
                     datetime.strptime(created_after, "%Y-%m-%d")
                     query_parts.append(f"created: {created_after} .. Today")
                 except ValueError:
-                    logger.warning(f"Invalid date format: {created_after}")
+                    logger.warning("invalid_date_format_created_after", created_after=created_after)
 
             if updated_after:
                 try:
                     datetime.strptime(updated_after, "%Y-%m-%d")
                     query_parts.append(f"updated: {updated_after} .. Today")
                 except ValueError:
-                    logger.warning(f"Invalid date format: {updated_after}")
+                    logger.warning("invalid_date_format_updated_after", updated_after=updated_after)
 
             if custom_fields:
                 for field_name, field_value in custom_fields.items():

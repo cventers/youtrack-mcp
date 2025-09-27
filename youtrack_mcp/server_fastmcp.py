@@ -5,7 +5,7 @@ This module provides a clean FastMCP-based server implementation that replaces
 the legacy wrapper-based approach with typed, schema-driven tool registration.
 """
 
-import logging
+from youtrack_mcp.logging import get_logger
 from typing import Dict, List, Any, Optional
 from pydantic import BaseModel
 
@@ -30,7 +30,7 @@ from youtrack_mcp.mcp_resources import (
 )
 from youtrack_mcp.middleware import TimestampMiddleware
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Pydantic models for complex tool inputs
 class AutoSearchInput(BaseModel):

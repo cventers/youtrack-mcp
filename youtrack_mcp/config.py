@@ -9,10 +9,12 @@ from typing import Optional, Literal, Dict
 from pathlib import Path
 from pydantic import Field, SecretStr, field_validator, ConfigDict
 from pydantic_settings import BaseSettings, SettingsConfigDict
-import logging
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-logger = logging.getLogger(__name__)
+# Import the harmonized logging configuration
+from youtrack_mcp.logging import LoggingConfig as HarmonizedLoggingConfig, get_logger
+
+logger = get_logger(__name__)
 
 
 class YouTrackConfig(BaseSettings):
@@ -134,19 +136,13 @@ class CacheConfig(BaseSettings):
     max_size: int = Field(100, ge=1, description="Maximum cache size")
 
 
-class LoggingConfig(BaseSettings):
-    """Logging configuration."""
+class LoggingConfig(HarmonizedLoggingConfig):
+    """Extended logging configuration with environment variable support."""
 
     model_config = ConfigDict(
         env_prefix="LOG_",
         case_sensitive=False,
     )
-
-    level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(
-        "INFO", description="Log level"
-    )
-    file: Optional[Path] = Field(None, description="Log file path")
-    console_disable: bool = Field(False, description="Disable console logging")
 
 
 class DisplayConfig(BaseSettings):

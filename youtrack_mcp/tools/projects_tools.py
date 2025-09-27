@@ -8,7 +8,7 @@ Implements the 4 core project tools:
 - projects.create: Project creation
 """
 
-import logging
+from youtrack_mcp.logging import get_logger
 from typing import Any, Dict, Optional, List
 
 from youtrack_mcp.api.client import (
@@ -26,7 +26,7 @@ from youtrack_mcp.api.projects import ProjectsClient
 # format_json_response removed - middleware handles timestamp conversion
 from youtrack_mcp.utils.error_educator import create_llm_friendly_error
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class ProjectsTools:
@@ -114,7 +114,7 @@ class ProjectsTools:
                         fields = await self.projects_api.get_custom_fields(project_id)
                         expansions["customFields"] = fields
                     except Exception as e:
-                        logger.warning(f"Failed to get custom fields: {e}")
+                        logger.warning("failed_to_get_custom_fields_e", e=e)
                         expansions["customFields"] = []
 
                 if "schema" in include:
@@ -126,7 +126,7 @@ class ProjectsTools:
                         schema_data = json.loads(schema_result)
                         expansions["schema"] = schema_data
                     except Exception as e:
-                        logger.warning(f"Failed to get project schema: {e}")
+                        logger.warning("failed_to_get_project_schema_e", e=e)
                         expansions["schema"] = {}
 
                 if "issues" in include:
@@ -134,7 +134,7 @@ class ProjectsTools:
                         issues = await self.projects_api.get_project_issues(project_id, limit=10)
                         expansions["issues"] = issues
                     except Exception as e:
-                        logger.warning(f"Failed to get project issues: {e}")
+                        logger.warning("failed_to_get_project_issues_e", e=e)
                         expansions["issues"] = []
 
             return {

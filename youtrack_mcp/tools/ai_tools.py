@@ -8,13 +8,13 @@ Provides AI-powered functionality:
 """
 
 import json
-import logging
+from youtrack_mcp.logging import get_logger
 from typing import Any, Dict, Optional
 
 from youtrack_mcp.ai.registry import ai_registry
 # Removed format_json_response - middleware handles timestamp conversion
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class AITools:

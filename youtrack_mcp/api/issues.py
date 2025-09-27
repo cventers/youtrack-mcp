@@ -4,7 +4,7 @@ YouTrack Issues API client.
 
 from typing import Any, Dict, List, Optional
 import json
-import logging
+from youtrack_mcp.logging import get_logger
 import re
 
 from pydantic import BaseModel, Field, ConfigDict
@@ -13,7 +13,7 @@ from youtrack_mcp.api.client import YouTrackClient, YouTrackAPIError
 from youtrack_mcp.api.projects import ProjectsClient
 from youtrack_mcp.api.users import UsersClient
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class Issue(BaseModel):
@@ -200,7 +200,7 @@ class IssuesClient:
                     f"issues/{issue_id}?fields={fields}"
                 )
             except Exception as e:
-                logger.warning(f"Failed to get detailed issue data: {e}")
+                logger.warning("failed_to_get_detailed_issue_data_e", e=e)
                 # Fallback to basic request
                 detailed_response = await self.client.get(f"issues/{issue_id}")
 
@@ -364,7 +364,7 @@ class IssuesClient:
                 custom_fields_payload = await self._build_custom_fields_payload(custom_fields, actual_project_id)
                 issue_data.update(custom_fields_payload)
 
-            logger.info(f"Creating issue with data: {issue_data}")
+            logger.info("creating_issue_with_data_issue_data", issue_data=issue_data)
 
             # Create the issue
             response = await self.client.post("issues", data=issue_data)
@@ -376,7 +376,7 @@ class IssuesClient:
                     try:
                         await self._attach_file_to_issue(issue_id, attachment_path)
                     except Exception as e:
-                        logger.warning(f"Failed to attach {attachment_path}: {e}")
+                        logger.warning("failed_to_attach_attachment_path_e", attachment_path=attachment_path, e=e)
 
             # Convert response to Issue model
             if isinstance(response, dict):
@@ -445,7 +445,7 @@ class IssuesClient:
                 logger.info("No updates provided, returning current issue")
                 return await self.get_issue(issue_id)
 
-            logger.info(f"Updating issue {issue_id} with data: {update_data}")
+            logger.info("updating_issue_issue_id_with_data_update_data", issue_id=issue_id, update_data=update_data)
 
             # Update the issue
             response = await self.client.post(f"issues/{issue_id}", data=update_data)
@@ -505,7 +505,7 @@ class IssuesClient:
 
                 # Only try command-based fallback if we haven't already tried it
                 if not success and not use_commands:
-                    logger.info(f"Direct state update failed, trying command-based approach for issue {issue_id}")
+                    logger.info("direct_state_update_failed_trying_commandbased_app", issue_id=issue_id)
                     success = await self._handle_state_transition(issue_id, target_state, use_commands=True)
 
                 if not success:
@@ -518,7 +518,7 @@ class IssuesClient:
                 except YouTrackAPIError as e:
                     if "405" in str(e) and not use_commands:
                         # 405 Method Not Allowed - try command-based approach
-                        logger.info(f"Direct API update failed with 405, trying command-based approach for issue {issue_id}")
+                        logger.info("direct_api_update_failed_with_405_trying_commandba", issue_id=issue_id)
                         await self._update_other_custom_fields(issue_id, other_fields, validate, use_commands=True)
                     else:
                         raise
@@ -553,12 +553,12 @@ class IssuesClient:
             success = await self._apply_direct_state_update(issue_id, target_state)
 
             if success:
-                logger.info(f"Direct field update succeeded for issue {issue_id}")
+                logger.info("direct_field_update_succeeded_for_issue_issue_id", issue_id=issue_id)
                 return True
 
             # Method 2: Fallback to command-based approach if enabled
             if use_commands:
-                logger.info(f"Direct update failed, trying command-based approach for issue {issue_id}")
+                logger.info("direct_update_failed_trying_commandbased_approach_", issue_id=issue_id)
                 try:
                     command_data = {
                         "query": f"State \"{target_state}\"",
@@ -567,14 +567,14 @@ class IssuesClient:
 
                     logger.info(f"Applying state transition command 'State \"{target_state}\"' to issue {issue_id}")
                     await self.client.post("commands", data=command_data)
-                    logger.info(f"Command-based transition succeeded for issue {issue_id}")
+                    logger.info("commandbased_transition_succeeded_for_issue_issue_", issue_id=issue_id)
                     return True
 
                 except Exception as cmd_error:
-                    logger.warning(f"Command-based approach failed: {cmd_error}")
+                    logger.warning("commandbased_approach_failed_cmd_error", cmd_error=cmd_error)
 
             # Method 3: Try state machine detection and event-based transitions
-            logger.info(f"Trying state machine event-based approach for issue {issue_id}")
+            logger.info("trying_state_machine_eventbased_approach_for_issue", issue_id=issue_id)
             try:
                 # Query possible transitions (as recommended in analysis)
                 issue_fields = await self.client.get(f"issues/{issue_id}/customFields?fields=name,possibleEvents(id,presentation),value(name),$type")
@@ -592,11 +592,11 @@ class IssuesClient:
                     # Check if this is a state machine workflow
                     if field_type == 'StateMachineIssueCustomField' and possible_events:
                         # Use event-based transition
-                        logger.info(f"Detected state machine workflow for issue {issue_id}")
+                        logger.info("detected_state_machine_workflow_for_issue_issue_id", issue_id=issue_id)
                         return await self._apply_state_machine_transition(issue_id, target_state, possible_events)
 
             except Exception as sm_error:
-                logger.warning(f"State machine detection failed: {sm_error}")
+                logger.warning("state_machine_detection_failed_sm_error", sm_error=sm_error)
 
             # All methods failed
             logger.error(f"All state transition methods failed for issue {issue_id} to state '{target_state}'")
@@ -650,7 +650,7 @@ class IssuesClient:
                 return False
 
         except Exception as e:
-            logger.error(f"State machine transition failed: {e}")
+            logger.error("state_machine_transition_failed_e", e=e)
             return False
     
     async def _apply_direct_state_update(self, issue_id: str, target_state: str) -> bool:
@@ -675,7 +675,7 @@ class IssuesClient:
                     break
 
             if not state_field_id:
-                logger.warning(f"No state field found for issue {issue_id}")
+                logger.warning("no_state_field_found_for_issue_issue_id", issue_id=issue_id)
                 return False
 
             # Update the state field directly
@@ -691,7 +691,7 @@ class IssuesClient:
             return True
 
         except Exception as e:
-            logger.warning(f"Direct state update failed for issue {issue_id}: {e}")
+            logger.warning("direct_state_update_failed_for_issue_issue_id_e", issue_id=issue_id, e=e)
             return False
     
     async def _update_other_custom_fields(self, issue_id: str, custom_fields: Dict[str, Any], validate: bool, use_commands: bool) -> None:
@@ -793,23 +793,23 @@ class IssuesClient:
                 if field_data:
                     update_data["customFields"].append(field_data)
             
-            logger.info(f"Updating custom fields for issue {issue_id} using proper YouTrack objects")
-            logger.info(f"Update payload: {json.dumps(update_data, indent=2)}")
+            logger.info("updating_custom_fields_for_issue_issue_id_using_pr", issue_id=issue_id)
+            logger.info("update_payload_jsondumpsupdate_data_indent2")
             await self.client.post(f"issues/{issue_id}", data=update_data)
-            logger.info(f"Direct field update succeeded for issue {issue_id}")
+            logger.info("direct_field_update_succeeded_for_issue_issue_id", issue_id=issue_id)
             
         except Exception as direct_error:
-            logger.warning(f"Direct field update failed: {direct_error}")
+            logger.warning("direct_field_update_failed_direct_error", direct_error=direct_error)
             
             # Method 2: Fallback to command-based approach if enabled
             if use_commands:
-                logger.info(f"Trying command-based approach as fallback for issue {issue_id}")
+                logger.info("trying_commandbased_approach_as_fallback_for_issue", issue_id=issue_id)
                 try:
                     await self._apply_commands_update(issue_id, custom_fields)
-                    logger.info(f"Command-based update succeeded for issue {issue_id}")
+                    logger.info("commandbased_update_succeeded_for_issue_issue_id", issue_id=issue_id)
                     return
                 except Exception as cmd_error:
-                    logger.warning(f"Command-based approach also failed: {cmd_error}")
+                    logger.warning("commandbased_approach_also_failed_cmd_error", cmd_error=cmd_error)
             
             # If both direct and command approaches fail, raise the original error with full details
             error_msg = f"Direct field update failed"
@@ -1038,9 +1038,9 @@ class IssuesClient:
             
             logger.info(f"Applying command-based update for issue {issue_id} with query: {command_data['query']}")
             await self.client.post("commands", data=command_data)
-            logger.info(f"Command-based update succeeded for issue {issue_id}")
+            logger.info("commandbased_update_succeeded_for_issue_issue_id", issue_id=issue_id)
         except Exception as e:
-            logger.warning(f"Command-based update failed: {e}")
+            logger.warning("commandbased_update_failed_e", e=e)
             raise
 
     async def validate_custom_field_value(
@@ -1173,7 +1173,7 @@ class IssuesClient:
                 try:
                     issues.append(Issue.model_validate(issue_data))
                 except Exception as e:
-                    logger.warning(f"Error validating issue: {e}")
+                    logger.warning("error_validating_issue_e", e=e)
                     # Create a basic issue with id
                     issue_id = issue_data.get(
                         "id", str(issue_data.get("created", "unknown"))
@@ -1996,23 +1996,23 @@ class IssuesClient:
                 if field_data:
                     update_data["customFields"].append(field_data)
 
-            logger.info(f"Updating custom fields for issue {issue_id} using proper YouTrack objects")
-            logger.info(f"Update payload: {json.dumps(update_data, indent=2)}")
+            logger.info("updating_custom_fields_for_issue_issue_id_using_pr", issue_id=issue_id)
+            logger.info("update_payload_jsondumpsupdate_data_indent2")
             await self.client.post(f"issues/{issue_id}", data=update_data)
-            logger.info(f"Direct field update succeeded for issue {issue_id}")
+            logger.info("direct_field_update_succeeded_for_issue_issue_id", issue_id=issue_id)
 
         except Exception as direct_error:
-            logger.warning(f"Direct field update failed: {direct_error}")
+            logger.warning("direct_field_update_failed_direct_error", direct_error=direct_error)
 
             # Method 2: Fallback to command-based approach if enabled
             if use_commands:
-                logger.info(f"Trying command-based approach as fallback for issue {issue_id}")
+                logger.info("trying_commandbased_approach_as_fallback_for_issue", issue_id=issue_id)
                 try:
                     await self._apply_commands_update(issue_id, custom_fields)
-                    logger.info(f"Command-based update succeeded for issue {issue_id}")
+                    logger.info("commandbased_update_succeeded_for_issue_issue_id", issue_id=issue_id)
                     return
                 except Exception as cmd_error:
-                    logger.warning(f"Command-based approach also failed: {cmd_error}")
+                    logger.warning("commandbased_approach_also_failed_cmd_error", cmd_error=cmd_error)
 
             # If both direct and command approaches fail, raise the original error with full details
             error_msg = f"Direct field update failed"
@@ -2184,7 +2184,7 @@ class IssuesClient:
                                 }
 
             # Fallback to simple string value if we can't find the bundle element
-            logger.warning(f"Could not find bundle element for {field_name}={field_value}, using simple value")
+            logger.warning("could_not_find_bundle_element_for_field_namefield_", field_name=field_name, field_value=field_value)
             return {
                 "$type": "SingleEnumIssueCustomField",
                 "name": field_name,
@@ -2241,7 +2241,7 @@ class IssuesClient:
                                 }
 
             # Fallback to simple string value if we can't find the bundle element
-            logger.warning(f"Could not find state bundle element for {field_name}={field_value}, using simple value")
+            logger.warning("could_not_find_state_bundle_element_for_field_name", field_name=field_name, field_value=field_value)
             return {
                 "$type": "StateIssueCustomField",
                 "name": field_name,
@@ -2293,7 +2293,7 @@ class IssuesClient:
                     }
                 }
             else:
-                logger.warning(f"Could not resolve user for {field_name}={field_value}")
+                logger.warning("could_not_resolve_user_for_field_namefield_value", field_name=field_name, field_value=field_value)
                 return {
                     "$type": "SingleUserIssueCustomField",
                     "name": field_name,
@@ -2333,7 +2333,7 @@ class IssuesClient:
                     }
                 }
             else:
-                logger.warning(f"Could not parse time value for {field_name}={field_value}")
+                logger.warning("could_not_parse_time_value_for_field_namefield_val", field_name=field_name, field_value=field_value)
                 return {
                     "$type": "PeriodIssueCustomField",
                     "name": field_name,
@@ -2395,9 +2395,9 @@ class IssuesClient:
 
             logger.info(f"Applying command-based update for issue {issue_id} with query: {command_data['query']}")
             await self.client.post("commands", data=command_data)
-            logger.info(f"Command-based update succeeded for issue {issue_id}")
+            logger.info("commandbased_update_succeeded_for_issue_issue_id", issue_id=issue_id)
         except Exception as e:
-            logger.warning(f"Command-based update failed: {e}")
+            logger.warning("commandbased_update_failed_e", e=e)
             raise
 
     async def get_issue_custom_fields(self, issue_id: str) -> Dict[str, Any]:
@@ -2844,7 +2844,7 @@ class IssuesClient:
             return False
 
         except Exception as e:
-            logger.warning(f"Error validating custom field value: {e}")
+            logger.warning("error_validating_custom_field_value_e", e=e)
             # If validation fails, assume it's valid to avoid blocking updates
             return True
 
@@ -2871,7 +2871,7 @@ class IssuesClient:
             return None
 
         except Exception as e:
-            logger.warning(f"Error getting custom field schema: {e}")
+            logger.warning("error_getting_custom_field_schema_e", e=e)
             return None
 
     async def _get_custom_field_allowed_values(self, project_id: str, field_name: str) -> List[Any]:
@@ -2910,7 +2910,7 @@ class IssuesClient:
             return []
 
         except Exception as e:
-            logger.warning(f"Error getting custom field allowed values: {e}")
+            logger.warning("error_getting_custom_field_allowed_values_e", e=e)
             return []
 
     async def _validate_user_exists(self, user_value: str) -> bool:

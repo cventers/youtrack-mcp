@@ -11,11 +11,11 @@ These functions enable tracking of issue activity and team collaboration through
 """
 
 import json
-import logging
+from youtrack_mcp.logging import get_logger
 from typing import Any, Dict, Optional, List
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class CommentOperations:

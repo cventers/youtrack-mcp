@@ -11,7 +11,7 @@ This package contains modular issue management tools broken down by functionalit
 - comments: Comment retrieval and management
 """
 
-import logging
+from youtrack_mcp.logging import get_logger
 from typing import Any, Dict, List, Optional
 
 from youtrack_mcp.api.client import YouTrackClient
@@ -28,7 +28,7 @@ from .attachments import Attachments
 from .utilities import Utilities
 from .comments import CommentOperations
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class IssueTools:
