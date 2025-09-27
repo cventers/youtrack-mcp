@@ -1,6 +1,8 @@
 """Log processors for formatting and enriching log output."""
 
-from typing import Any, Dict, Optional
+import json
+from collections import OrderedDict
+from typing import Any, Dict, List, Optional
 
 import structlog
 from structlog.dev import ConsoleRenderer, _ColorfulStyles
@@ -50,6 +52,47 @@ class CustomConsoleRenderer(ConsoleRenderer):
         return result
 
 
+class OrderedJSONRenderer:
+    """JSON renderer that preserves field order."""
+
+    def __init__(self, key_order: List[str], indent: Optional[int] = None):
+        """Initialize ordered JSON renderer.
+
+        Args:
+            key_order: List of keys in desired order (others will follow)
+            indent: JSON indentation (None for compact output)
+        """
+        self.key_order = key_order
+        self.indent = indent
+
+    def __call__(self, logger, name, event_dict: Dict[str, Any]) -> str:
+        """Render event dict as JSON with ordered fields.
+
+        Args:
+            logger: The logger instance
+            name: The method name
+            event_dict: The event dictionary
+
+        Returns:
+            JSON string with ordered fields
+        """
+        # Create ordered dict with specified key order
+        ordered = OrderedDict()
+
+        # First add keys in specified order if they exist
+        for key in self.key_order:
+            if key in event_dict:
+                ordered[key] = event_dict[key]
+
+        # Then add any remaining keys
+        for key, value in event_dict.items():
+            if key not in ordered:
+                ordered[key] = value
+
+        # Convert to JSON
+        return json.dumps(ordered, indent=self.indent, default=str)
+
+
 def get_console_processor(format: str):
     """Get appropriate console output processor.
 
@@ -67,7 +110,11 @@ def get_console_processor(format: str):
             repr_native_str=False,
         )
     elif format == "json":
-        return JSONRenderer(indent=None, sort_keys=False)
+        # Use OrderedRenderer for console JSON too
+        return OrderedJSONRenderer(
+            key_order=["timestamp", "level", "logger", "event"],
+            indent=None
+        )
     else:  # plain
         return ConsoleRenderer(colors=False)
 
@@ -82,7 +129,11 @@ def get_file_processor(format: str):
         Configured processor for file output
     """
     if format == "json":
-        return JSONRenderer(indent=None, sort_keys=True)
+        # Use OrderedRenderer to ensure timestamp appears first
+        return OrderedJSONRenderer(
+            key_order=["timestamp", "level", "logger", "event"],
+            indent=None
+        )
     else:  # text
         return KeyValueRenderer(
             key_order=["timestamp", "level", "logger", "event"],
