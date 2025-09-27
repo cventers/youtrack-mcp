@@ -3,8 +3,35 @@
 from typing import Any, Dict, Optional
 
 import structlog
-from structlog.dev import ConsoleRenderer
+from structlog.dev import ConsoleRenderer, _ColorfulStyles
 from structlog.processors import JSONRenderer, KeyValueRenderer
+
+
+class CustomConsoleRenderer(ConsoleRenderer):
+    """Custom console renderer that displays logger name before event."""
+
+    def __call__(self, logger, name, event_dict):
+        """Render with logger name before event."""
+        # Extract the fields we want to control
+        logger_name = event_dict.pop("logger", None)
+        event = event_dict.pop("event", "")
+        level = event_dict.get("level", "")
+
+        # Temporarily modify event_dict to control ordering
+        if logger_name:
+            # Create a modified event string that includes logger name
+            modified_event = f"[{logger_name}] {event}"
+            event_dict["event"] = modified_event
+
+        # Call parent renderer
+        result = super().__call__(logger, name, event_dict)
+
+        # Restore original values
+        if logger_name:
+            event_dict["logger"] = logger_name
+        event_dict["event"] = event
+
+        return result
 
 
 def get_console_processor(format: str):
@@ -17,9 +44,9 @@ def get_console_processor(format: str):
         Configured processor for console output
     """
     if format == "color":
-        return ConsoleRenderer(
+        return CustomConsoleRenderer(
             colors=True,
-            pad_event=30,
+            pad_event=50,  # Increased to accommodate [logger] prefix
             force_colors=False,
             repr_native_str=False,
         )

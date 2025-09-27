@@ -25,8 +25,7 @@ class LoggingConfig(BaseModel):
     console_level: Optional[str] = None  # Inherits from global if not set
 
     # File output
-    file_enabled: bool = False
-    file_path: Optional[Path] = None
+    file: Optional[Path] = None
     file_format: Literal["json", "text"] = "json"
     file_level: Optional[str] = None  # Inherits from global if not set
     file_rotation: bool = True

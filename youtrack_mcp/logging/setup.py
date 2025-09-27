@@ -80,9 +80,9 @@ def setup_logging(config: Optional[LoggingConfig] = None) -> ContextEnricher:
         handlers.append(console_handler)
 
     # File handler
-    if config.file_enabled and config.file_path:
+    if config.file:
         # Ensure directory exists
-        file_path = Path(config.file_path)
+        file_path = Path(config.file)
         file_path.parent.mkdir(parents=True, exist_ok=True)
 
         # Create handler with rotation if configured

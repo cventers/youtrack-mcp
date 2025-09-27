@@ -57,10 +57,11 @@ def setup_logging():
             version=APP_VERSION
         )
 
-    logger.info("Harmonized logging initialized",
+    logger.info("Logging initialized",
                 level=config.logging.level,
                 console_enabled=config.logging.console_enabled,
-                file_enabled=config.logging.file_enabled)
+                file_enabled=(config.logging.file is not None),
+                file_path=str(config.logging.file) if config.logging.file else None)
 
 # Global server and tools instances
 server = None
