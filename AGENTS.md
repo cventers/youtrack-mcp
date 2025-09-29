@@ -170,6 +170,71 @@ uv lock --upgrade
 - **Specific exceptions**: All generic `except Exception` replaced with specific error types
 - **Educational responses**: Error messages designed to help AI models learn correct usage patterns
 
+### Async-First Architecture
+
+**CRITICAL**: This is an **asyncio-first** application. All code MUST be written with async/await patterns as the default approach.
+
+#### Core Principles
+1. **Always use async functions** for any I/O operations (network, file, database)
+2. **Never write blocking synchronous code** that could halt the event loop
+3. **Use `httpx.AsyncClient`** for all HTTP operations (NOT requests)
+4. **Prefer `asyncio.gather()`** for concurrent operations
+5. **Use `async with` for context managers** (connections, files, locks)
+
+#### DO Write
+```python
+# ✅ CORRECT - Async all the way
+async def fetch_data(self, project_id: str) -> dict:
+    async with httpx.AsyncClient() as client:
+        response = await client.get(f"/api/projects/{project_id}")
+        return response.json()
+
+# ✅ CORRECT - Concurrent operations
+async def fetch_multiple(self, ids: List[str]) -> List[dict]:
+    tasks = [self.fetch_data(id) for id in ids]
+    return await asyncio.gather(*tasks)
+```
+
+#### DON'T Write
+```python
+# ❌ WRONG - Blocking synchronous code
+def fetch_data(self, project_id: str) -> dict:
+    response = requests.get(f"/api/projects/{project_id}")
+    return response.json()
+
+# ❌ WRONG - Sequential when could be concurrent
+async def fetch_multiple(self, ids: List[str]) -> List[dict]:
+    results = []
+    for id in ids:
+        result = await self.fetch_data(id)  # Sequential, slow!
+        results.append(result)
+    return results
+```
+
+#### Converting Synchronous Libraries
+If you must use a synchronous library, wrap it properly:
+```python
+import asyncio
+from functools import partial
+
+# Convert blocking operation to async
+async def async_operation(data):
+    loop = asyncio.get_event_loop()
+    # Run in executor to avoid blocking
+    result = await loop.run_in_executor(
+        None,  # Use default executor
+        partial(sync_function, data)
+    )
+    return result
+```
+
+#### Key AsyncIO Patterns
+- **Concurrent HTTP requests**: `asyncio.gather()` for parallel API calls
+- **Rate limiting**: Use `asyncio.Semaphore()` to limit concurrent requests
+- **Timeouts**: Use `asyncio.wait_for()` with timeout parameter
+- **Background tasks**: Use `asyncio.create_task()` for fire-and-forget operations
+- **Cleanup**: Always close async resources with `async with` or explicit `await client.close()`
+
 ### Performance Considerations
 - **Async Operations**: Use httpx.AsyncClient for all HTTP requests
 - **Caching Strategy**: Multi-layer caching (in-process, Redis, background jobs)
@@ -392,4 +457,3 @@ result = call_tool({
    - Test deltas and failure modes.
 
 **Agents MUST match this architecture** when proposing tool changes. PRs that add narrow tools without exhausting the options above will be rejected.
-

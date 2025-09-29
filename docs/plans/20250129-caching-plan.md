@@ -24,23 +24,13 @@ Based on the comprehensive caching analysis in `docs/caching.md`, this plan outl
 
 ## Proposed Architecture
 
-### Three-Tier Cache Strategy
-```
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│   Memory    │ --> │   SQLite    │ --> │    Redis    │
-│  (L1 Cache) │     │  (L2 Cache) │     │  (L3 Cache) │
-│   Fast      │     │  Persistent │     │ Distributed │
-└─────────────┘     └─────────────┘     └─────────────┘
-```
+### Cache Strategy Options
 
-### Backend Support Matrix
-
-| Backend | Dependencies | Multiprocess | Persistent | TTL | Use Case |
-|---------|-------------|--------------|------------|-----|----------|
-| Memory | cachetools (✅) | ❌ | ❌ | ✅ | Development |
-| SQLite | sqlite3 (built-in) | ✅ | ✅ | ✅ | Production |
-| Redis | redis-py (optional) | ✅ | ✅ | ✅ | Enterprise |
-| Hybrid | All above | ✅ | ✅ | ✅ | Recommended |
+| Strategy | Description | Use Case |
+|----------|-------------|----------|
+| OFF | No caching | Testing/debugging |
+| SQLITE_HYBRID | Memory (L1) + SQLite (L2) | Default for production |
+| REDIS | Redis-only distributed cache | Enterprise/distributed systems |
 
 ## Implementation Plan
 
@@ -283,7 +273,7 @@ class RedisCacheBackend(CacheBackend):
         if not REDIS_AVAILABLE:
             raise ImportError(
                 "Redis support requires 'redis' package. "
-                "Install with: pip install redis[hiredis]"
+                "Install with: uv add redis[hiredis]"
             )
         
         self.default_ttl = default_ttl
@@ -334,14 +324,12 @@ class RedisCacheBackend(CacheBackend):
         return await self.client.exists(redis_key) > 0
     
     async def get_stats(self) -> Dict[str, Any]:
-        """Get Redis server statistics."""
+        """Get basic Redis stats."""
         info = await self.client.info("stats")
         return {
-            "total_commands": info.get("total_commands_processed", 0),
-            "connected_clients": info.get("connected_clients", 0),
-            "used_memory": info.get("used_memory_human", "0"),
-            "hits": info.get("keyspace_hits", 0),
-            "misses": info.get("keyspace_misses", 0)
+            "connected": True,
+            "keyspace_hits": info.get("keyspace_hits", 0),
+            "keyspace_misses": info.get("keyspace_misses", 0)
         }
     
     async def cleanup_expired(self) -> int:
@@ -364,18 +352,16 @@ from .backends import MemoryCacheBackend, SQLiteCacheBackend, RedisCacheBackend
 from .backends.base import CacheBackend
 
 class CacheStrategy(str, Enum):
-    MEMORY = "memory"
-    SQLITE = "sqlite"
+    OFF = "off"
+    SQLITE_HYBRID = "sqlite_hybrid"
     REDIS = "redis"
-    HYBRID = "hybrid"  # Memory + SQLite
-    TIERED = "tiered"  # Memory + SQLite + Redis
 
 class UnifiedCacheManager:
     """Unified cache manager with multiple backend support."""
     
     def __init__(
         self,
-        strategy: CacheStrategy = CacheStrategy.HYBRID,
+        strategy: CacheStrategy = CacheStrategy.SQLITE_HYBRID,
         memory_config: Optional[Dict] = None,
         sqlite_config: Optional[Dict] = None,
         redis_config: Optional[Dict] = None
@@ -384,26 +370,29 @@ class UnifiedCacheManager:
         self.backends: List[CacheBackend] = []
         
         # Initialize backends based on strategy
-        if strategy in [CacheStrategy.MEMORY, CacheStrategy.HYBRID, CacheStrategy.TIERED]:
+        if strategy == CacheStrategy.OFF:
+            # No caching
+            pass
+        elif strategy == CacheStrategy.SQLITE_HYBRID:
             self.memory = MemoryCacheBackend(**(memory_config or {}))
-            self.backends.append(self.memory)
-        
-        if strategy in [CacheStrategy.SQLITE, CacheStrategy.HYBRID, CacheStrategy.TIERED]:
             self.sqlite = SQLiteCacheBackend(**(sqlite_config or {}))
-            self.backends.append(self.sqlite)
-        
-        if strategy in [CacheStrategy.REDIS, CacheStrategy.TIERED]:
+            self.backends = [self.memory, self.sqlite]
+        elif strategy == CacheStrategy.REDIS:
             self.redis = RedisCacheBackend(**(redis_config or {}))
-            self.backends.append(self.redis)
+            self.backends = [self.redis]
     
     async def get(self, key: str, namespace: str = "default") -> Optional[Any]:
         """Get value from cache, checking each backend in order."""
+        if self.strategy == CacheStrategy.OFF:
+            return None
+            
         for i, backend in enumerate(self.backends):
             value = await backend.get(key, namespace)
             if value is not None:
-                # Populate faster caches (backfill)
-                for j in range(i):
-                    await self.backends[j].set(key, value, namespace=namespace)
+                # Populate faster caches (backfill) for SQLITE_HYBRID
+                if self.strategy == CacheStrategy.SQLITE_HYBRID and i > 0:
+                    for j in range(i):
+                        await self.backends[j].set(key, value, namespace=namespace)
                 return value
         return None
     
@@ -415,17 +404,22 @@ class UnifiedCacheManager:
         namespace: str = "default",
         backends: Optional[List[str]] = None
     ) -> None:
-        """Set value in cache, optionally specifying which backends."""
+        """Set value in cache."""
+        if self.strategy == CacheStrategy.OFF:
+            return
+            
         tasks = []
         for backend in self.backends:
-            if backends is None or backend.__class__.__name__.lower().replace("cachebackend", "") in backends:
-                tasks.append(backend.set(key, value, ttl, namespace))
+            tasks.append(backend.set(key, value, ttl, namespace))
         
         if tasks:
             await asyncio.gather(*tasks)
     
     async def delete(self, key: str, namespace: str = "default") -> bool:
         """Delete key from all backends."""
+        if self.strategy == CacheStrategy.OFF:
+            return False
+            
         results = await asyncio.gather(
             *[backend.delete(key, namespace) for backend in self.backends]
         )
@@ -433,6 +427,9 @@ class UnifiedCacheManager:
     
     async def clear(self, namespace: Optional[str] = None) -> int:
         """Clear cache across all backends."""
+        if self.strategy == CacheStrategy.OFF:
+            return 0
+            
         results = await asyncio.gather(
             *[backend.clear(namespace) for backend in self.backends]
         )
@@ -440,7 +437,10 @@ class UnifiedCacheManager:
     
     async def get_stats(self) -> Dict[str, Any]:
         """Get aggregated statistics from all backends."""
-        stats = {}
+        if self.strategy == CacheStrategy.OFF:
+            return {"strategy": "off", "caching_disabled": True}
+            
+        stats = {"strategy": self.strategy.value}
         for backend in self.backends:
             backend_name = backend.__class__.__name__.replace("CacheBackend", "").lower()
             stats[backend_name] = await backend.get_stats()
@@ -448,6 +448,9 @@ class UnifiedCacheManager:
     
     async def cleanup_expired(self) -> Dict[str, int]:
         """Cleanup expired entries from all backends."""
+        if self.strategy == CacheStrategy.OFF:
+            return {}
+            
         results = {}
         for backend in self.backends:
             backend_name = backend.__class__.__name__.replace("CacheBackend", "").lower()
@@ -467,11 +470,9 @@ from typing import Optional
 from pydantic import BaseSettings, Field
 
 class CacheStrategy(str, Enum):
-    MEMORY = "memory"
-    SQLITE = "sqlite"
+    OFF = "off"
+    SQLITE_HYBRID = "sqlite_hybrid"
     REDIS = "redis"
-    HYBRID = "hybrid"
-    TIERED = "tiered"
 
 class CacheConfig(BaseSettings):
     """Enhanced caching configuration with multi-backend support."""
@@ -483,17 +484,17 @@ class CacheConfig(BaseSettings):
     
     # General settings
     enabled: bool = Field(True, description="Enable caching")
-    strategy: CacheStrategy = Field(CacheStrategy.HYBRID, description="Caching strategy")
+    strategy: CacheStrategy = Field(CacheStrategy.SQLITE_HYBRID, description="Caching strategy")
     
-    # Memory cache settings
+    # Memory cache settings (for SQLITE_HYBRID)
     memory_size: int = Field(1000, ge=1, description="Memory cache size")
     memory_ttl: int = Field(300, ge=0, description="Memory cache TTL in seconds")
     
-    # SQLite settings
+    # SQLite settings (for SQLITE_HYBRID)
     sqlite_path: Optional[Path] = Field(None, description="SQLite cache file path")
     sqlite_ttl: int = Field(3600, ge=0, description="SQLite cache TTL in seconds")
     
-    # Redis settings
+    # Redis settings (for REDIS strategy)
     redis_host: str = Field("localhost", description="Redis host")
     redis_port: int = Field(6379, description="Redis port")
     redis_db: int = Field(0, description="Redis database number")
@@ -623,44 +624,156 @@ class IDResolver:
 
 ### Phase 4: Migration Strategy
 
-#### 4.1 Migrate Existing Caches
-Create migration utilities to transition existing cache implementations:
+#### 4.1 Direct Updates to Existing Cache Implementations
 
-1. **ErrorHandler** → Use unified cache with namespace "errors"
-2. **AdvancedSearchTools** → Use namespace "search"
-3. **AIService** → Use namespace "ai"
-4. **MCPResources** → Use namespace "resources"
+Update all 6 existing cache implementations to use the new unified cache API:
 
-#### 4.2 Backward Compatibility Wrapper
-**File:** `youtrack_mcp/cache/compat.py`
+##### 4.1.1 ErrorHandler Update
+**File:** `youtrack_mcp/utils/__init__.py`
 
 ```python
-from cachetools import TTLCache
-from typing import Any, Optional
+# OLD CODE
+class ErrorHandler:
+    def __init__(self):
+        self.error_cache = TTLCache(maxsize=500, ttl=1800)  # 30 minutes
 
-class CacheCompatWrapper:
-    """Wrapper to make unified cache compatible with existing TTLCache usage."""
-    
-    def __init__(self, cache_manager, namespace: str, ttl: int = 300):
+# NEW CODE
+class ErrorHandler:
+    def __init__(self, cache_manager: UnifiedCacheManager):
         self.cache = cache_manager
-        self.namespace = namespace
-        self.ttl = ttl
+        self.cache_namespace = "errors"
+        self.cache_ttl = 1800  # 30 minutes
     
-    def __getitem__(self, key: str) -> Any:
-        """Synchronous get for compatibility."""
-        import asyncio
-        return asyncio.run(self.cache.get(key, self.namespace))
+    async def get_cached_error(self, error_key: str) -> Optional[Any]:
+        return await self.cache.get(error_key, namespace=self.cache_namespace)
     
-    def __setitem__(self, key: str, value: Any) -> None:
-        """Synchronous set for compatibility."""
-        import asyncio
-        asyncio.run(self.cache.set(key, value, self.ttl, self.namespace))
-    
-    def __contains__(self, key: str) -> bool:
-        """Check if key exists."""
-        import asyncio
-        return asyncio.run(self.cache.get(key, self.namespace)) is not None
+    async def cache_error(self, error_key: str, enhanced_error: Any) -> None:
+        await self.cache.set(error_key, enhanced_error, ttl=self.cache_ttl, namespace=self.cache_namespace)
 ```
+
+##### 4.1.2 AdvancedSearchTools Update
+**File:** `youtrack_mcp/tools/search_advanced.py`
+
+```python
+# OLD CODE
+def __init__(self):
+    self.query_cache = TTLCache(maxsize=100, ttl=300)  # 5 minute TTL
+    self.suggestion_cache = LRUCache(maxsize=50)
+
+# NEW CODE
+def __init__(self, cache_manager: UnifiedCacheManager):
+    self.cache = cache_manager
+    self.query_namespace = "search_queries"
+    self.suggestion_namespace = "search_suggestions"
+    self.query_ttl = 300  # 5 minutes
+    self.suggestion_ttl = 600  # 10 minutes
+
+async def get_cached_query(self, query: str, limit: int) -> Optional[dict]:
+    cache_key = f"{query}:{limit}"
+    return await self.cache.get(cache_key, namespace=self.query_namespace)
+
+async def cache_query_result(self, query: str, limit: int, result: dict) -> None:
+    cache_key = f"{query}:{limit}"
+    await self.cache.set(cache_key, result, ttl=self.query_ttl, namespace=self.query_namespace)
+```
+
+##### 4.1.3 AIService Update
+**File:** `youtrack_mcp/ai/service.py`
+
+```python
+# OLD CODE
+def __init__(self, llm_client, ...):
+    self.query_cache = TTLCache(maxsize=1000, ttl=3600)  # 1 hour
+    self.error_cache = TTLCache(maxsize=500, ttl=1800)  # 30 minutes
+
+# NEW CODE
+def __init__(self, llm_client, cache_manager: UnifiedCacheManager, ...):
+    self.cache = cache_manager
+    self.llm_client = llm_client
+    # ... other initialization
+
+async def translate_nl_to_yql(self, natural_query: str, project_context: Optional[str] = None):
+    # Check cache
+    cache_key = f"{natural_query}:{project_context}"
+    cached_response = await self.cache.get(cache_key, namespace="ai_yql_translation")
+    if cached_response:
+        logger.debug("Using cached YQL translation", query=natural_query[:50])
+        return cached_response
+    
+    # ... perform translation ...
+    
+    # Cache result
+    await self.cache.set(cache_key, response, ttl=3600, namespace="ai_yql_translation")
+    return response
+```
+
+##### 4.1.4 MCPResources Update
+**File:** `youtrack_mcp/mcp_resources.py`
+
+```python
+# OLD CODE
+def __init__(self):
+    self._cache = {}
+    self._cache_ttl = 300  # 5 minutes cache
+
+def _is_cache_valid(self, key: str) -> bool:
+    # Manual TTL validation
+
+# NEW CODE
+def __init__(self, cache_manager: UnifiedCacheManager):
+    self.cache = cache_manager
+    self.cache_ttl = 300  # 5 minutes
+    self.cache_namespace = "mcp_resources"
+
+async def get_cached_resource(self, resource_key: str) -> Optional[dict]:
+    return await self.cache.get(resource_key, namespace=self.cache_namespace)
+
+async def cache_resource(self, resource_key: str, data: dict) -> None:
+    await self.cache.set(resource_key, data, ttl=self.cache_ttl, namespace=self.cache_namespace)
+```
+
+##### 4.1.5 Dependency Injection Updates
+**File:** `main.py` or initialization module
+
+```python
+from youtrack_mcp.cache.manager import UnifiedCacheManager, CacheStrategy
+from youtrack_mcp.config import config
+
+# Initialize unified cache based on configuration
+cache_config = config.cache
+cache_manager = UnifiedCacheManager(
+    strategy=cache_config.strategy,
+    memory_config={
+        "max_size": cache_config.memory_size,
+        "default_ttl": cache_config.memory_ttl
+    },
+    sqlite_config={
+        "db_path": cache_config.sqlite_path,
+        "default_ttl": cache_config.sqlite_ttl
+    },
+    redis_config={
+        "host": cache_config.redis_host,
+        "port": cache_config.redis_port,
+        "password": cache_config.redis_password,
+        "default_ttl": cache_config.redis_ttl
+    } if cache_config.strategy in [CacheStrategy.REDIS, CacheStrategy.TIERED] else None
+)
+
+# Pass cache_manager to all components that need caching
+error_handler = ErrorHandler(cache_manager=cache_manager)
+search_tools = AdvancedSearchTools(cache_manager=cache_manager)
+ai_service = AIService(llm_client=llm_client, cache_manager=cache_manager)
+mcp_resources = MCPResources(cache_manager=cache_manager)
+```
+
+#### 4.2 Removal of Old Cache Code
+
+After updating all cache consumers, remove the old caching code:
+
+1. Remove direct `TTLCache` and `LRUCache` imports from modules
+2. Remove manual cache validation methods
+3. Remove cache timestamp tracking code
+4. Update tests to use the new async cache API
 
 ### Phase 5: Testing Strategy
 
@@ -912,8 +1025,8 @@ jobs:
       
       - name: Install dependencies
         run: |
-          pip install -e .[dev]
-          pip install redis  # Optional dependency
+          uv sync --all-extras
+          uv add redis pytest-cov
       
       - name: Run black
         run: black --check youtrack_mcp tests
@@ -943,8 +1056,8 @@ jobs:
       
       - name: Install dependencies
         run: |
-          pip install -e .[dev]
-          pip install redis pytest-cov
+          uv sync --all-extras
+          uv add redis pytest-cov
       
       - name: Run tests with coverage
         run: |
@@ -968,8 +1081,8 @@ jobs:
 ```python
 from youtrack_mcp.cache.manager import UnifiedCacheManager, CacheStrategy
 
-# Initialize with hybrid strategy (recommended)
-cache = UnifiedCacheManager(strategy=CacheStrategy.HYBRID)
+# Initialize with sqlite_hybrid strategy (recommended)
+cache = UnifiedCacheManager(strategy=CacheStrategy.SQLITE_HYBRID)
 
 # Store value
 await cache.set("my_key", {"data": "value"}, ttl=300, namespace="my_namespace")
@@ -984,17 +1097,17 @@ await cache.delete("my_key", namespace="my_namespace")
 ### Configuration via Environment Variables
 ```bash
 # Cache strategy
-export CACHE_STRATEGY=hybrid  # memory, sqlite, redis, hybrid, tiered
+export CACHE_STRATEGY=sqlite_hybrid  # off, sqlite_hybrid, redis
 
-# Memory cache
+# Memory cache (for sqlite_hybrid)
 export CACHE_MEMORY_SIZE=1000
 export CACHE_MEMORY_TTL=300
 
-# SQLite cache
+# SQLite cache (for sqlite_hybrid)
 export CACHE_SQLITE_PATH=/path/to/cache.db
 export CACHE_SQLITE_TTL=3600
 
-# Redis cache (optional)
+# Redis cache (for redis strategy)
 export CACHE_REDIS_HOST=localhost
 export CACHE_REDIS_PORT=6379
 export CACHE_REDIS_PASSWORD=secret
@@ -1020,23 +1133,20 @@ print(f"Warmed cache with {counts['projects']} projects, {counts['users']} users
 
 | Strategy | Description | Use Case |
 |----------|-------------|----------|
-| MEMORY | In-memory only | Development, testing |
-| SQLITE | SQLite only | Small deployments |
+| OFF | No caching | Testing/debugging |
+| SQLITE_HYBRID | Memory + SQLite | Default production |
 | REDIS | Redis only | Distributed systems |
-| HYBRID | Memory + SQLite | Single server production |
-| TIERED | All three layers | Enterprise deployments |
 
 ## Monitoring
 
 ```python
 # Get cache statistics
 stats = await cache.get_stats()
-print(f"Cache hit rate: {stats['memory']['hit_rate']:.2%}")
+print(f"Strategy: {stats['strategy']}")
 
 # Cleanup expired entries
 deleted = await cache.cleanup_expired()
 print(f"Cleaned up {deleted} expired entries")
-```
 ```
 
 ## Implementation Checklist
@@ -1063,28 +1173,27 @@ print(f"Cleaned up {deleted} expired entries")
 
 ## Success Metrics
 
-1. **Performance Targets**
-   - Memory cache: <1ms average latency
-   - SQLite cache: <10ms average latency  
-   - Redis cache: <5ms average latency
-   - 90% reduction in YouTrack API calls for ID resolution
+1. **Functional Targets**
+   - Caching works across process restarts (SQLite/Redis)
+   - ID resolution uses caching effectively
+   - Significant reduction in YouTrack API calls
+   - All existing cache consumers migrated to unified system
 
 2. **Reliability Targets**
-   - Zero data loss on process restart (SQLite/Redis)
+   - Zero data loss on process restart with persistent backends
    - Automatic expired entry cleanup
-   - Graceful fallback on backend failure
+   - Graceful handling when cache backend unavailable
 
 3. **Code Quality Targets**
-   - 90%+ test coverage for cache package
    - All code passes linting (black, flake8, mypy)
-   - Performance regression tests in CI
+   - Comprehensive test coverage for cache package
 
 ## Risk Mitigation
 
 1. **Redis Unavailability**: Make Redis an optional dependency with runtime detection
 2. **SQLite Lock Contention**: Use WAL mode and connection pooling
 3. **Memory Leaks**: Enforce max size limits and TTL on all caches
-4. **Migration Issues**: Provide compatibility wrappers for gradual migration
+4. **Migration Issues**: Update all cache consumers directly to the new API with comprehensive testing
 
 ## Conclusion
 
