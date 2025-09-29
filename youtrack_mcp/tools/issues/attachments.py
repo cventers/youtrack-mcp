@@ -26,7 +26,9 @@ class Attachments:
         """Initialize with API clients."""
         self.issues_api = issues_api
         self.projects_api = projects_api
-        self.client = issues_api.client  # Direct access for raw API calls    def get_issue_raw(self, issue_id: str) -> dict:
+        self.client = issues_api.client  # Direct access for raw API calls
+
+    def get_issue_raw(self, issue_id: str) -> dict:
         """
         Get raw information about a specific issue, bypassing the Pydantic model.
 
