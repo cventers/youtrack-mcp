@@ -3,9 +3,9 @@ Tests for AIService.
 """
 
 import pytest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, patch, AsyncMock, MagicMock
 from youtrack_mcp.ai.service import AIService
-from youtrack_mcp.utils import ErrorEnhancementResult
+from youtrack_mcp.ai.llm_client import LLMClient
 from youtrack_mcp.ai.models import YQLTranslationResponse
 
 
@@ -13,21 +13,22 @@ class TestAIService:
     """Test AIService functionality."""
 
     def test_init_without_client(self):
-        """Test initialization without OpenAI client."""
-        service = AIService()
-        assert service.openai_client is None
+        """Test initialization with minimal setup."""
+        mock_llm_client = Mock(spec=LLMClient)
+        service = AIService(llm_client=mock_llm_client)
+        assert service.llm_client == mock_llm_client
 
     def test_init_with_client(self):
-        """Test initialization with OpenAI client."""
-        mock_client = Mock()
-        service = AIService(openai_client=mock_client)
-        assert service.openai_client == mock_client
+        """Test initialization with LLM client."""
+        mock_client = Mock(spec=LLMClient)
+        service = AIService(llm_client=mock_client)
+        assert service.llm_client == mock_client
 
-    @patch('youtrack_mcp.utils.ErrorHandler._load_error_patterns')
-    def test_load_error_patterns(self, mock_load_patterns):
+    def test_load_error_patterns(self):
         """Test loading error patterns."""
-        # Mock the _load_error_patterns method to return test patterns
-        mock_load_patterns.return_value = [
+        mock_llm_client = Mock(spec=LLMClient)
+        mock_error_handler = Mock()
+        mock_error_handler.patterns = [
             {
                 'id': 'test',
                 'match': 'exact|test error',
@@ -41,44 +42,63 @@ class TestAIService:
             }
         ]
 
-        service = AIService()
-        patterns = service.error_patterns
+        service = AIService(llm_client=mock_llm_client, error_handler=mock_error_handler)
+        patterns = service.error_handler.patterns
         assert len(patterns) == 1
         assert patterns[0]['id'] == 'test'
 
-    def test_translate_nl_to_yql_without_client(self):
-        """Test NL to YQL without OpenAI client."""
-        service = AIService()
-        result = service.translate_nl_to_yql("test query")
+    @pytest.mark.asyncio
+    async def test_translate_nl_to_yql_without_client(self):
+        """Test NL to YQL with fallback."""
+        mock_llm_client = Mock(spec=LLMClient)
+        # Make generate_structured raise an exception to trigger fallback
+        mock_llm_client.generate_structured = AsyncMock(side_effect=Exception("LLM error"))
 
-        assert isinstance(result, YQLTranslationResponse)
-        assert result.yql_query == ""
-        assert result.confidence == 0.0
-        assert "not configured" in result.explanation
+        service = AIService(llm_client=mock_llm_client)
 
-    def test_translate_nl_to_yql_with_client(self):
+        result = await service.translate_nl_to_yql("find my bugs")
+
+        # Should return a fallback response
+        assert isinstance(result, dict)
+        assert "query" in result
+
+    @pytest.mark.asyncio
+    async def test_translate_nl_to_yql_with_client(self):
         """Test NL to YQL with OpenAI client."""
-        mock_client = Mock()
-        mock_client.complete.return_value = {
-            "content": "assignee: me",
-            "usage": {"total_tokens": 10},
-            "confidence": 0.8
-        }
+        mock_llm_client = Mock(spec=LLMClient)
+        mock_response = YQLTranslationResponse(
+            query="assignee: me state: Open",
+            explanation="Finding issues assigned to you that are open",
+            confidence=0.9
+        )
+        mock_llm_client.generate_structured = AsyncMock(return_value=mock_response)
 
-        service = AIService(openai_client=mock_client)
-        result = service.translate_nl_to_yql("bugs assigned to me")
+        service = AIService(llm_client=mock_llm_client)
 
-        assert isinstance(result, YQLTranslationResponse)
-        assert result.yql_query == "assignee: me"
-        assert result.confidence == 0.8
-        assert result.explanation == "LLM translation"
-        mock_client.complete.assert_called_once()
+        result = await service.translate_nl_to_yql("find my open issues")
 
-    def test_enhance_error_message_rule_based(self):
-        """Test error enhancement (always rule-based)."""
-        service = AIService()
-        result = service.enhance_error_message("Invalid token provided", {})
+        assert result["query"] == "assignee: me state: Open"
+        assert result["confidence"] == 0.9
 
-        assert isinstance(result, ErrorEnhancementResult)
-        assert "authentication" in result.enhanced_explanation.lower()
-        assert result.confidence == 0.8
+    @pytest.mark.asyncio
+    async def test_enhance_error_message_rule_based(self):
+        """Test error enhancement with rule-based fallback."""
+        mock_llm_client = Mock(spec=LLMClient)
+        mock_error_handler = Mock()
+
+        # Mock error handler to return an enhancement
+        mock_error_handler.enhance_error = Mock(return_value={
+            "error": "404 Not Found",
+            "category": "not_found",
+            "explanation": "The requested issue was not found",
+            "user_action": "Check the issue ID",
+            "learn_from_this": "Issue IDs are case-sensitive"
+        })
+
+        service = AIService(llm_client=mock_llm_client, error_handler=mock_error_handler)
+
+        result = await service.enhance_error_message("404 Not Found", {"issue_id": "DEMO-999"})
+
+        assert result["error"] == "404 Not Found"
+        assert result["category"] == "not_found"
+        assert "Check the issue ID" in result["user_action"]
