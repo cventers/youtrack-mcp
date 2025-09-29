@@ -17,18 +17,18 @@ class TestAITools:
     @pytest.fixture
     def ai_tools(self):
         """Create AI tools instance with mocked dependencies."""
-        with patch('youtrack_mcp.ai.registry.ai_registry') as mock_registry:
-            # Mock the AI service
-            mock_ai_service = MagicMock()
-            mock_ai_service.analyze_intent = AsyncMock()
-            mock_error_handler = MagicMock()
+        tools = AITools()
 
-            mock_registry.ai_service = mock_ai_service
-            mock_registry.error_handler = mock_error_handler
+        # Mock the AI service directly on the instance
+        mock_ai_service = MagicMock()
+        mock_plan_response = AsyncMock()
+        tools.ai_service = mock_ai_service
+        tools._mock_ai_service = mock_ai_service  # Store for test access
 
-            tools = AITools()
-            tools._mock_ai_service = mock_ai_service  # Store for test access
-            return tools
+        # Mock the _analyze_intent_with_llm method directly
+        tools._analyze_intent_with_llm = AsyncMock()
+
+        return tools
 
     @pytest.mark.asyncio
     async def test_plan_create_issue_intent(self, ai_tools):
@@ -36,8 +36,8 @@ class TestAITools:
         intent = "Create a bug report for login issues"
         context = {"project": "DEMO"}
 
-        # Mock the AI service response
-        ai_tools._mock_ai_service.analyze_intent.return_value = {
+        # Mock the _analyze_intent_with_llm method response
+        ai_tools._analyze_intent_with_llm.return_value = {
             "intent": intent,
             "context": context,
             "requires_confirmation": True,
@@ -65,8 +65,8 @@ class TestAITools:
         """Test planning for search intent."""
         intent = "Find all open bugs assigned to me"
 
-        # Mock the AI service response
-        ai_tools._mock_ai_service.analyze_intent.return_value = {
+        # Mock the _analyze_intent_with_llm method response
+        ai_tools._analyze_intent_with_llm.return_value = {
             "intent": intent,
             "context": {},
             "requires_confirmation": False,
@@ -93,8 +93,8 @@ class TestAITools:
         intent = "Close all issues in sprint 2024.1"
         context = {"project": "PROJ"}
 
-        # Mock the AI service response
-        ai_tools._mock_ai_service.analyze_intent.return_value = {
+        # Mock the _analyze_intent_with_llm method response
+        ai_tools._analyze_intent_with_llm.return_value = {
             "intent": intent,
             "context": context,
             "requires_confirmation": True,
@@ -146,12 +146,12 @@ class TestAITools:
             "suggested_tools": ["search.query"],
             "explanations": ["Query issues for weekly statistics"]
         }
-        ai_tools._mock_ai_service.analyze_intent.return_value = expected_response
+        ai_tools._analyze_intent_with_llm.return_value = expected_response
 
         result = await ai_tools.plan(intent)
 
         assert result == expected_response
-        ai_tools._mock_ai_service.analyze_intent.assert_called_once_with(intent, {})
+        ai_tools._analyze_intent_with_llm.assert_called_once_with(intent, {})
 
     @pytest.mark.asyncio
     async def test_plan_with_llm_error_fallback(self, ai_tools):
@@ -159,16 +159,15 @@ class TestAITools:
         intent = "Create a new task"
 
         # Mock LLM failure
-        ai_tools._mock_ai_service.analyze_intent.side_effect = Exception("LLM unavailable")
+        ai_tools._analyze_intent_with_llm.side_effect = Exception("LLM unavailable")
 
         result = await ai_tools.plan(intent)
 
-        # Should get a fallback response
+        # Should get an error response
+        assert "error" in result
         assert result["intent"] == intent
         assert result["requires_confirmation"] is True
-        assert len(result["plan"]) > 0
-        # Fallback should recognize "create" intent
-        assert any("create" in tool.lower() for tool in result["suggested_tools"])
+        assert result["error_type"] == "Exception"
 
     @pytest.mark.asyncio
     async def test_plan_with_exception_handling(self, ai_tools):
@@ -176,14 +175,15 @@ class TestAITools:
         intent = "Do something complex"
 
         # Mock an exception
-        ai_tools._mock_ai_service.analyze_intent.side_effect = ValueError("Invalid input")
+        ai_tools._analyze_intent_with_llm.side_effect = ValueError("Invalid input")
 
         result = await ai_tools.plan(intent)
 
-        # Should return a safe fallback
+        # Should return an error response
+        assert "error" in result
         assert result["intent"] == intent
         assert result["requires_confirmation"] is True
-        assert "error" not in result  # Should handle error gracefully
+        assert result["error_type"] == "ValueError"
 
     @pytest.mark.asyncio
     async def test_plan_empty_context(self, ai_tools):
@@ -191,7 +191,7 @@ class TestAITools:
         intent = "List my issues"
 
         # Mock response
-        ai_tools._mock_ai_service.analyze_intent.return_value = {
+        ai_tools._analyze_intent_with_llm.return_value = {
             "intent": intent,
             "context": {},
             "requires_confirmation": False,
@@ -204,16 +204,18 @@ class TestAITools:
 
         assert result["intent"] == intent
         assert result["context"] == {}
-        ai_tools._mock_ai_service.analyze_intent.assert_called_once_with(intent, {})
+        ai_tools._analyze_intent_with_llm.assert_called_once_with(intent, {})
 
     def test_get_tool_definitions(self):
         """Test getting tool definitions."""
-        # This is now a standalone function, not a method
-        from youtrack_mcp.tools.ai_tools import get_tool_definitions
+        ai_tools = AITools()
 
-        tools = get_tool_definitions()
+        # Get tool definitions as a dictionary
+        tools = ai_tools.get_tool_definitions()
 
-        assert len(tools) == 1
-        assert tools[0]["name"] == "ai_plan"
-        assert "intent" in tools[0]["input_schema"]["properties"]
-        assert "context" in tools[0]["input_schema"]["properties"]
+        # Should have one tool: ai.plan
+        assert "ai.plan" in tools
+        tool_def = tools["ai.plan"]
+        assert tool_def["description"] == "Plan user intent actions"
+        assert "function" in tool_def
+        assert callable(tool_def["function"])

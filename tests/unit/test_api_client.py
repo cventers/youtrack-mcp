@@ -59,29 +59,28 @@ class TestYouTrackClient:
     @pytest.fixture
     def client(self, mock_client):
         """Create a test client with mocked session."""
-        with patch("youtrack_mcp.api.client.config") as mock_config:
-            mock_config.get_base_url.return_value = (
-                "https://test.youtrack.cloud"
-            )
-            mock_config.get_api_token.return_value = "test-token"
-            mock_config.VERIFY_SSL = True
-            mock_config.is_cloud_instance.return_value = True
-            # Create client with token already set to avoid lazy loading
-            client = YouTrackClient(api_token="test-token")
-            # Set the client's httpx client to the mock
-            client.client = mock_client
-            return client
+        # Create client with explicit parameters to avoid config issues
+        client = YouTrackClient(
+            base_url="https://test.youtrack.cloud",
+            api_token="test-token",
+            verify_ssl=True
+        )
+        # Set the client's httpx client to the mock
+        client.client = mock_client
+        return client
 
     @pytest.mark.unit
     def test_client_initialization_default(self, mock_client):
         """Test client initialization with default configuration."""
         with patch("youtrack_mcp.api.client.config") as mock_config:
-            mock_config.get_base_url.return_value = (
-                "https://test.youtrack.cloud"
-            )
+            # Mock the nested config structure
+            mock_youtrack = Mock()
+            mock_youtrack.url = "https://test.youtrack.cloud"
+            mock_youtrack.verify_ssl = True
+            mock_youtrack.token_ttl_seconds = 3600
+            mock_youtrack.enable_token_refresh = True
+            mock_config.youtrack = mock_youtrack
             mock_config.get_api_token.return_value = "test-token"
-            mock_config.VERIFY_SSL = True
-            mock_config.is_cloud_instance.return_value = True
 
             client = YouTrackClient()
 
@@ -442,11 +441,14 @@ class TestYouTrackClient:
         """Test SSL verification disabled."""
         with patch("youtrack_mcp.api.client.httpx.AsyncClient") as mock_client_class:
             with patch("youtrack_mcp.api.client.config") as mock_config:
-                mock_config.get_base_url.return_value = (
-                    "https://test.youtrack.cloud"
-                )
+                # Mock the nested config structure
+                mock_youtrack = Mock()
+                mock_youtrack.url = "https://test.youtrack.cloud"
+                mock_youtrack.verify_ssl = False
+                mock_youtrack.token_ttl_seconds = 3600
+                mock_youtrack.enable_token_refresh = True
+                mock_config.youtrack = mock_youtrack
                 mock_config.get_api_token.return_value = "test-token"
-                mock_config.VERIFY_SSL = False
 
                 client = YouTrackClient()
 

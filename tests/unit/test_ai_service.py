@@ -51,38 +51,45 @@ class TestAIService:
     async def test_translate_nl_to_yql_without_client(self):
         """Test NL to YQL with fallback."""
         mock_llm_client = Mock(spec=LLMClient)
-        # Make generate_structured raise an exception to trigger fallback
-        mock_llm_client.generate_structured = AsyncMock(side_effect=Exception("LLM error"))
+        # Make complete_structured raise an exception to trigger fallback
+        mock_llm_client.complete_structured = AsyncMock(side_effect=Exception("LLM error"))
+        mock_llm_client.complete_with_tools = None  # No tools support
 
         service = AIService(llm_client=mock_llm_client)
 
         result = await service.translate_nl_to_yql("find my bugs")
 
-        # Should return a fallback response
-        assert isinstance(result, dict)
-        assert "query" in result
+        # Should return a fallback YQLTranslationResponse
+        assert isinstance(result, YQLTranslationResponse)
+        assert result.yql_query == 'text: "find my bugs"'
+        assert result.confidence == 0.1
+        assert "Translation failed" in result.reasoning
 
     @pytest.mark.asyncio
     async def test_translate_nl_to_yql_with_client(self):
         """Test NL to YQL with OpenAI client."""
         mock_llm_client = Mock(spec=LLMClient)
         mock_response = YQLTranslationResponse(
-            query="assignee: me state: Open",
-            explanation="Finding issues assigned to you that are open",
+            yql_query="assignee: me state: Open",
+            reasoning="Finding issues assigned to you that are open",
             confidence=0.9
         )
-        mock_llm_client.generate_structured = AsyncMock(return_value=mock_response)
+        mock_llm_client.complete_structured = AsyncMock(return_value=mock_response)
+        mock_llm_client.complete_with_tools = None  # No tools support
 
         service = AIService(llm_client=mock_llm_client)
 
         result = await service.translate_nl_to_yql("find my open issues")
 
-        assert result["query"] == "assignee: me state: Open"
-        assert result["confidence"] == 0.9
+        assert isinstance(result, YQLTranslationResponse)
+        assert result.yql_query == "assignee: me state: Open"
+        assert result.confidence == 0.9
 
     @pytest.mark.asyncio
     async def test_enhance_error_message_rule_based(self):
         """Test error enhancement with rule-based fallback."""
+        from youtrack_mcp.ai.models import ErrorEnhancementResponse
+
         mock_llm_client = Mock(spec=LLMClient)
         mock_error_handler = Mock()
 
@@ -95,10 +102,25 @@ class TestAIService:
             "learn_from_this": "Issue IDs are case-sensitive"
         })
 
+        # Mock LLM response
+        mock_response = ErrorEnhancementResponse(
+            error_category="not_found",
+            enhanced_explanation="The requested issue was not found",
+            root_cause="404 error when accessing issue DEMO-999",
+            immediate_fix="Check the issue ID and verify it exists",
+            confidence=0.9,
+            estimated_fix_time="immediate",
+            example_correction={"wrong": "DEMO-999", "correct": "DEMO-123"},
+            prevention_tips=["Always verify issue IDs before using them"]
+        )
+        mock_llm_client.complete_structured = AsyncMock(return_value=mock_response)
+
         service = AIService(llm_client=mock_llm_client, error_handler=mock_error_handler)
 
-        result = await service.enhance_error_message("404 Not Found", {"issue_id": "DEMO-999"})
+        # Create an exception to pass
+        error = Exception("404 Not Found")
+        result = await service.enhance_error_with_llm(error, {"issue_id": "DEMO-999"})
 
-        assert result["error"] == "404 Not Found"
-        assert result["category"] == "not_found"
-        assert "Check the issue ID" in result["user_action"]
+        assert isinstance(result, ErrorEnhancementResponse)
+        assert result.error_category == "not_found"
+        assert "Check the issue ID" in result.immediate_fix
