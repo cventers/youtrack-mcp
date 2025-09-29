@@ -3,7 +3,7 @@ YouTrack Issue Dedicated Updates Module.
 
 This module contains specialized update functions for the most common YouTrack operations:
 - State transitions with enhanced workflow error handling
-- Priority changes with field-specific guidance  
+- Priority changes with field-specific guidance
 - Assignment updates with user validation
 - Type changes with project-specific validation
 - Time estimation updates with format examples
@@ -14,9 +14,14 @@ with specific workflow guidance and troubleshooting steps.
 
 import json
 from youtrack_mcp.logging import get_logger
-from typing import Any, Dict
+from typing import Any, Dict, TYPE_CHECKING
 
 from youtrack_mcp.tools.issues.custom_fields import CustomFields
+
+if TYPE_CHECKING:
+    from youtrack_mcp.api.client import YouTrackClient
+
+from youtrack_mcp.api.issues import IssuesClient
 
 
 logger = get_logger(__name__)
@@ -25,7 +30,7 @@ logger = get_logger(__name__)
 class DedicatedUpdates:
     """Specialized update functions for common YouTrack operations."""
 
-    def __init__(self, client: YouTrackClient) -> None:
+    def __init__(self, client: "YouTrackClient") -> None:
         """Initialize with shared YouTrack client."""
         self.client = client
         self.issues_api = IssuesClient(self.client)

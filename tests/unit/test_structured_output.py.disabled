@@ -10,7 +10,7 @@ import pytest
 from unittest.mock import Mock, patch, MagicMock
 from typing import Dict, Any
 
-from youtrack_mcp.ai.openai_client import OpenAIClient, OutputMode
+from youtrack_mcp.ai.llm_client import LLMClient
 from youtrack_mcp.ai.models import (
     YQLTranslationResponse,
     ErrorEnhancementResponse,
@@ -51,7 +51,7 @@ class TestStructuredOutputModes:
             MockOpenAI.return_value = mock_client
             mock_client.chat.completions.create.return_value = mock_openai_response
 
-            client = OpenAIClient(
+            client = LLMClient(
                 api_key="test-key",
                 mode=OutputMode.JSON_SCHEMA
             )
@@ -100,7 +100,7 @@ class TestStructuredOutputModes:
                 valid_response
             ]
 
-            client = OpenAIClient(
+            client = LLMClient(
                 api_key="test-key",
                 mode=OutputMode.JSON_OBJECT,
                 max_retries=2
@@ -145,7 +145,7 @@ class TestStructuredOutputModes:
             MockOpenAI.return_value = mock_client
             mock_client.chat.completions.create.return_value = mock_openai_response
 
-            client = OpenAIClient(
+            client = LLMClient(
                 api_key="test-key",
                 mode=OutputMode.INLINE
             )
@@ -180,7 +180,7 @@ class TestStructuredOutputModes:
                 })
                 mock_client.chat.completions.create.return_value = invalid_response
 
-            client = OpenAIClient(
+            client = LLMClient(
                 api_key="test-key",
                 mode=OutputMode.JSON_OBJECT,
                 max_retries=3

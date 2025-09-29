@@ -26,8 +26,7 @@ class CommentOperations:
         self.issues_api = issues_api
         self.client = issues_api.client  # Direct access for complex queries
 
-    @sync_wrapper  
-    def get_task_comments(self, task_id: str, cursor: Optional[str] = None, limit: int = 50) -> dict:
+    async def get_task_comments(self, task_id: str, cursor: Optional[str] = None, limit: int = 50) -> dict:
         """
         Get comments for a specific task/issue.
         
