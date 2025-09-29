@@ -124,16 +124,42 @@ class LLMConfig(BaseSettings):
 
 
 class CacheConfig(BaseSettings):
-    """Caching configuration."""
+    """Enhanced caching configuration with multi-backend support."""
 
     model_config = ConfigDict(
         env_prefix="CACHE_",
         case_sensitive=False,
     )
 
+    # General settings
     enabled: bool = Field(True, description="Enable caching")
-    ttl: int = Field(300, ge=0, description="Cache TTL in seconds")
-    max_size: int = Field(100, ge=1, description="Maximum cache size")
+    strategy: Literal["off", "memory", "sqlite", "sqlite_hybrid", "redis"] = Field(
+        "sqlite_hybrid", description="Caching strategy"
+    )
+
+    # Memory cache settings (for memory and sqlite_hybrid strategies)
+    memory_size: int = Field(1000, ge=1, description="Memory cache size")
+    memory_ttl: int = Field(300, ge=0, description="Memory cache TTL in seconds")
+
+    # SQLite settings (for sqlite and sqlite_hybrid strategies)
+    sqlite_path: Optional[Path] = Field(None, description="SQLite cache file path")
+    sqlite_ttl: int = Field(3600, ge=0, description="SQLite cache TTL in seconds")
+
+    # Redis settings (for redis strategy)
+    redis_host: str = Field("localhost", description="Redis host")
+    redis_port: int = Field(6379, description="Redis port")
+    redis_db: int = Field(0, description="Redis database number")
+    redis_password: Optional[SecretStr] = Field(None, description="Redis password")
+    redis_ttl: int = Field(3600, ge=0, description="Redis cache TTL in seconds")
+    redis_key_prefix: str = Field("youtrack_mcp", description="Redis key prefix")
+
+    # Monitoring
+    enable_stats: bool = Field(True, description="Enable cache statistics")
+    cleanup_interval: int = Field(3600, description="Cleanup interval in seconds")
+
+    # Legacy compatibility
+    ttl: int = Field(300, ge=0, description="Default cache TTL in seconds")
+    max_size: int = Field(100, ge=1, description="Maximum cache size (legacy)")
 
 
 class LoggingConfig(HarmonizedLoggingConfig):
