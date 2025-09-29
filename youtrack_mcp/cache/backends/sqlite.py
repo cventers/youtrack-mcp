@@ -26,14 +26,47 @@ class SQLiteCacheBackend(CacheBackend):
         self.stats = {"hits": 0, "misses": 0, "sets": 0, "deletes": 0, "clears": 0}
 
     def _init_db(self):
-        """Initialize database with WAL mode for multiprocess access."""
+        """Initialize database with aggressive performance optimizations for cache usage."""
         conn = sqlite3.connect(str(self.db_path))
         try:
-            # Enable Write-Ahead Logging for better multiprocess support
+            # === PERFORMANCE OPTIMIZATIONS FOR CACHE USAGE ===
+
+            # Enable Write-Ahead Logging for better concurrent access
+            # WAL allows readers and writers to work concurrently
             conn.execute("PRAGMA journal_mode=WAL")
-            # Balance speed and safety
-            conn.execute("PRAGMA synchronous=NORMAL")
-            # Create cache table
+
+            # Use memory-mapped I/O for faster access (30MB)
+            # This dramatically speeds up reads by mapping the DB file into memory
+            conn.execute("PRAGMA mmap_size=30000000")
+
+            # Set synchronous to OFF for maximum speed (cache can be rebuilt)
+            # Since this is just a cache, we don't need durability guarantees
+            conn.execute("PRAGMA synchronous=OFF")
+
+            # Increase cache size to 10MB (default is 2MB)
+            # More cached pages = fewer disk reads
+            conn.execute("PRAGMA cache_size=-10000")  # Negative = KB
+
+            # Use MEMORY temp store for sorting/indexing operations
+            conn.execute("PRAGMA temp_store=MEMORY")
+
+            # Increase page size to 8KB for better performance with larger values
+            # (Only works on new databases, ignored if DB already exists)
+            conn.execute("PRAGMA page_size=8192")
+
+            # Enable automatic optimization
+            conn.execute("PRAGMA optimize")
+
+            # Disable locking for single-process scenarios (still safe with WAL)
+            conn.execute("PRAGMA locking_mode=NORMAL")
+
+            # Enable query planner optimizations
+            conn.execute("PRAGMA automatic_index=ON")
+
+            # Set busy timeout to 5 seconds for better concurrency
+            conn.execute("PRAGMA busy_timeout=5000")
+
+            # Create cache table with optimizations
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS cache (
@@ -43,15 +76,36 @@ class SQLiteCacheBackend(CacheBackend):
                     created_at REAL NOT NULL,
                     expires_at REAL NOT NULL,
                     PRIMARY KEY (namespace, key)
-                )
+                ) WITHOUT ROWID  -- More efficient for our use case
             """
             )
-            # Create indexes for performance
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_expires ON cache(expires_at)")
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_namespace ON cache(namespace)")
+
+            # Create optimized indexes
+            # Covering index for expiration queries
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_expires_covering ON cache(expires_at, namespace, key)"
+            )
+            # Index for namespace queries
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_namespace ON cache(namespace, key)")
+
             conn.commit()
         finally:
             conn.close()
+
+    def _get_connection(self) -> sqlite3.Connection:
+        """Get an optimized database connection.
+
+        Returns a connection with performance pragmas applied.
+        Each connection needs its own pragmas set.
+        """
+        conn = sqlite3.connect(str(self.db_path))
+        # Apply per-connection optimizations
+        conn.execute("PRAGMA synchronous=OFF")
+        conn.execute("PRAGMA cache_size=-10000")
+        conn.execute("PRAGMA temp_store=MEMORY")
+        conn.execute("PRAGMA mmap_size=30000000")
+        conn.execute("PRAGMA busy_timeout=5000")
+        return conn
 
     def _serialize(self, value: Any) -> str:
         """Serialize value to JSON string."""
@@ -63,7 +117,7 @@ class SQLiteCacheBackend(CacheBackend):
 
     async def get(self, key: str, namespace: str = "default") -> Optional[Any]:
         """Retrieve value from cache with TTL check."""
-        conn = sqlite3.connect(str(self.db_path))
+        conn = self._get_connection()
         try:
             cursor = conn.execute(
                 "SELECT value, expires_at FROM cache WHERE namespace = ? AND key = ?",
@@ -97,7 +151,7 @@ class SQLiteCacheBackend(CacheBackend):
         expires_at = time.time() + ttl
         value_json = self._serialize(value)
 
-        conn = sqlite3.connect(str(self.db_path))
+        conn = self._get_connection()
         try:
             conn.execute(
                 "INSERT OR REPLACE INTO cache (namespace, key, value, created_at, expires_at) "
@@ -111,7 +165,7 @@ class SQLiteCacheBackend(CacheBackend):
 
     async def delete(self, key: str, namespace: str = "default") -> bool:
         """Delete key from cache."""
-        conn = sqlite3.connect(str(self.db_path))
+        conn = self._get_connection()
         try:
             cursor = conn.execute(
                 "DELETE FROM cache WHERE namespace = ? AND key = ?", (namespace, key)
@@ -126,7 +180,7 @@ class SQLiteCacheBackend(CacheBackend):
 
     async def clear(self, namespace: Optional[str] = None) -> int:
         """Clear cache, optionally by namespace."""
-        conn = sqlite3.connect(str(self.db_path))
+        conn = self._get_connection()
         try:
             if namespace:
                 cursor = conn.execute("DELETE FROM cache WHERE namespace = ?", (namespace,))
@@ -141,7 +195,7 @@ class SQLiteCacheBackend(CacheBackend):
 
     async def exists(self, key: str, namespace: str = "default") -> bool:
         """Check if key exists in cache."""
-        conn = sqlite3.connect(str(self.db_path))
+        conn = self._get_connection()
         try:
             cursor = conn.execute(
                 "SELECT 1 FROM cache WHERE namespace = ? AND key = ? AND expires_at > ?",
@@ -153,7 +207,7 @@ class SQLiteCacheBackend(CacheBackend):
 
     async def get_stats(self) -> Dict[str, Any]:
         """Get cache statistics."""
-        conn = sqlite3.connect(str(self.db_path))
+        conn = self._get_connection()
         try:
             # Count total items
             cursor = conn.execute("SELECT COUNT(*) FROM cache")
@@ -184,7 +238,7 @@ class SQLiteCacheBackend(CacheBackend):
 
     async def cleanup_expired(self) -> int:
         """Remove expired entries from database."""
-        conn = sqlite3.connect(str(self.db_path))
+        conn = self._get_connection()
         try:
             cursor = conn.execute("DELETE FROM cache WHERE expires_at < ?", (time.time(),))
             deleted = cursor.rowcount
