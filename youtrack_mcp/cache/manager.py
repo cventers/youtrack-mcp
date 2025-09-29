@@ -50,12 +50,24 @@ class UnifiedCacheManager:
             self.backends = [self.memory]
         elif strategy == CacheStrategy.SQLITE:
             # SQLite only
-            self.sqlite = SQLiteCacheBackend(**(sqlite_config or {}))
+            # Extract optimization settings from config
+            sqlite_cfg = sqlite_config or {}
+            optimization_mode = sqlite_cfg.pop("optimization_mode", "balanced")
+            self.sqlite = SQLiteCacheBackend(
+                optimization_mode=optimization_mode,
+                **sqlite_cfg
+            )
             self.backends = [self.sqlite]
         elif strategy == CacheStrategy.SQLITE_HYBRID:
             # Memory (L1) + SQLite (L2)
             self.memory = MemoryCacheBackend(**(memory_config or {}))
-            self.sqlite = SQLiteCacheBackend(**(sqlite_config or {}))
+            # Extract optimization settings from config
+            sqlite_cfg = sqlite_config or {}
+            optimization_mode = sqlite_cfg.pop("optimization_mode", "balanced")
+            self.sqlite = SQLiteCacheBackend(
+                optimization_mode=optimization_mode,
+                **sqlite_cfg
+            )
             self.backends = [self.memory, self.sqlite]
         elif strategy == CacheStrategy.REDIS:
             # Redis only

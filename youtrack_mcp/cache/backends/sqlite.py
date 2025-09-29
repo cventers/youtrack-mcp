@@ -4,7 +4,7 @@ import json
 import sqlite3
 import time
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Literal, Optional
 
 from .base import CacheBackend
 
@@ -12,59 +12,103 @@ from .base import CacheBackend
 class SQLiteCacheBackend(CacheBackend):
     """SQLite-based persistent cache with multiprocess support."""
 
-    def __init__(self, db_path: Optional[Path] = None, default_ttl: int = 300):
+    # Optimization presets
+    OPTIMIZATION_PRESETS = {
+        "performance": {
+            "synchronous": "OFF",
+            "journal_mode": "WAL",
+            "cache_size_kb": 10000,  # 10MB
+            "mmap_size_mb": 30,  # 30MB
+            "temp_store": "MEMORY",
+            "page_size": 8192,
+            "busy_timeout_ms": 5000,
+        },
+        "balanced": {
+            "synchronous": "NORMAL",
+            "journal_mode": "WAL",
+            "cache_size_kb": 5000,  # 5MB
+            "mmap_size_mb": 10,  # 10MB
+            "temp_store": "DEFAULT",
+            "page_size": 4096,
+            "busy_timeout_ms": 3000,
+        },
+        "safe": {
+            "synchronous": "FULL",
+            "journal_mode": "WAL",
+            "cache_size_kb": 2000,  # 2MB
+            "mmap_size_mb": 0,  # Disabled
+            "temp_store": "FILE",
+            "page_size": 4096,
+            "busy_timeout_ms": 1000,
+        },
+    }
+
+    def __init__(
+        self,
+        db_path: Optional[Path] = None,
+        default_ttl: int = 300,
+        optimization_mode: Literal["performance", "balanced", "safe"] = "balanced",
+        **pragma_overrides,
+    ):
         """Initialize SQLite cache backend.
 
         Args:
             db_path: Path to SQLite database file
             default_ttl: Default TTL in seconds
+            optimization_mode: Optimization preset to use
+            **pragma_overrides: Override specific pragma settings
         """
         self.db_path = db_path or Path.home() / ".youtrack-mcp" / "cache.db"
         self.default_ttl = default_ttl
+        self.optimization_mode = optimization_mode
+
+        # Get base settings from preset
+        self.pragma_settings = self.OPTIMIZATION_PRESETS[optimization_mode].copy()
+
+        # Apply any overrides
+        for key, value in pragma_overrides.items():
+            if key.startswith("sqlite_") and value is not None:
+                pragma_key = key.replace("sqlite_", "")
+                self.pragma_settings[pragma_key] = value
+
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_db()
         self.stats = {"hits": 0, "misses": 0, "sets": 0, "deletes": 0, "clears": 0}
 
     def _init_db(self):
-        """Initialize database with aggressive performance optimizations for cache usage."""
+        """Initialize database with configurable optimizations."""
         conn = sqlite3.connect(str(self.db_path))
         try:
-            # === PERFORMANCE OPTIMIZATIONS FOR CACHE USAGE ===
+            # Apply journal mode (WAL for concurrency)
+            conn.execute(f"PRAGMA journal_mode={self.pragma_settings['journal_mode']}")
 
-            # Enable Write-Ahead Logging for better concurrent access
-            # WAL allows readers and writers to work concurrently
-            conn.execute("PRAGMA journal_mode=WAL")
+            # Apply synchronous setting
+            conn.execute(f"PRAGMA synchronous={self.pragma_settings['synchronous']}")
 
-            # Use memory-mapped I/O for faster access (30MB)
-            # This dramatically speeds up reads by mapping the DB file into memory
-            conn.execute("PRAGMA mmap_size=30000000")
+            # Set page cache size
+            cache_kb = self.pragma_settings["cache_size_kb"]
+            if cache_kb > 0:
+                conn.execute(f"PRAGMA cache_size=-{cache_kb}")
 
-            # Set synchronous to OFF for maximum speed (cache can be rebuilt)
-            # Since this is just a cache, we don't need durability guarantees
-            conn.execute("PRAGMA synchronous=OFF")
+            # Set memory-mapped I/O
+            mmap_mb = self.pragma_settings["mmap_size_mb"]
+            if mmap_mb > 0:
+                conn.execute(f"PRAGMA mmap_size={mmap_mb * 1024 * 1024}")
 
-            # Increase cache size to 10MB (default is 2MB)
-            # More cached pages = fewer disk reads
-            conn.execute("PRAGMA cache_size=-10000")  # Negative = KB
+            # Set temp store location
+            if self.pragma_settings["temp_store"] != "DEFAULT":
+                conn.execute(f"PRAGMA temp_store={self.pragma_settings['temp_store']}")
 
-            # Use MEMORY temp store for sorting/indexing operations
-            conn.execute("PRAGMA temp_store=MEMORY")
+            # Set page size (only works on new databases)
+            conn.execute(f"PRAGMA page_size={self.pragma_settings['page_size']}")
 
-            # Increase page size to 8KB for better performance with larger values
-            # (Only works on new databases, ignored if DB already exists)
-            conn.execute("PRAGMA page_size=8192")
+            # Set busy timeout
+            conn.execute(f"PRAGMA busy_timeout={self.pragma_settings['busy_timeout_ms']}")
 
-            # Enable automatic optimization
+            # Standard optimizations for all modes
             conn.execute("PRAGMA optimize")
-
-            # Disable locking for single-process scenarios (still safe with WAL)
-            conn.execute("PRAGMA locking_mode=NORMAL")
-
-            # Enable query planner optimizations
             conn.execute("PRAGMA automatic_index=ON")
-
-            # Set busy timeout to 5 seconds for better concurrency
-            conn.execute("PRAGMA busy_timeout=5000")
+            conn.execute("PRAGMA locking_mode=NORMAL")
 
             # Create cache table with optimizations
             conn.execute(
@@ -99,12 +143,21 @@ class SQLiteCacheBackend(CacheBackend):
         Each connection needs its own pragmas set.
         """
         conn = sqlite3.connect(str(self.db_path))
-        # Apply per-connection optimizations
-        conn.execute("PRAGMA synchronous=OFF")
-        conn.execute("PRAGMA cache_size=-10000")
-        conn.execute("PRAGMA temp_store=MEMORY")
-        conn.execute("PRAGMA mmap_size=30000000")
-        conn.execute("PRAGMA busy_timeout=5000")
+        # Apply per-connection optimizations based on configuration
+        conn.execute(f"PRAGMA synchronous={self.pragma_settings['synchronous']}")
+
+        cache_kb = self.pragma_settings["cache_size_kb"]
+        if cache_kb > 0:
+            conn.execute(f"PRAGMA cache_size=-{cache_kb}")
+
+        if self.pragma_settings["temp_store"] != "DEFAULT":
+            conn.execute(f"PRAGMA temp_store={self.pragma_settings['temp_store']}")
+
+        mmap_mb = self.pragma_settings["mmap_size_mb"]
+        if mmap_mb > 0:
+            conn.execute(f"PRAGMA mmap_size={mmap_mb * 1024 * 1024}")
+
+        conn.execute(f"PRAGMA busy_timeout={self.pragma_settings['busy_timeout_ms']}")
         return conn
 
     def _serialize(self, value: Any) -> str:

@@ -144,6 +144,32 @@ class CacheConfig(BaseSettings):
     # SQLite settings (for sqlite and sqlite_hybrid strategies)
     sqlite_path: Optional[Path] = Field(None, description="SQLite cache file path")
     sqlite_ttl: int = Field(3600, ge=0, description="SQLite cache TTL in seconds")
+    sqlite_optimization_mode: Literal["performance", "balanced", "safe"] = Field(
+        "balanced",
+        description="SQLite optimization mode: 'performance' (max speed, less safe), 'balanced' (default), 'safe' (most durable)"
+    )
+    # Advanced SQLite tuning (override optimization mode defaults)
+    sqlite_synchronous: Optional[Literal["OFF", "NORMAL", "FULL"]] = Field(
+        None, description="Override synchronous mode (OFF=fast, FULL=safe)"
+    )
+    sqlite_journal_mode: Optional[Literal["WAL", "DELETE", "MEMORY"]] = Field(
+        None, description="Override journal mode (WAL=concurrent, MEMORY=fast)"
+    )
+    sqlite_cache_size_kb: Optional[int] = Field(
+        None, ge=0, description="Override page cache size in KB (0=default)"
+    )
+    sqlite_mmap_size_mb: Optional[int] = Field(
+        None, ge=0, description="Override memory-mapped I/O size in MB (0=disabled)"
+    )
+    sqlite_temp_store: Optional[Literal["DEFAULT", "FILE", "MEMORY"]] = Field(
+        None, description="Override temp storage location"
+    )
+    sqlite_page_size: Optional[int] = Field(
+        None, description="Page size in bytes (512-65536, power of 2)"
+    )
+    sqlite_busy_timeout_ms: Optional[int] = Field(
+        None, ge=0, description="Busy timeout in milliseconds"
+    )
 
     # Redis settings (for redis strategy)
     redis_host: str = Field("localhost", description="Redis host")
