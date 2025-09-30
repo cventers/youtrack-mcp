@@ -28,7 +28,7 @@ class Attachments:
         self.projects_api = projects_api
         self.client = issues_api.client  # Direct access for raw API calls
 
-    def get_issue_raw(self, issue_id: str) -> dict:
+    async def get_issue_raw(self, issue_id: str) -> dict:
         """
         Get raw information about a specific issue, bypassing the Pydantic model.
 
@@ -41,13 +41,13 @@ class Attachments:
         try:
             # Request comprehensive fields for raw issue data
             fields = "id,idReadable,summary,description,created,updated,project(id,name,shortName),reporter(id,login,name),assignee(id,login,name),customFields(id,name,value(id,name)),attachments(id,name,size,url),comments(id,text,author(login,name),created)"
-            raw_issue = self.client.get(f"issues/{issue_id}?fields={fields}")
+            raw_issue = await self.client.get(f"issues/{issue_id}?fields={fields}")
             return raw_issue
         except Exception as e:
             logger.exception(f"Error getting raw issue {issue_id}")
             return {"error": str(e)}
 
-    def get_attachment_content(self, issue_id: str, attachment_id: str) -> dict:
+    async def get_attachment_content(self, issue_id: str, attachment_id: str) -> dict:
         """
         Get the content of an attachment as a base64-encoded string.
 
@@ -59,13 +59,13 @@ class Attachments:
             JSON string with the attachment content encoded in base64
         """
         try:
-            content = self.issues_api.get_attachment_content(
+            content = await self.issues_api.get_attachment_content(
                 issue_id, attachment_id
             )
             encoded_content = base64.b64encode(content).decode("utf-8")
 
             # Get attachment metadata for additional info
-            issue_response = self.client.get(
+            issue_response = await self.client.get(
                 f"issues/{issue_id}?fields=attachments(id,name,mimeType,size)"
             )
             attachment_metadata = None

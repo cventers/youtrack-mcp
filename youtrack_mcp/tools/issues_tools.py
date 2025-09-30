@@ -271,7 +271,7 @@ class IssuesTools:
                 "function": self.get
             },
             "issues.create": {
-                "description": "Create new issue in project with custom field support. Use projects.custom_fields() first to see required fields like Type, Priority, etc.",
+                "description": "Create new issue in project with custom field support. Accepts project short name (e.g., 'ACC') or numeric ID (e.g., '63-13'). Use projects.custom_fields() first to see required fields like Type, Priority, etc.",
                 "function": self.create
             },
             "issues.patch": {

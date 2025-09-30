@@ -86,7 +86,7 @@ class Linking:
         except Exception as e:
             logger.exception("Error getting available link types")
             return {"error": str(e), "status": "error"}
-    def add_dependency(
+    async def add_dependency(
         self, dependent_issue_id: str, dependency_issue_id: str
     ) -> dict:
         """
@@ -102,7 +102,7 @@ class Linking:
             JSON string with the result of creating the dependency link
         """
         try:
-            result = self.link_issues(
+            result = await self.link_issues(
                 dependent_issue_id, dependency_issue_id, "Depends on"
             )
             return result
@@ -111,7 +111,7 @@ class Linking:
                 f"Error adding dependency between {dependent_issue_id} and {dependency_issue_id}"
             )
             return {"error": str(e), "status": "error"}
-    def remove_dependency(
+    async def remove_dependency(
         self, dependent_issue_id: str, dependency_issue_id: str
     ) -> dict:
         """
@@ -131,12 +131,12 @@ class Linking:
             # This would typically involve getting the link ID and deleting it
             # For now, we'll use a command approach
             # Get internal IDs for Commands API (same approach as link_issues)
-            dependent_internal_id = self.issues_api._get_internal_id(
+            dependent_internal_id = await self.issues_api._get_internal_id(
                 dependent_issue_id
             )
             
             # Get readable ID for command text (Commands API expects readable IDs)
-            dependency_readable_id = self.issues_api._get_readable_id(
+            dependency_readable_id = await self.issues_api._get_readable_id(
                 dependency_issue_id
             )
 
@@ -147,7 +147,7 @@ class Linking:
                 "issues": [{"id": dependent_internal_id}],
             }
 
-            response = self.client.post("commands", data=command_data)
+            response = await self.client.post("commands", data=command_data)
 
             if isinstance(response, dict):
                 return {

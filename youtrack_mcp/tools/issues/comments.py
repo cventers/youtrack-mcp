@@ -58,7 +58,7 @@ class CommentOperations:
         """
         return self.get_comments(project_id=project_id, cursor=cursor, limit=limit)
 
-    def get_comment(self, issue_id: str, comment_id: str) -> dict:
+    async def get_comment(self, issue_id: str, comment_id: str) -> dict:
         """
         Get a specific comment by ID.
         
@@ -76,7 +76,7 @@ class CommentOperations:
         try:
             fields = "id,text,created,author(id,login,name),updated,updater(id,login,name)"
             url = f"issues/{issue_id}/comments/{comment_id}"
-            comment = self.client.get(url, params={"fields": fields})
+            comment = await self.client.get(url, params={"fields": fields})
             
             return {
                 "issue_id": issue_id,

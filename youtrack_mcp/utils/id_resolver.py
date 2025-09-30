@@ -9,6 +9,16 @@ from youtrack_mcp.logging import get_logger
 logger = get_logger(__name__)
 
 
+class IDResolutionError(Exception):
+    """Raised when ID resolution fails."""
+
+    def __init__(self, ref_type: str, reference: str):
+        self.ref_type = ref_type
+        self.reference = reference
+        message = f"Could not resolve {ref_type} '{reference}'"
+        super().__init__(message)
+
+
 class IDResolver:
     """Resolves human-friendly IDs to YouTrack internal IDs with caching.
 
@@ -111,10 +121,10 @@ class IDResolver:
                     )
                     return internal_id
 
-            raise ValueError(f"Project not found: {project_ref}")
+            raise IDResolutionError("project", project_ref)
         except Exception as e:
             logger.error("Failed to resolve project ID", project_ref=project_ref, error=str(e))
-            raise ValueError(f"Failed to resolve project '{project_ref}': {str(e)}")
+            raise IDResolutionError("project", project_ref)
 
     async def resolve_user_id(self, user_ref: str) -> str:
         """Resolve user reference to internal ID.
@@ -156,10 +166,10 @@ class IDResolver:
                     logger.info("Resolved and cached user ID", user_ref=user_ref, id=internal_id)
                     return internal_id
 
-            raise ValueError(f"User not found: {user_ref}")
+            raise IDResolutionError("user", user_ref)
         except Exception as e:
             logger.error("Failed to resolve user ID", user_ref=user_ref, error=str(e))
-            raise ValueError(f"Failed to resolve user '{user_ref}': {str(e)}")
+            raise IDResolutionError("user", user_ref)
 
     async def resolve_issue_id(self, issue_ref: str) -> str:
         """Resolve issue reference to internal ID.

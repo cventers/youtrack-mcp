@@ -25,7 +25,7 @@ class Diagnostics:
         """Initialize with API clients."""
         self.issues_api = issues_api
         self.projects_api = projects_api
-    def diagnose_workflow_restrictions(self, issue_id: str) -> dict:
+    async def diagnose_workflow_restrictions(self, issue_id: str) -> dict:
         """
         Diagnose workflow restrictions and available state transitions for an issue.
         
@@ -50,11 +50,11 @@ class Diagnostics:
                 }
             
             # Get current issue state and field information
-            issue_data = self.issues_api.get_issue(issue_id)
+            issue_data = await self.issues_api.get_issue(issue_id)
             
             # Query state field with possible transitions
             try:
-                issue_fields = self.issues_api.client.get(
+                issue_fields = await self.issues_api.client.get(
                     f"issues/{issue_id}/customFields?fields=name,possibleEvents(id,presentation),value(name),$type"
                 )
                 

@@ -27,7 +27,9 @@ class BasicOperations:
         """Initialize with API clients."""
         self.issues_api = issues_api
         self.projects_api = projects_api
-        self.client = issues_api.client  # Direct access for complex queries    def get_issue(self, issue_id: str) -> dict:
+        self.client = issues_api.client  # Direct access for complex queries
+
+    async def get_issue(self, issue_id: str) -> dict:
         """
         Get information about a specific issue.
 
@@ -42,7 +44,7 @@ class BasicOperations:
         try:
             # First try to get the issue data with explicit fields
             fields = "id,idReadable,summary,description,created,updated,project(id,name,shortName),reporter(id,login,name),assignee(id,login,name),customFields(id,name,value)"
-            raw_issue = self.client.get(f"issues/{issue_id}?fields={fields}")
+            raw_issue = await self.client.get(f"issues/{issue_id}?fields={fields}")
 
             # If we got a minimal response, enhance it with default values
             if (
@@ -60,7 +62,8 @@ class BasicOperations:
         except Exception as e:
             logger.exception(f"Error getting issue {issue_id}")
             return {"error": str(e)}
-    def search_issues(self, query: str, limit: int = 10) -> dict:
+
+    async def search_issues(self, query: str, limit: int = 10) -> dict:
         """
         Search for issues using YouTrack query language.
 
@@ -77,7 +80,7 @@ class BasicOperations:
             # Request with explicit fields to get complete data
             fields = "id,idReadable,summary,description,created,updated,project(id,name,shortName),reporter(id,login,name),assignee(id,login,name),customFields(id,name,value)"
             params = {"query": query, "$top": limit, "fields": fields}
-            raw_issues = self.client.get("issues", params=params)
+            raw_issues = await self.client.get("issues", params=params)
 
             # Return the raw issues data directly
             return raw_issues

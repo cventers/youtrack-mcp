@@ -69,16 +69,21 @@ class ProjectsClient:
 
     async def get_project(self, project_id: str) -> Project:
         """
-        Get a project by ID.
+        Get a project by ID or short name.
 
         Args:
-            project_id: The project ID
+            project_id: The project ID or short name (e.g., "ACC" or "63-13")
 
         Returns:
             The project data
         """
+        # Resolve project ID if resolver is available
+        resolved_project_id = project_id
+        if self.client.id_resolver:
+            resolved_project_id = await self.client.id_resolver.resolve_project_id(project_id)
+
         response = await self.client.get(
-            f"admin/projects/{project_id}",
+            f"admin/projects/{resolved_project_id}",
             params={
                 "fields": "id,name,shortName,description,archived,created,updated,lead(id,name,login)"
             },
@@ -362,7 +367,7 @@ class ProjectsClient:
             f"admin/projects/{project_id}/customFields", data=data
         )
 
-    def get_custom_field_schema(
+    async def get_custom_field_schema(
         self, project_id: str, field_name: str
     ) -> Optional[Dict[str, Any]]:
         """
@@ -378,7 +383,7 @@ class ProjectsClient:
         try:
             # Use detailed fields query to get complete information
             fields_query = "field(id,name,fieldType($type,valueType,id)),canBeEmpty,autoAttached"
-            fields = self.client.get(f"admin/projects/{project_id}/customFields?fields={fields_query}")
+            fields = await self.client.get(f"admin/projects/{project_id}/customFields?fields={fields_query}")
             
             for field in fields:
                 if field.get("field", {}).get("name") == field_name:
@@ -414,7 +419,7 @@ class ProjectsClient:
             logger.error("Error getting custom field schema", field_name=field_name, error=str(e))
             return None
 
-    def get_custom_field_allowed_values(self, project_id: str, field_name: str) -> List[Dict[str, Any]]:
+    async def get_custom_field_allowed_values(self, project_id: str, field_name: str) -> List[Dict[str, Any]]:
         """
         Get allowed values for a custom field in a specific project.
 
@@ -428,7 +433,7 @@ class ProjectsClient:
         try:
             # Get field information directly to avoid recursion with get_custom_field_schema
             fields_query = "field(id,name,fieldType($type,valueType,id)),canBeEmpty,autoAttached"
-            fields = self.client.get(f"admin/projects/{project_id}/customFields?fields={fields_query}")
+            fields = await self.client.get(f"admin/projects/{project_id}/customFields?fields={fields_query}")
             
             field_info = None
             for field in fields:
@@ -468,7 +473,7 @@ class ProjectsClient:
                     
                     # Get all enum bundles and find the one at this index
                     try:
-                        all_enum_bundles = self.client.get('admin/customFieldSettings/bundles/enum?fields=id,name,values(id,name,description)')
+                        all_enum_bundles = await self.client.get('admin/customFieldSettings/bundles/enum?fields=id,name,values(id,name,description)')
                         if bundle_index.isdigit():
                             index = int(bundle_index)
                             if 0 <= index < len(all_enum_bundles):
@@ -496,7 +501,7 @@ class ProjectsClient:
                     actual_bundle_id = bundle_id.replace("enum[", "").replace("]", "")
                 
                 try:
-                    bundle_data = self.client.get(f"admin/customFieldSettings/bundles/enum/{actual_bundle_id}?fields=id,name,values(id,name,description)")
+                    bundle_data = await self.client.get(f"admin/customFieldSettings/bundles/enum/{actual_bundle_id}?fields=id,name,values(id,name,description)")
                     values = bundle_data.get("values", [])
                     logger.info("Found values for enum field", count=len(values), field_name=field_name)
                     return [
@@ -531,7 +536,7 @@ class ProjectsClient:
                     # Handle both indexed format (state[1]) and direct bundle ID (state-bundle-123)
                     if "[" in bundle_id and "]" in bundle_id:
                         # Index-based format: state[1] means the first state bundle (0-based index)
-                        all_bundles = self.client.get("admin/customFieldSettings/bundles/state?fields=id,name,values(id,name,description,isResolved,color)")
+                        all_bundles = await self.client.get("admin/customFieldSettings/bundles/state?fields=id,name,values(id,name,description,isResolved,color)")
                         
                         bundle_index = int(bundle_id.split("[")[1].split("]")[0]) - 1  # Convert to 0-based index
                         if 0 <= bundle_index < len(all_bundles):
@@ -553,7 +558,7 @@ class ProjectsClient:
                             return []
                     else:
                         # Direct bundle ID format: get specific bundle
-                        bundle_data = self.client.get(f"admin/customFieldSettings/bundles/state/{bundle_id}?fields=values(id,name,description,isResolved,color)")
+                        bundle_data = await self.client.get(f"admin/customFieldSettings/bundles/state/{bundle_id}?fields=values(id,name,description,isResolved,color)")
                     
                     values = bundle_data.get("values", [])
                     logger.info("Found state values for field from bundle", count=len(values), field_name=field_name, bundle_name=bundle_data.get('name', 'unknown'))
@@ -574,7 +579,7 @@ class ProjectsClient:
             elif value_type == "user":
                 try:
                     # For user fields, get available users
-                    users_data = self.client.get("users?fields=id,login,name,email")
+                    users_data = await self.client.get("users?fields=id,login,name,email")
                     logger.info("Found users for field", count=len(users_data), field_name=field_name)
                     return [
                         {
@@ -592,7 +597,7 @@ class ProjectsClient:
             elif value_type == "ownedField":
                 try:
                     # For subsystem/owned fields, get subsystems for this project
-                    subsystems_data = self.client.get(f"admin/projects/{project_id}/subsystems?fields=id,name,description")
+                    subsystems_data = await self.client.get(f"admin/projects/{project_id}/subsystems?fields=id,name,description")
                     logger.info("Found subsystems for field", count=len(subsystems_data), field_name=field_name)
                     return [
                         {
@@ -626,7 +631,7 @@ class ProjectsClient:
             elif value_type == "version":
                 try:
                     # For version fields, get versions for this project
-                    versions_data = self.client.get(f"admin/projects/{project_id}/versions?fields=id,name,description,released,releaseDate")
+                    versions_data = await self.client.get(f"admin/projects/{project_id}/versions?fields=id,name,description,released,releaseDate")
                     logger.info("Found versions for field", count=len(versions_data), field_name=field_name)
                     return [
                         {
@@ -671,7 +676,7 @@ class ProjectsClient:
             elif value_type == "build":
                 try:
                     # For build fields, get builds for this project
-                    builds_data = self.client.get(f"admin/projects/{project_id}/builds?fields=id,name,description")
+                    builds_data = await self.client.get(f"admin/projects/{project_id}/builds?fields=id,name,description")
                     logger.info("Found builds for field", count=len(builds_data), field_name=field_name)
                     return [
                         {
@@ -712,7 +717,7 @@ class ProjectsClient:
             logger.error("Error getting custom field allowed values", field_name=field_name, error=str(e))
             return []
 
-    def get_available_custom_field_values(
+    async def get_available_custom_field_values(
         self, project_id: str, field_name: str
     ) -> List[Dict[str, Any]]:
         """
@@ -725,9 +730,9 @@ class ProjectsClient:
         Returns:
             List of allowed values with details
         """
-        return self.get_custom_field_allowed_values(project_id, field_name)
+        return await self.get_custom_field_allowed_values(project_id, field_name)
 
-    def get_all_custom_fields_schemas(
+    async def get_all_custom_fields_schemas(
         self, project_id: str
     ) -> Dict[str, Dict[str, Any]]:
         """
@@ -742,7 +747,7 @@ class ProjectsClient:
         try:
             # Use the same detailed query that works in other methods
             fields_query = "field(id,name,fieldType($type,valueType,id)),canBeEmpty,autoAttached"
-            fields = self.client.get(f"admin/projects/{project_id}/customFields?fields={fields_query}")
+            fields = await self.client.get(f"admin/projects/{project_id}/customFields?fields={fields_query}")
             schemas = {}
             
             logger.info("got_lenfields_custom_fields_for_project_project_id", project_id=project_id)

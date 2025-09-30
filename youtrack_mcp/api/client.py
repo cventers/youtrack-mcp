@@ -3,7 +3,7 @@ Base client for YouTrack REST API.
 """
 
 from youtrack_mcp.logging import get_logger
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, TYPE_CHECKING
 import os
 import json
 import random
@@ -13,6 +13,9 @@ from urllib.parse import urljoin
 from pydantic import BaseModel, ConfigDict
 
 from youtrack_mcp.config import config
+
+if TYPE_CHECKING:
+    from youtrack_mcp.utils.id_resolver import IDResolver
 
 # Use structlog if available, otherwise fall back to standard logging
 try:
@@ -95,6 +98,7 @@ class YouTrackClient:
         retry_delay: float = 1.0,
         token_ttl_seconds: int = 3600,  # 1 hour default
         enable_token_refresh: bool = True,
+        id_resolver: Optional["IDResolver"] = None,
     ):
         """
         Initialize YouTrack API client.
@@ -107,6 +111,7 @@ class YouTrackClient:
             retry_delay: Initial delay between retries in seconds (increases exponentially)
             token_ttl_seconds: Time-to-live for cached tokens in seconds (default: 1 hour)
             enable_token_refresh: Whether to enable automatic token refresh (default: True)
+            id_resolver: Optional ID resolver instance for resolving human-friendly IDs
         """
         self.base_url = base_url or config.youtrack.url
         self._api_token = api_token  # Store provided token or None
@@ -119,6 +124,7 @@ class YouTrackClient:
         )
         self.max_retries = max_retries
         self.retry_delay = retry_delay
+        self.id_resolver = id_resolver
 
         # Initialize httpx client - will be created lazily
         self.client: Optional[httpx.AsyncClient] = None

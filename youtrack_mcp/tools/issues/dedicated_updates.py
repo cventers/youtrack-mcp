@@ -73,11 +73,11 @@ class DedicatedUpdates:
             logger.info("Updating issue state using Direct Field Update API", issue_id=issue_id, new_state=new_state)
             
             # Use the proven Direct Field Update API approach
-            success = self.issues_api._apply_direct_state_update(issue_id, new_state)
+            success = await self.issues_api._apply_direct_state_update(issue_id, new_state)
             
             if success:
                 # Get the updated issue to return current state
-                updated_issue = self.issues_api.get_issue(issue_id)
+                updated_issue = await self.issues_api.get_issue(issue_id)
                 
                 return {
                     "status": "success",
@@ -97,10 +97,10 @@ class DedicatedUpdates:
                         "issues": [{"id": issue_id}]
                     }
                     
-                    self.issues_api.client.post("commands", data=command_data)
+                    await self.issues_api.client.post("commands", data=command_data)
                     
                     # Get the updated issue
-                    updated_issue = self.issues_api.get_issue(issue_id)
+                    updated_issue = await self.issues_api.get_issue(issue_id)
                     
                     return {
                         "status": "success",
@@ -122,7 +122,7 @@ class DedicatedUpdates:
                     if "workflow restrictions" in error_msg.lower() or "status 405" in error_msg or "Failed to transition" in error_msg:
                         # Try to get current state for better context
                         try:
-                            current_issue = self.issues_api.get_issue(issue_id)
+                            current_issue = await self.issues_api.get_issue(issue_id)
                             current_state = "Unknown"
                             
                             for field in current_issue.get("customFields", []):

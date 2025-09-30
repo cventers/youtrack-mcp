@@ -336,15 +336,15 @@ class ProjectsTools:
                 "function": self.list
             },
             "projects.get": {
-                "description": "Get project details with optional expansions",
+                "description": "Get project details with optional expansions. Accepts project short name (e.g., 'ACC') or numeric ID (e.g., '63-13')",
                 "function": self.get
             },
             "projects.schema": {
-                "description": "Get project schema with custom fields",
+                "description": "Get project schema with custom fields. Accepts project short name (e.g., 'ACC') or numeric ID (e.g., '63-13')",
                 "function": self.schema
             },
             "projects.patch": {
-                "description": "Update project properties",
+                "description": "Update project properties. Accepts project short name (e.g., 'ACC') or numeric ID (e.g., '63-13')",
                 "function": self.patch
             },
             "projects.create": {
