@@ -120,10 +120,8 @@ class ProjectsTools:
                 if "schema" in include:
                     try:
                         # Use the schema method for comprehensive field information
-                        schema_result = await self.schema(project_id)
-                        # Parse the JSON response and extract the schema data
-                        import json
-                        schema_data = json.loads(schema_result)
+                        # The schema method already returns a dict, not a JSON string
+                        schema_data = await self.schema(project_id)
                         expansions["schema"] = schema_data
                     except Exception as e:
                         logger.warning("failed_to_get_project_schema_e", e=e)
