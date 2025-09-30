@@ -630,7 +630,8 @@ class TestProjectsCustomFields(unittest.TestCase):
 
         self.assertEqual(result, {})
 
-    def test_validate_custom_field_for_project_valid_enum(self):
+    @pytest.mark.asyncio
+    async def test_validate_custom_field_for_project_valid_enum(self):
         """Test validation for valid enum field value."""
         mock_schema = {
             "name": "Priority",
@@ -641,21 +642,25 @@ class TestProjectsCustomFields(unittest.TestCase):
                 {"name": "High"}, {"name": "Medium"}, {"name": "Low"}
             ]
         }
-        
-        self.projects_client.get_custom_field_schema = Mock(return_value=mock_schema)
+
+        # Use AsyncMock for async methods
+        from unittest.mock import AsyncMock
+        self.projects_client.get_custom_field_schema = AsyncMock(return_value=mock_schema)
         # Mock the allowed values that the validation logic actually calls
-        self.projects_client.get_custom_field_allowed_values = Mock(return_value=[
+        self.projects_client.get_custom_field_allowed_values = AsyncMock(return_value=[
             {"name": "High"}, {"name": "Medium"}, {"name": "Low"}
         ])
 
-        result = self.projects_client.validate_custom_field_for_project("0-0", "Priority", "High")
+        result = await self.projects_client.validate_custom_field_for_project("0-0", "Priority", "High")
 
         self.assertTrue(result["valid"])
         self.assertEqual(result["field"], "Priority")
         self.assertEqual(result["value"], "High")
 
-    def test_validate_custom_field_for_project_invalid_enum(self):
+    @pytest.mark.asyncio
+    async def test_validate_custom_field_for_project_invalid_enum(self):
         """Test validation for invalid enum field value."""
+        from unittest.mock import AsyncMock
         mock_schema = {
             "name": "Priority",
             "type": "enum",
@@ -665,124 +670,138 @@ class TestProjectsCustomFields(unittest.TestCase):
                 {"name": "High"}, {"name": "Medium"}, {"name": "Low"}
             ]
         }
-        
-        self.projects_client.get_custom_field_schema = Mock(return_value=mock_schema)
+
+        self.projects_client.get_custom_field_schema = AsyncMock(return_value=mock_schema)
         # Mock the allowed values that the validation logic actually calls
-        self.projects_client.get_custom_field_allowed_values = Mock(return_value=[
+        self.projects_client.get_custom_field_allowed_values = AsyncMock(return_value=[
             {"name": "High"}, {"name": "Medium"}, {"name": "Low"}
         ])
 
-        result = self.projects_client.validate_custom_field_for_project("0-0", "Priority", "VeryHigh")
+        result = await self.projects_client.validate_custom_field_for_project("0-0", "Priority", "VeryHigh")
 
         self.assertFalse(result["valid"])
         self.assertIn("Invalid enum value", result["error"])
         self.assertIn("High, Medium, Low", result["suggestion"])
 
-    def test_validate_custom_field_for_project_required_field_empty(self):
+    @pytest.mark.asyncio
+    async def test_validate_custom_field_for_project_required_field_empty(self):
         """Test validation for required field with empty value."""
+        from unittest.mock import AsyncMock
         mock_schema = {
             "name": "Priority",
             "type": "enum",
             "required": True,
             "multi_value": False
         }
-        
-        self.projects_client.get_custom_field_schema = Mock(return_value=mock_schema)
+
+        self.projects_client.get_custom_field_schema = AsyncMock(return_value=mock_schema)
         # Mock the allowed values that the validation logic actually calls
-        self.projects_client.get_custom_field_allowed_values = Mock(return_value=[
+        self.projects_client.get_custom_field_allowed_values = AsyncMock(return_value=[
             {"name": "High"}, {"name": "Medium"}, {"name": "Low"}
         ])
 
-        result = self.projects_client.validate_custom_field_for_project("0-0", "Priority", "")
+        result = await self.projects_client.validate_custom_field_for_project("0-0", "Priority", "")
 
         self.assertFalse(result["valid"])
         self.assertIn("is required", result["error"])
 
-    def test_validate_custom_field_for_project_user_field_valid(self):
+    @pytest.mark.asyncio
+    async def test_validate_custom_field_for_project_user_field_valid(self):
         """Test validation for valid user field."""
+        from unittest.mock import AsyncMock
         mock_schema = {
             "name": "Assignee",
             "type": "user",
             "required": False,
             "multi_value": False
         }
-        
-        self.projects_client.get_custom_field_schema = Mock(return_value=mock_schema)
+
+        self.projects_client.get_custom_field_schema = AsyncMock(return_value=mock_schema)
         # Mock the allowed values that the validation logic actually calls
-        self.projects_client.get_custom_field_allowed_values = Mock(return_value=[
+        self.projects_client.get_custom_field_allowed_values = AsyncMock(return_value=[
             {"login": "john.doe", "name": "John Doe", "id": "user-1"},
             {"login": "jane.smith", "name": "Jane Smith", "id": "user-2"}
         ])
 
-        result = self.projects_client.validate_custom_field_for_project("0-0", "Assignee", "john.doe")
+        result = await self.projects_client.validate_custom_field_for_project("0-0", "Assignee", "john.doe")
 
         self.assertTrue(result["valid"])
 
-    def test_validate_custom_field_for_project_user_field_invalid(self):
+    @pytest.mark.asyncio
+    async def test_validate_custom_field_for_project_user_field_invalid(self):
         """Test validation for invalid user field."""
+        from unittest.mock import AsyncMock
         mock_schema = {
             "name": "Assignee",
             "type": "user",
             "required": False,
             "multi_value": False
         }
-        
-        self.projects_client.get_custom_field_schema = Mock(return_value=mock_schema)
-        self.mock_client.get.side_effect = Exception("User not found")
 
-        result = self.projects_client.validate_custom_field_for_project("0-0", "Assignee", "nonexistent")
+        self.projects_client.get_custom_field_schema = AsyncMock(return_value=mock_schema)
+        self.projects_client.get_custom_field_allowed_values = AsyncMock(return_value=[])
+
+        result = await self.projects_client.validate_custom_field_for_project("0-0", "Assignee", "nonexistent")
 
         self.assertFalse(result["valid"])
         self.assertIn("not found", result["error"])
 
-    def test_validate_custom_field_for_project_integer_field_valid(self):
+    @pytest.mark.asyncio
+    async def test_validate_custom_field_for_project_integer_field_valid(self):
         """Test validation for valid integer field."""
+        from unittest.mock import AsyncMock
         mock_schema = {
             "name": "Story Points",
             "type": "integer",
             "required": False,
             "multi_value": False
         }
-        
-        self.projects_client.get_custom_field_schema = Mock(return_value=mock_schema)
 
-        result = self.projects_client.validate_custom_field_for_project("0-0", "Story Points", "8")
+        self.projects_client.get_custom_field_schema = AsyncMock(return_value=mock_schema)
+
+        result = await self.projects_client.validate_custom_field_for_project("0-0", "Story Points", "8")
 
         self.assertTrue(result["valid"])
 
-    def test_validate_custom_field_for_project_integer_field_invalid(self):
+    @pytest.mark.asyncio
+    async def test_validate_custom_field_for_project_integer_field_invalid(self):
         """Test validation for invalid integer field."""
+        from unittest.mock import AsyncMock
         mock_schema = {
             "name": "Story Points",
             "type": "integer",
             "required": False,
             "multi_value": False
         }
-        
-        self.projects_client.get_custom_field_schema = Mock(return_value=mock_schema)
 
-        result = self.projects_client.validate_custom_field_for_project("0-0", "Story Points", "not-a-number")
+        self.projects_client.get_custom_field_schema = AsyncMock(return_value=mock_schema)
+
+        result = await self.projects_client.validate_custom_field_for_project("0-0", "Story Points", "not-a-number")
 
         self.assertFalse(result["valid"])
         self.assertIn("Invalid integer", result["error"])
 
-    def test_validate_custom_field_for_project_float_field_valid(self):
+    @pytest.mark.asyncio
+    async def test_validate_custom_field_for_project_float_field_valid(self):
         """Test validation for valid float field."""
+        from unittest.mock import AsyncMock
         mock_schema = {
             "name": "Estimated Hours",
             "type": "float",
             "required": False,
             "multi_value": False
         }
-        
-        self.projects_client.get_custom_field_schema = Mock(return_value=mock_schema)
 
-        result = self.projects_client.validate_custom_field_for_project("0-0", "Estimated Hours", "2.5")
+        self.projects_client.get_custom_field_schema = AsyncMock(return_value=mock_schema)
+
+        result = await self.projects_client.validate_custom_field_for_project("0-0", "Estimated Hours", "2.5")
 
         self.assertTrue(result["valid"])
 
-    def test_validate_custom_field_for_project_multi_value_field_invalid(self):
+    @pytest.mark.asyncio
+    async def test_validate_custom_field_for_project_multi_value_field_invalid(self):
         """Test validation for multi-value field with single value."""
+        from unittest.mock import AsyncMock
         mock_schema = {
             "name": "Tags",
             "type": "enum",
@@ -790,32 +809,36 @@ class TestProjectsCustomFields(unittest.TestCase):
             "multi_value": True,
             "allowed_values": [{"name": "single-value"}]  # Include the value so enum check passes
         }
-        
-        self.projects_client.get_custom_field_schema = Mock(return_value=mock_schema)
+
+        self.projects_client.get_custom_field_schema = AsyncMock(return_value=mock_schema)
         # Mock the allowed values that the validation logic actually calls
-        self.projects_client.get_custom_field_allowed_values = Mock(return_value=[
+        self.projects_client.get_custom_field_allowed_values = AsyncMock(return_value=[
             {"name": "single-value"}, {"name": "other-tag"}
         ])
 
-        result = self.projects_client.validate_custom_field_for_project("0-0", "Tags", "single-value")
+        result = await self.projects_client.validate_custom_field_for_project("0-0", "Tags", "single-value")
 
         self.assertFalse(result["valid"])
         self.assertIn("expects multiple values", result["error"])
 
-    def test_validate_custom_field_for_project_field_not_found(self):
+    @pytest.mark.asyncio
+    async def test_validate_custom_field_for_project_field_not_found(self):
         """Test validation for non-existent field."""
-        self.projects_client.get_custom_field_schema = Mock(return_value=None)
+        from unittest.mock import AsyncMock
+        self.projects_client.get_custom_field_schema = AsyncMock(return_value=None)
 
-        result = self.projects_client.validate_custom_field_for_project("0-0", "NonExistent", "value")
+        result = await self.projects_client.validate_custom_field_for_project("0-0", "NonExistent", "value")
 
         self.assertFalse(result["valid"])
         self.assertIn("not found", result["error"])
 
-    def test_validate_custom_field_for_project_api_error(self):
+    @pytest.mark.asyncio
+    async def test_validate_custom_field_for_project_api_error(self):
         """Test validation with API error."""
-        self.projects_client.get_custom_field_schema = Mock(side_effect=Exception("API Error"))
+        from unittest.mock import AsyncMock
+        self.projects_client.get_custom_field_schema = AsyncMock(side_effect=Exception("API Error"))
 
-        result = self.projects_client.validate_custom_field_for_project("0-0", "Field", "value")
+        result = await self.projects_client.validate_custom_field_for_project("0-0", "Field", "value")
 
         self.assertFalse(result["valid"])
         self.assertIn("Validation error", result["error"])
