@@ -256,58 +256,6 @@ class IssuesClient:
             # Create minimal issue to avoid breaking calls
             return Issue(id=issue_id, summary=f"Error: {str(e)[:100]}...")
 
-            # Ensure the ID field is present
-            if (
-                isinstance(detailed_response, dict)
-                and "id" not in detailed_response
-                and detailed_response.get("$type") == "Issue"
-            ):
-                detailed_response["id"] = issue_id
-
-            try:
-                # Try to validate the model
-                return Issue.model_validate(detailed_response)
-            except Exception as validation_error:
-                # If validation fails, create a more flexible issue object
-                logger.warning(
-                    f"Issue validation error: {validation_error}. Creating issue with minimal data."
-                )
-
-                if isinstance(detailed_response, dict):
-                    # Extract key fields if possible
-                    summary = detailed_response.get(
-                        "summary", "Unknown summary"
-                    )
-                    description = detailed_response.get("description", "")
-
-                    # Create a basic issue with the available data
-                    issue = Issue(
-                        id=issue_id, summary=summary, description=description
-                    )
-
-                    # Add any other fields that might be useful
-                    for field in [
-                        "created",
-                        "updated",
-                        "project",
-                        "reporter",
-                        "assignee",
-                        "attachments",
-                    ]:
-                        if field in detailed_response:
-                            setattr(issue, field, detailed_response[field])
-
-                    return issue
-                else:
-                    # If response is not even a dict, create a minimal issue
-                    return Issue(id=issue_id, summary=f"Issue {issue_id}")
-
-        except Exception as e:
-            # Log the full error with traceback
-            logger.exception(f"Error retrieving issue {issue_id}")
-            # Create minimal issue to avoid breaking calls
-            return Issue(id=issue_id, summary=f"Error: {str(e)[:100]}...")
-
     async def create_issue(
         self,
         project_id: str,
@@ -703,6 +651,39 @@ class IssuesClient:
             logger.warning("direct_state_update_failed_for_issue_issue_id_e", issue_id=issue_id, e=e)
             return False
     
+    def _normalize_field_value(self, field_value: Any) -> Any:
+        """
+        Normalize complex field value objects to simple strings.
+
+        Converts dictionary field values like {"name": "Critical"} to "Critical".
+
+        Args:
+            field_value: The field value to normalize (can be dict, str, or other)
+
+        Returns:
+            Simple string value suitable for API calls
+        """
+        if field_value is None:
+            return None
+
+        if isinstance(field_value, dict):
+            # Try to extract value from common field patterns
+            if "name" in field_value:
+                return field_value["name"]
+            elif "login" in field_value:
+                return field_value["login"]
+            elif "presentation" in field_value:
+                return field_value["presentation"]
+            elif "text" in field_value:
+                return field_value["text"]
+            elif "value" in field_value:
+                return field_value["value"]
+            # If dict has no known keys, convert to string
+            return str(field_value)
+
+        # Already a simple value
+        return field_value
+
     async def _update_other_custom_fields(self, issue_id: str, custom_fields: Dict[str, Any], validate: bool, use_commands: bool) -> None:
         """
         Update non-state custom fields, prioritizing direct field updates.
@@ -760,7 +741,7 @@ class IssuesClient:
             
             for field_name, raw_field_value in custom_fields.items():
                 # Normalize complex object formats to simple strings first
-                field_value = await self._normalize_field_value(raw_field_value)
+                field_value = self._normalize_field_value(raw_field_value)
                 
                 # Determine field type and construct proper object with actual ID
                 if use_simple_approach:
@@ -842,7 +823,7 @@ class IssuesClient:
         """Create proper EnumBundleElement object with actual ID."""
         try:
             # Normalize field value first
-            normalized_value = await self._normalize_field_value(field_value)
+            normalized_value = self._normalize_field_value(field_value)
 
             # Get allowed values to find the actual ID
             projects_client = ProjectsClient(self.client)
@@ -892,7 +873,7 @@ class IssuesClient:
         """Create proper StateBundleElement object with actual ID."""
         try:
             # Normalize field value first
-            normalized_value = await self._normalize_field_value(field_value)
+            normalized_value = self._normalize_field_value(field_value)
             
             # Get allowed values to find the actual ID
             projects_client = ProjectsClient(self.client)
@@ -934,7 +915,7 @@ class IssuesClient:
         """Create proper User object with actual ID."""
         try:
             # Normalize field value first
-            normalized_value = await self._normalize_field_value(field_value)
+            normalized_value = self._normalize_field_value(field_value)
             
             # Get user ID by login
             users_client = UsersClient(self.client)
@@ -975,7 +956,7 @@ class IssuesClient:
         """Create proper period field object with PeriodValue format."""
         try:
             # Normalize field value first
-            normalized_value = await self._normalize_field_value(field_value)
+            normalized_value = self._normalize_field_value(field_value)
             
             # Convert simple time strings to proper PeriodValue format
             # Examples: "4h" -> 240 minutes, "30m" -> 30 minutes, "2h 30m" -> 150 minutes
