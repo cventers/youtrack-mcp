@@ -308,10 +308,10 @@ class ProjectTools:
             )
             return {"error": str(e)}
 
-    def validate_custom_field_for_project(
-        self, 
-        project_id: str, 
-        field_name: str, 
+    async def validate_custom_field_for_project(
+        self,
+        project_id: str,
+        field_name: str,
         field_value: Any
     ) -> dict:
         """
@@ -334,7 +334,7 @@ class ProjectTools:
                     "error": "Project ID and field name are required"
                 }
 
-            validation_result = self.projects_api.validate_custom_field_for_project(
+            validation_result = await self.projects_api.validate_custom_field_for_project(
                 project_id, field_name, field_value
             )
             

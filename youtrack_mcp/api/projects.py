@@ -402,15 +402,15 @@ class ProjectsClient:
                     }
                     
                     logger.info("Found schema for field", field_name=field_name, schema=enhanced_schema)
-                    
+
                     # Add allowed values for enum/state fields
                     if field_type.get("valueType") in ["enum", "state"]:
                         try:
-                            enhanced_schema["allowed_values"] = self.get_custom_field_allowed_values(project_id, field_name)
+                            enhanced_schema["allowed_values"] = await self.get_custom_field_allowed_values(project_id, field_name)
                         except Exception as e:
                             logger.warning("could_not_get_allowed_values_for_field_name_stre", field_name=field_name)
                             enhanced_schema["allowed_values"] = []
-                    
+
                     return enhanced_schema
             
             logger.warning("Field not found in project custom fields", field_name=field_name, project_id=project_id)
@@ -776,11 +776,11 @@ class ProjectsClient:
                     # Add allowed values for enum/state fields
                     if field_type.get("valueType") in ["enum", "state"]:
                         try:
-                            enhanced_schema["allowed_values"] = self.get_custom_field_allowed_values(project_id, field_name)
+                            enhanced_schema["allowed_values"] = await self.get_custom_field_allowed_values(project_id, field_name)
                         except Exception as e:
                             logger.warning("could_not_get_allowed_values_for_field_name_stre", field_name=field_name)
                             enhanced_schema["allowed_values"] = []
-                    
+
                     schemas[field_name] = enhanced_schema
                     logger.info("Added schema for field", field_name=field_name, schema=enhanced_schema)
                 else:
@@ -792,10 +792,10 @@ class ProjectsClient:
             logger.error("error_getting_all_custom_field_schemas_stre")
             return {}
 
-    def validate_custom_field_for_project(
-        self, 
-        project_id: str, 
-        field_name: str, 
+    async def validate_custom_field_for_project(
+        self,
+        project_id: str,
+        field_name: str,
         field_value: Any
     ) -> Dict[str, Any]:
         """
@@ -811,7 +811,7 @@ class ProjectsClient:
         """
         try:
             # Get field schema directly using the same approach as issues.py
-            field_schema = self.get_custom_field_schema(project_id, field_name)
+            field_schema = await self.get_custom_field_schema(project_id, field_name)
             if not field_schema:
                 return {
                     "valid": False,
@@ -833,7 +833,7 @@ class ProjectsClient:
             # Type-specific validation using the correct valueType
             if value_type == "state":
                 # State field - validate against available states
-                allowed_values = self.get_custom_field_allowed_values(project_id, field_name)
+                allowed_values = await self.get_custom_field_allowed_values(project_id, field_name)
                 allowed_names = [v.get("name", "") for v in allowed_values if isinstance(v, dict)]
                 if str(field_value) not in allowed_names:
                     return {
@@ -844,7 +844,7 @@ class ProjectsClient:
             
             elif value_type == "enum":
                 # Enum field - validate against enum values
-                allowed_values = self.get_custom_field_allowed_values(project_id, field_name)
+                allowed_values = await self.get_custom_field_allowed_values(project_id, field_name)
                 allowed_names = [v.get("name", "") for v in allowed_values if isinstance(v, dict)]
                 if str(field_value) not in allowed_names:
                     return {
@@ -855,7 +855,7 @@ class ProjectsClient:
             
             elif value_type == "user":
                 # User field - validate against available users
-                allowed_values = self.get_custom_field_allowed_values(project_id, field_name)
+                allowed_values = await self.get_custom_field_allowed_values(project_id, field_name)
                 allowed_logins = [v.get("login", "") for v in allowed_values if isinstance(v, dict)]
                 allowed_names = [v.get("name", "") for v in allowed_values if isinstance(v, dict)]
                 if str(field_value) not in allowed_logins and str(field_value) not in allowed_names:
@@ -867,7 +867,7 @@ class ProjectsClient:
             
             elif value_type == "ownedField":
                 # Subsystem field - validate against available subsystems
-                allowed_values = self.get_custom_field_allowed_values(project_id, field_name)
+                allowed_values = await self.get_custom_field_allowed_values(project_id, field_name)
                 allowed_names = [v.get("name", "") for v in allowed_values if isinstance(v, dict)]
                 if str(field_value) not in allowed_names:
                     return {
@@ -878,7 +878,7 @@ class ProjectsClient:
             
             elif value_type == "version":
                 # Version field - validate against available versions
-                allowed_values = self.get_custom_field_allowed_values(project_id, field_name)
+                allowed_values = await self.get_custom_field_allowed_values(project_id, field_name)
                 allowed_names = [v.get("name", "") for v in allowed_values if isinstance(v, dict)]
                 if str(field_value) not in allowed_names:
                     return {
@@ -889,7 +889,7 @@ class ProjectsClient:
             
             elif value_type == "build":
                 # Build field - validate against available builds
-                allowed_values = self.get_custom_field_allowed_values(project_id, field_name)
+                allowed_values = await self.get_custom_field_allowed_values(project_id, field_name)
                 allowed_names = [v.get("name", "") for v in allowed_values if isinstance(v, dict)]
                 if str(field_value) not in allowed_names:
                     return {
