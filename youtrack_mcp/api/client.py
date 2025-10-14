@@ -33,10 +33,42 @@ class YouTrackAPIError(Exception):
         message: str,
         status_code: Optional[int] = None,
         response: Optional[httpx.Response] = None,
+        details: Optional[Dict[str, Any]] = None,
     ):
         self.status_code = status_code
         self.response = response
+        self.details = details or {}
+        self.original_message = message
         super().__init__(message)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert exception to detailed dictionary for MCP client."""
+        error_dict = {
+            "error": self.original_message,
+            "error_type": self.__class__.__name__,
+            "status_code": self.status_code,
+        }
+
+        # Add response details if available
+        if self.response is not None:
+            try:
+                response_data = self.response.json()
+                if isinstance(response_data, dict):
+                    error_dict["response_data"] = response_data
+            except:
+                # If response isn't JSON, include raw content (truncated)
+                if self.response.content:
+                    content = self.response.content.decode('utf-8', errors='replace')
+                    error_dict["response_content"] = content[:500] if len(content) > 500 else content
+
+        # Merge any additional details
+        error_dict.update(self.details)
+
+        return error_dict
+
+    def __str__(self) -> str:
+        """Return JSON-formatted detailed error for MCP client."""
+        return json.dumps(self.to_dict(), indent=2)
 
 
 class RateLimitError(YouTrackAPIError):
@@ -66,7 +98,72 @@ class PermissionDeniedError(YouTrackAPIError):
 class ValidationError(YouTrackAPIError):
     """Exception for validation errors in API requests."""
 
-    pass
+    def __init__(
+        self,
+        message: str,
+        status_code: Optional[int] = None,
+        response: Optional[httpx.Response] = None,
+        details: Optional[Dict[str, Any]] = None,
+        query: Optional[str] = None,
+        suggestions: Optional[list] = None,
+        operation: Optional[str] = None,
+    ):
+        # Add educational content to details using error_educator
+        enriched_details = details or {}
+
+        # Always add query to details if provided
+        if query:
+            enriched_details["query"] = query
+
+        # Import error_educator lazily to avoid circular imports
+        try:
+            from youtrack_mcp.utils.error_educator import llm_error_educator
+
+            # Get educational content from error_educator
+            context = {"query": query} if query else {}
+            if operation:
+                context["operation"] = operation
+
+            educational_content = llm_error_educator._handle_validation_error(
+                operation=operation or "search",
+                error=self,
+                context=context
+            )
+
+            # Merge educational content with enriched_details
+            enriched_details.update(educational_content)
+        except ImportError:
+            # Fallback if error_educator not available
+            pass
+
+        # Ensure learn_from_this is always present
+        if "learn_from_this" not in enriched_details:
+            enriched_details["learn_from_this"] = (
+                "YouTrack Query Language has specific syntax requirements. "
+                "Review the query syntax guide at youtrack://query-syntax for detailed examples."
+            )
+
+        # Ensure documentation link is always present
+        if "documentation" not in enriched_details:
+            enriched_details["documentation"] = "https://www.jetbrains.com/help/youtrack/devportal/api-query-language.html"
+
+        # Ensure suggestions are always present
+        if "suggestions" not in enriched_details:
+            if suggestions:
+                enriched_details["suggestions"] = suggestions
+            else:
+                enriched_details["suggestions"] = [
+                    "Check YQL syntax: fields use 'field: value' format",
+                    "Use {} for multi-word values: {Priority}: {Show Stopper}",
+                    "Date ranges: 'created: 2025-01-01 .. 2025-12-31'",
+                    "Relative dates: 'created: {minus 7d} .. Today'",
+                    "Combine with: 'and', 'or', parentheses for grouping"
+                ]
+        elif suggestions:
+            # Override error_educator suggestions if explicitly provided
+            enriched_details["suggestions"] = suggestions
+
+        super().__init__(message, status_code, response, enriched_details)
 
 
 class ServerError(YouTrackAPIError):

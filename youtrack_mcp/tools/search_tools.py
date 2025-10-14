@@ -175,12 +175,36 @@ class SearchTools:
             }
 
         except Exception as e:
-            logger.exception(f"Error in search query: {query}")
-            return {
-                "error": str(e),
-                "error_type": type(e).__name__,
-                "query": query
-            }
+            # Let YouTrack API errors propagate so MCP can mark them as is_error=True
+            from youtrack_mcp.api.client import YouTrackAPIError, ValidationError
+            if isinstance(e, YouTrackAPIError):
+                logger.error(f"YouTrack API error in search query: {query}",
+                           error_type=type(e).__name__,
+                           status_code=getattr(e, 'status_code', None))
+
+                # For ValidationError, enrich with query and any detected syntax issues
+                if isinstance(e, ValidationError):
+                    # Check if we detected syntax issues earlier
+                    syntax_error = self._detect_date_syntax_errors(query)
+                    suggestions = []
+                    if syntax_error:
+                        suggestions = syntax_error.get("suggestions", [])
+
+                    # Re-raise with enriched details
+                    raise ValidationError(
+                        message=e.original_message,
+                        status_code=e.status_code,
+                        response=e.response,
+                        query=query,
+                        suggestions=suggestions if suggestions else None,
+                        details=e.details
+                    ) from e
+
+                raise
+
+            # For truly unexpected errors, log and re-raise
+            logger.exception(f"Unexpected error in search query: {query}")
+            raise
 
     async def autosearch(self, natural_language_query: str, project_context: Optional[str] = None) -> dict:
         """
@@ -248,8 +272,37 @@ class SearchTools:
             }
 
         except Exception as e:
-            logger.exception(f"Error in autosearch: {natural_language_query}")
-            # Fallback to simple text search
+            # Let YouTrack API errors propagate so MCP can mark them as is_error=True
+            from youtrack_mcp.api.client import YouTrackAPIError, ValidationError
+            if isinstance(e, YouTrackAPIError):
+                logger.error(f"YouTrack API error in autosearch: {natural_language_query}",
+                           error_type=type(e).__name__,
+                           status_code=getattr(e, 'status_code', None))
+
+                # For ValidationError, enrich with natural language query context
+                if isinstance(e, ValidationError):
+                    enriched_details = e.details.copy()
+                    enriched_details["natural_language_query"] = natural_language_query
+                    enriched_details["note"] = (
+                        "The AI-translated query failed validation. "
+                        "Try rephrasing your search or use explicit YQL syntax."
+                    )
+
+                    # Re-raise with enriched details
+                    raise ValidationError(
+                        message=e.original_message,
+                        status_code=e.status_code,
+                        response=e.response,
+                        query=getattr(e, 'query', None),
+                        suggestions=e.details.get('suggestions'),
+                        details=enriched_details
+                    ) from e
+
+                raise
+
+            # For other errors, try fallback to simple text search
+            logger.warning(f"Error in autosearch, attempting fallback: {natural_language_query}",
+                         error=str(e))
             fallback_query = f"text: {natural_language_query}"
             try:
                 fallback_response = await self.query(fallback_query, limit=10)
@@ -262,12 +315,9 @@ class SearchTools:
                     "degraded": True
                 }
             except Exception as fallback_error:
-                return {
-                    "error": str(e),
-                    "error_type": type(e).__name__,
-                    "fallback_error": str(fallback_error),
-                    "natural_language_query": natural_language_query
-                }
+                # Both AI and fallback failed - re-raise the original error
+                logger.exception(f"Both autosearch and fallback failed for: {natural_language_query}")
+                raise e from fallback_error
 
 
 

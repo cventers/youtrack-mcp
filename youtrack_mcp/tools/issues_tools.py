@@ -82,23 +82,16 @@ class IssuesTools:
                 "fields_requested": base_fields
             }
 
-        except (ResourceNotFoundError, AuthenticationError, PermissionDeniedError,
-                ValidationError, RateLimitError, ServerError, YouTrackAPIError) as e:
-            # Use LLM-optimized error response
-            llm_response = error_educator.create_educational_error_response(
-                operation="get_issue",
-                error=e,
-                context={"issue_id": issue_id, "include": include}
-            )
-            return llm_response
+        except YouTrackAPIError as e:
+            # Log the error but propagate it so MCP marks as is_error=True
+            logger.error(f"YouTrack API error getting issue: {issue_id}",
+                       error_type=type(e).__name__,
+                       status_code=getattr(e, 'status_code', None))
+            raise
         except Exception as e:
+            # Log unexpected errors and propagate
             logger.exception(f"Unexpected error getting issue {issue_id}: {e}")
-            llm_response = error_educator.create_educational_error_response(
-                operation="get_issue",
-                error=e,
-                context={"issue_id": issue_id, "include": include}
-            )
-            return llm_response
+            raise
 
     async def create(self, project: str, summary: str, description: Optional[str] = None, custom_fields: Optional[Dict[str, Any]] = None) -> dict:
         """
@@ -135,23 +128,16 @@ class IssuesTools:
                 "created": True
             }
 
-        except (AuthenticationError, PermissionDeniedError, ValidationError,
-                ResourceNotFoundError, RateLimitError, ServerError, YouTrackAPIError) as e:
-            # Use LLM-optimized error response
-            llm_response = error_educator.create_educational_error_response(
-                operation="create_issue",
-                error=e,
-                context={"project": project, "summary": summary, "description": description, "custom_fields": custom_fields}
-            )
-            return llm_response
+        except YouTrackAPIError as e:
+            # Log the error but propagate it so MCP marks as is_error=True
+            logger.error(f"YouTrack API error creating issue in {project}",
+                       error_type=type(e).__name__,
+                       status_code=getattr(e, 'status_code', None))
+            raise
         except Exception as e:
+            # Log unexpected errors and propagate
             logger.exception(f"Unexpected error creating issue in {project}: {e}")
-            llm_response = error_educator.create_educational_error_response(
-                operation="create_issue",
-                error=e,
-                context={"project": project, "summary": summary, "description": description, "custom_fields": custom_fields}
-            )
-            return llm_response
+            raise
 
     async def patch(self, issue_id: str, fields: Optional[Dict[str, Any]] = None, ops: Optional[List[Dict[str, Any]]] = None) -> dict:
         """Update issue with /fields/<FieldName> support and schema-aware coercion."""
@@ -245,23 +231,16 @@ class IssuesTools:
                 "message": f"Successfully updated issue {issue_id}"
             }
 
-        except (ResourceNotFoundError, AuthenticationError, PermissionDeniedError,
-                ValidationError, RateLimitError, ServerError, YouTrackAPIError) as e:
-            # Use LLM-optimized error response
-            llm_response = error_educator.create_educational_error_response(
-                operation="update_issue",
-                error=e,
-                context={"issue_id": issue_id, "fields": fields, "ops": ops}
-            )
-            return llm_response
+        except YouTrackAPIError as e:
+            # Log the error but propagate it so MCP marks as is_error=True
+            logger.error(f"YouTrack API error updating issue: {issue_id}",
+                       error_type=type(e).__name__,
+                       status_code=getattr(e, 'status_code', None))
+            raise
         except Exception as e:
+            # Log unexpected errors and propagate
             logger.exception(f"Unexpected error updating issue {issue_id}: {e}")
-            llm_response = error_educator.create_educational_error_response(
-                operation="update_issue",
-                error=e,
-                context={"issue_id": issue_id, "fields": fields, "ops": ops}
-            )
-            return llm_response
+            raise
 
     def get_tool_definitions(self) -> Dict[str, Dict[str, Any]]:
         """Get core issues tool definitions."""

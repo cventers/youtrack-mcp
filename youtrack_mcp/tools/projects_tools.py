@@ -66,23 +66,16 @@ class ProjectsTools:
                 "include_archived": include_archived
             }
 
-        except (ResourceNotFoundError, AuthenticationError, PermissionDeniedError,
-                ValidationError, RateLimitError, ServerError, YouTrackAPIError) as e:
-            # Use LLM-optimized error response
-            llm_response = create_llm_friendly_error(
-                operation="list_projects",
-                error=e,
-                context={"include_archived": include_archived}
-            )
-            return llm_response
+        except YouTrackAPIError as e:
+            # Log the error but propagate it so MCP marks as is_error=True
+            logger.error("YouTrack API error listing projects",
+                       error_type=type(e).__name__,
+                       status_code=getattr(e, 'status_code', None))
+            raise
         except Exception as e:
+            # Log unexpected errors and propagate
             logger.exception("Unexpected error listing projects")
-            llm_response = create_llm_friendly_error(
-                operation="list_projects",
-                error=e,
-                context={"include_archived": include_archived}
-            )
-            return llm_response
+            raise
 
     async def get(self, project_id: str, include: Optional[List[str]] = None) -> dict:
         """
@@ -141,13 +134,16 @@ class ProjectsTools:
                 "expansions_requested": include or []
             }
 
+        except YouTrackAPIError as e:
+            # Log the error but propagate it so MCP marks as is_error=True
+            logger.error(f"YouTrack API error getting project: {project_id}",
+                       error_type=type(e).__name__,
+                       status_code=getattr(e, 'status_code', None))
+            raise
         except Exception as e:
-            logger.exception(f"Error getting project {project_id}")
-            return {
-                "error": str(e),
-                "error_type": type(e).__name__,
-                "project_id": project_id
-            }
+            # Log unexpected errors and propagate
+            logger.exception(f"Unexpected error getting project {project_id}")
+            raise
 
     async def patch(self, project_id: str, ops: Optional[List[Dict[str, Any]]] = None) -> dict:
         """
@@ -219,14 +215,16 @@ class ProjectsTools:
                 "operations_applied": len(ops)
             }
 
+        except YouTrackAPIError as e:
+            # Log the error but propagate it so MCP marks as is_error=True
+            logger.error(f"YouTrack API error patching project: {project_id}",
+                       error_type=type(e).__name__,
+                       status_code=getattr(e, 'status_code', None))
+            raise
         except Exception as e:
-            logger.exception(f"Error patching project {project_id}")
-            return {
-                "error": str(e),
-                "error_type": type(e).__name__,
-                "project_id": project_id,
-                "operations_requested": len(ops) if ops else 0
-            }
+            # Log unexpected errors and propagate
+            logger.exception(f"Unexpected error patching project {project_id}")
+            raise
 
 
     async def schema(self, project_id: str) -> dict:
@@ -272,14 +270,16 @@ class ProjectsTools:
                 }
             }
 
+        except YouTrackAPIError as e:
+            # Log the error but propagate it so MCP marks as is_error=True
+            logger.error(f"YouTrack API error getting project schema: {project_id}",
+                       error_type=type(e).__name__,
+                       status_code=getattr(e, 'status_code', None))
+            raise
         except Exception as e:
-            logger.exception(f"Error getting custom fields for project {project_id}")
-            return {
-                "error": str(e),
-                "error_type": type(e).__name__,
-                "project_id": project_id,
-                "suggestion": "Check project ID/name and ensure you have permission to view custom fields"
-            }
+            # Log unexpected errors and propagate
+            logger.exception(f"Unexpected error getting project schema {project_id}")
+            raise
 
 
     async def create(self, name: str, short_name: str, lead_id: str, description: Optional[str] = None) -> dict:
@@ -316,15 +316,16 @@ class ProjectsTools:
                 "created": True
             }
 
+        except YouTrackAPIError as e:
+            # Log the error but propagate it so MCP marks as is_error=True
+            logger.error(f"YouTrack API error creating project: {name}",
+                       error_type=type(e).__name__,
+                       status_code=getattr(e, 'status_code', None))
+            raise
         except Exception as e:
-            logger.exception(f"Error creating project {name}")
-            return {
-                "error": str(e),
-                "error_type": type(e).__name__,
-                "name": name,
-                "short_name": short_name,
-                "lead_id": lead_id
-            }
+            # Log unexpected errors and propagate
+            logger.exception(f"Unexpected error creating project {name}")
+            raise
 
     def get_tool_definitions(self) -> Dict[str, Dict[str, Any]]:
         """Get core projects tool definitions."""
