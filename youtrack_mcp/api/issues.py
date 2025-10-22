@@ -316,10 +316,17 @@ class IssuesClient:
 
             # Handle custom fields
             if custom_fields:
-                # Get project ID for custom field processing
-                actual_project_id = await self._extract_project_id({"project": {"id": project_id}})
-                custom_fields_payload = await self._build_custom_fields_payload(custom_fields, actual_project_id)
-                issue_data.update(custom_fields_payload)
+                # Format custom fields as YouTrack expects
+                # Format: {"customFields": [{"name": "FieldName", "value": "FieldValue"}]}
+                custom_fields_list = []
+                for field_name, field_value in custom_fields.items():
+                    # Normalize the field value if needed
+                    normalized_value = self._normalize_field_value(field_value)
+                    custom_fields_list.append({
+                        "name": field_name,
+                        "value": normalized_value
+                    })
+                issue_data["customFields"] = custom_fields_list
 
             logger.info("creating_issue_with_data_issue_data", issue_data=issue_data)
 
@@ -392,11 +399,17 @@ class IssuesClient:
 
             # Handle custom fields
             if custom_fields:
-                # Get current issue to extract project ID
-                current_issue = await self.get_issue(issue_id)
-                project_id = current_issue.project.id if current_issue.project else None
-                custom_fields_payload = await self._build_custom_fields_payload(custom_fields, project_id)
-                update_data.update(custom_fields_payload)
+                # Format custom fields as YouTrack expects
+                # Format: {"customFields": [{"name": "FieldName", "value": "FieldValue"}]}
+                custom_fields_list = []
+                for field_name, field_value in custom_fields.items():
+                    # Normalize the field value if needed
+                    normalized_value = self._normalize_field_value(field_value)
+                    custom_fields_list.append({
+                        "name": field_name,
+                        "value": normalized_value
+                    })
+                update_data["customFields"] = custom_fields_list
 
             if not update_data:
                 logger.info("No updates provided, returning current issue")
