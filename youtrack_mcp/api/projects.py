@@ -511,27 +511,32 @@ class ProjectsClient:
                 # We need to fetch ALL enum bundles and find the right one by field name
                 if actual_bundle_id == "*":
                     try:
-                        # For multi-value enum fields with [*], try to get values from field instance
-                        # Use the field ID, not the field name, in the URL
-                        field_id = field_schema.get("id")
-                        if not field_id:
-                            logger.warning(f"No field ID found for field {field_name}")
-                            return []
-                        field_instance_url = f"admin/projects/{project_id}/customFields/{field_id}?fields=bundle(id,name,values(id,name,description))"
-                        field_data = await self.client.get(field_instance_url)
-                        if field_data and "bundle" in field_data:
-                            bundle_data = field_data["bundle"]
-                            values = bundle_data.get("values", [])
-                            logger.info("Found values for multi-value enum field via field instance", count=len(values), field_name=field_name)
-                            return [
-                                {
-                                    "name": value.get("name", ""),
-                                    "description": value.get("description", ""),
-                                    "id": value.get("id"),
-                                    **{k: v for k, v in value.items() if k not in ["name", "description", "id"]}
-                                }
-                                for value in values
-                            ]
+                        # For multi-value enum fields with [*], we need to get the bundle from the ProjectCustomField
+                        # First, get all project custom fields to find the one we need
+                        project_fields_url = f"admin/projects/{project_id}/customFields?fields=field(id,name),bundle(id,name,values(id,name,description))"
+                        project_fields = await self.client.get(project_fields_url)
+
+                        # Find the field by name in the project fields
+                        for pfield in project_fields:
+                            if pfield.get("field", {}).get("name") == field_name:
+                                # Found the field - check if it has a bundle
+                                bundle_data = pfield.get("bundle")
+                                if bundle_data and "values" in bundle_data:
+                                    values = bundle_data.get("values", [])
+                                    logger.info(f"Found values for {field_name} from ProjectCustomField", count=len(values))
+                                    return [
+                                        {
+                                            "name": value.get("name", ""),
+                                            "description": value.get("description", ""),
+                                            "id": value.get("id"),
+                                            **{k: v for k, v in value.items() if k not in ["name", "description", "id"]}
+                                        }
+                                        for value in values
+                                    ]
+                                break
+
+                        logger.warning(f"Could not find bundle for field {field_name} in project {project_id}")
+                        return []
                     except Exception as e:
                         logger.warning(f"Could not get values for multi-value enum field {field_name} via field instance: {e}")
                         # Continue to error handling below
