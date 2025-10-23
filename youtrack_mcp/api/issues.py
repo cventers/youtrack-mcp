@@ -1104,59 +1104,85 @@ class IssuesClient:
             
             # If both direct and command approaches fail, raise the original error with full details
             error_msg = f"Direct field update failed"
+
+            # Always try to provide valid values for custom field errors
+            # Try to extract field name and invalid value from the error
+            import re
+            field_hint = ""
+            invalid_value = None
+            field_name_from_error = None
+
             if hasattr(direct_error, 'response') and hasattr(direct_error.response, 'json'):
                 try:
                     error_details = direct_error.response.json()
-                    if 'error_description' in error_details:
-                        original_error = error_details['error_description']
-                        # Check for the cryptic "entity not found" error and make it more helpful
-                        if '-type entity with the specified name' in original_error and 'was not found' in original_error:
-                            # Extract the invalid value from the error message
-                            import re
-                            value_match = re.search(r'An (.+?)-type entity', original_error)
-                            invalid_value = value_match.group(1) if value_match else 'provided value'
+                    original_error = error_details.get('error_description', error_details.get('error', ''))
 
-                            # Try to get valid values for better error message
-                            field_hint = ""
-                            for field_name in custom_fields.keys():
-                                if invalid_value.lower() in str(custom_fields[field_name]).lower():
-                                    field_hint = f" for field '{field_name}'"
-                                    # Try to get valid values for this field
-                                    try:
-                                        # Get issue data to extract project ID
-                                        issue_data = await self.get_issue(issue_id)
-                                        project_id = None
-                                        if hasattr(issue_data, 'project') and issue_data.project:
-                                            if isinstance(issue_data.project, dict):
-                                                project_id = issue_data.project.get('id')
-                                            else:
-                                                project_id = getattr(issue_data.project, 'id', None)
+                    # Try multiple patterns to extract field and value information
+                    # Pattern 1: "entity with the specified name" error
+                    if '-type entity with the specified name' in original_error and 'was not found' in original_error:
+                        value_match = re.search(r'An (.+?)-type entity', original_error)
+                        invalid_value = value_match.group(1) if value_match else None
 
-                                        if project_id:
-                                            from youtrack_mcp.api.projects import ProjectsClient
-                                            projects_client = ProjectsClient(self.client)
-                                            allowed_values = await projects_client.get_custom_field_allowed_values(project_id, field_name)
-                                            if allowed_values:
-                                                valid_names = [v.get('name', '') for v in allowed_values if v.get('name')]
-                                                if valid_names:
-                                                    # Sort by similarity to the invalid value
-                                                    from difflib import SequenceMatcher
-                                                    def similarity(a, b):
-                                                        return SequenceMatcher(None, a.lower(), b.lower()).ratio()
+                    # Pattern 2: Direct "Invalid value" error (from our own validation)
+                    elif 'Invalid value' in str(direct_error):
+                        value_match = re.search(r"Invalid value '([^']+)'", str(direct_error))
+                        field_match = re.search(r"for field '([^']+)'", str(direct_error))
+                        if value_match:
+                            invalid_value = value_match.group(1)
+                        if field_match:
+                            field_name_from_error = field_match.group(1)
 
-                                                    # Sort by similarity score (highest first)
-                                                    valid_names.sort(key=lambda x: similarity(invalid_value, x), reverse=True)
+                    # If we found an invalid value, try to find the field and get valid values
+                    if invalid_value or field_name_from_error:
+                        # Determine which field this error is for
+                        for field_name in custom_fields.keys():
+                            # Use field name from error if available, otherwise match by value
+                            if field_name_from_error and field_name == field_name_from_error:
+                                field_hint = f" for field '{field_name}'"
+                            elif invalid_value and invalid_value.lower() in str(custom_fields[field_name]).lower():
+                                field_hint = f" for field '{field_name}'"
 
-                                                    # Show the most similar values first
-                                                    field_hint += f". Valid values are: {', '.join(valid_names[:10])}"
-                                                    if len(valid_names) > 10:
-                                                        field_hint += f" (and {len(valid_names) - 10} more)"
-                                    except (YouTrackAPIError, AttributeError, KeyError, TypeError) as e:
-                                        logger.warning(f"Failed to get valid values for field '{field_name}': {e}")
-                                        # Still provide a hint about checking valid values
-                                        field_hint += ". Please check the field's allowed values in YouTrack"
-                                    break
+                            # Try to get valid values for this field if we matched
+                            if field_hint:
+                                try:
+                                    # Get issue data to extract project ID
+                                    issue_data = await self.get_issue(issue_id)
+                                    project_id = None
+                                    if hasattr(issue_data, 'project') and issue_data.project:
+                                        if isinstance(issue_data.project, dict):
+                                            project_id = issue_data.project.get('id')
+                                        else:
+                                            project_id = getattr(issue_data.project, 'id', None)
 
+                                    if project_id:
+                                        from youtrack_mcp.api.projects import ProjectsClient
+                                        projects_client = ProjectsClient(self.client)
+                                        allowed_values = await projects_client.get_custom_field_allowed_values(project_id, field_name)
+                                        if allowed_values:
+                                            valid_names = [v.get('name', '') for v in allowed_values if v.get('name')]
+                                            if valid_names:
+                                                # Sort by similarity to the invalid value
+                                                from difflib import SequenceMatcher
+                                                def similarity(a, b):
+                                                    return SequenceMatcher(None, a.lower(), b.lower()).ratio()
+
+                                                # Sort by similarity score (highest first)
+                                                # Use the invalid value if available, otherwise the field value
+                                                compare_value = invalid_value or str(custom_fields[field_name])
+                                                valid_names.sort(key=lambda x: similarity(compare_value, x), reverse=True)
+
+                                                # Show the most similar values first
+                                                field_hint += f". Valid values are: {', '.join(valid_names[:10])}"
+                                                if len(valid_names) > 10:
+                                                    field_hint += f" (and {len(valid_names) - 10} more)"
+                                except (YouTrackAPIError, AttributeError, KeyError, TypeError) as e:
+                                    logger.warning(f"Failed to get valid values for field '{field_name}': {e}")
+                                    # Still provide a hint about checking valid values
+                                    field_hint += ". Please check the field's allowed values in YouTrack"
+                                break
+
+                        # Build the final error message with any hints we collected
+                        if invalid_value:
                             error_msg = f"Invalid value '{invalid_value}'{field_hint}. The value you provided is not a valid option for this field."
                         else:
                             error_msg += f": {original_error}"

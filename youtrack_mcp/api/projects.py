@@ -512,7 +512,12 @@ class ProjectsClient:
                 if actual_bundle_id == "*":
                     try:
                         # For multi-value enum fields with [*], try to get values from field instance
-                        field_instance_url = f"admin/projects/{project_id}/customFields/{field_name}?fields=bundle(id,name,values(id,name,description))"
+                        # Use the field ID, not the field name, in the URL
+                        field_id = field_schema.get("id")
+                        if not field_id:
+                            logger.warning(f"No field ID found for field {field_name}")
+                            return []
+                        field_instance_url = f"admin/projects/{project_id}/customFields/{field_id}?fields=bundle(id,name,values(id,name,description))"
                         field_data = await self.client.get(field_instance_url)
                         if field_data and "bundle" in field_data:
                             bundle_data = field_data["bundle"]
