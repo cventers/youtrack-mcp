@@ -208,12 +208,15 @@ class IssuesTools:
             if fields and not ops:
                 ops = []
                 for field_name, value in fields.items():
-                    if field_name in ["summary", "description"]:
-                        # Regular fields
+                    # Built-in fields that should be handled as regular fields, not custom fields
+                    # Note: Assignee is actually "assignees" in the API and can be a built-in field
+                    if field_name.lower() in ["summary", "description", "assignee", "reporter"]:
+                        # Regular/built-in fields
                         ops.append({
                             "op": "set",
                             "path": f"/fields/{field_name}",
-                            "value": value
+                            "value": value,
+                            "builtin": True  # Mark as built-in for special handling
                         })
                     else:
                         # Custom fields
@@ -232,6 +235,7 @@ class IssuesTools:
                     path = op.get("path", "")
                     value = op.get("value")
                     operation = op.get("op", "set")
+                    is_builtin = op.get("builtin", False)
 
                     if operation != "set":
                         continue  # Only support set operations for now
@@ -239,13 +243,30 @@ class IssuesTools:
                     if path.startswith("/fields/"):
                         field_name = path[8:]  # Remove "/fields/" prefix
 
-                        if field_name in ["summary", "description"]:
-                            # Regular fields
-                            regular_updates[field_name] = value
-                            regular_fields_updated.append(field_name)
+                        # Check if this is a built-in field
+                        if field_name.lower() in ["summary", "description", "assignee", "reporter"] or is_builtin:
+                            # Handle built-in fields
+                            if field_name.lower() == "assignee":
+                                # Assignee needs special handling - resolve user ID if needed
+                                if value and self.client.id_resolver:
+                                    try:
+                                        resolved_id = await self.client.id_resolver.resolve_user_id(value)
+                                        regular_updates["assignee"] = resolved_id
+                                        if resolved_id != value:
+                                            logger.info(f"Resolved assignee '{value}' to ID '{resolved_id}'")
+                                    except (IDResolutionError, YouTrackAPIError, ValueError) as e:
+                                        logger.warning(f"Failed to resolve assignee ID: {e}")
+                                        regular_updates["assignee"] = value
+                                else:
+                                    regular_updates["assignee"] = value
+                                regular_fields_updated.append("assignee")
+                            else:
+                                # Other regular fields
+                                regular_updates[field_name] = value
+                                regular_fields_updated.append(field_name)
                         else:
                             # Custom fields - resolve user references if needed
-                            if field_name in ["Assignee", "Reporter", "Owner"] and value and self.client.id_resolver:
+                            if field_name in ["Owner"] and value and self.client.id_resolver:
                                 try:
                                     if isinstance(value, list):
                                         resolved_value = []
