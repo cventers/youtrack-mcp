@@ -294,7 +294,8 @@ class IssuesTools:
                     updated_issue = await self.issues_api.update_issue(
                         issue_id=issue_id,
                         summary=regular_updates.get("summary"),
-                        description=regular_updates.get("description")
+                        description=regular_updates.get("description"),
+                        assignee=regular_updates.get("assignee")
                     )
 
                 # Apply custom field updates with schema-aware processing
