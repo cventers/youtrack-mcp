@@ -248,17 +248,22 @@ class IssuesTools:
                             # Handle built-in fields
                             if field_name.lower() == "assignee":
                                 # Assignee needs special handling - resolve user ID if needed
-                                if value and self.client.id_resolver:
+                                # Handle array input (e.g., ["cventers"])
+                                assignee_value = value
+                                if isinstance(value, list) and len(value) > 0:
+                                    assignee_value = value[0]  # Take first element for single assignee
+
+                                if assignee_value and self.client.id_resolver:
                                     try:
-                                        resolved_id = await self.client.id_resolver.resolve_user_id(value)
+                                        resolved_id = await self.client.id_resolver.resolve_user_id(assignee_value)
                                         regular_updates["assignee"] = resolved_id
-                                        if resolved_id != value:
-                                            logger.info(f"Resolved assignee '{value}' to ID '{resolved_id}'")
+                                        if resolved_id != assignee_value:
+                                            logger.info(f"Resolved assignee '{assignee_value}' to ID '{resolved_id}'")
                                     except (IDResolutionError, YouTrackAPIError, ValueError) as e:
                                         logger.warning(f"Failed to resolve assignee ID: {e}")
-                                        regular_updates["assignee"] = value
+                                        regular_updates["assignee"] = assignee_value
                                 else:
-                                    regular_updates["assignee"] = value
+                                    regular_updates["assignee"] = assignee_value
                                 regular_fields_updated.append("assignee")
                             else:
                                 # Other regular fields
