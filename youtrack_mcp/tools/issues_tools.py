@@ -209,8 +209,8 @@ class IssuesTools:
                 ops = []
                 for field_name, value in fields.items():
                     # Built-in fields that should be handled as regular fields, not custom fields
-                    # Note: Assignee is actually "assignees" in the API and can be a built-in field
-                    if field_name.lower() in ["summary", "description", "assignee", "reporter"]:
+                    # Note: "assignee" (lowercase) is built-in, but "Assignee" (capital) could be custom
+                    if field_name in ["summary", "description"]:
                         # Regular/built-in fields
                         ops.append({
                             "op": "set",

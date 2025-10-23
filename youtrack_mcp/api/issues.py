@@ -335,6 +335,19 @@ class IssuesClient:
         if bundle_type == "UserBundle" or field_type == "user":
             if is_multi_value:
                 custom_field["$type"] = "MultiUserIssueCustomField"
+                # Multi-user fields need array of user objects
+                if isinstance(field_value, str):
+                    # Single string value - wrap in array of user objects
+                    custom_field["value"] = [{
+                        "$type": "User",
+                        "login": field_value
+                    }]
+                elif isinstance(field_value, list):
+                    # Array of values - convert each to user object
+                    custom_field["value"] = [
+                        {"$type": "User", "login": v}
+                        for v in field_value
+                    ]
             else:
                 custom_field["$type"] = "SingleUserIssueCustomField"
                 if isinstance(field_value, str):
