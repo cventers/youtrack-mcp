@@ -1092,7 +1092,47 @@ class IssuesClient:
                 try:
                     error_details = direct_error.response.json()
                     if 'error_description' in error_details:
-                        error_msg += f": {error_details['error_description']}"
+                        original_error = error_details['error_description']
+                        # Check for the cryptic "entity not found" error and make it more helpful
+                        if '-type entity with the specified name' in original_error and 'was not found' in original_error:
+                            # Extract the invalid value from the error message
+                            import re
+                            value_match = re.search(r'An (.+?)-type entity', original_error)
+                            invalid_value = value_match.group(1) if value_match else 'provided value'
+
+                            # Try to get valid values for better error message
+                            field_hint = ""
+                            for field_name in custom_fields.keys():
+                                if invalid_value.lower() in str(custom_fields[field_name]).lower():
+                                    field_hint = f" for field '{field_name}'"
+                                    # Try to get valid values for this field
+                                    try:
+                                        # Get issue data to extract project ID
+                                        issue_data = await self.get_issue(issue_id)
+                                        project_id = None
+                                        if hasattr(issue_data, 'project') and issue_data.project:
+                                            if isinstance(issue_data.project, dict):
+                                                project_id = issue_data.project.get('id')
+                                            else:
+                                                project_id = getattr(issue_data.project, 'id', None)
+
+                                        if project_id:
+                                            from youtrack_mcp.api.projects import ProjectsClient
+                                            projects_client = ProjectsClient(self.client)
+                                            allowed_values = await projects_client.get_custom_field_allowed_values(project_id, field_name)
+                                            if allowed_values:
+                                                valid_names = [v.get('name', '') for v in allowed_values if v.get('name')]
+                                                if valid_names:
+                                                    field_hint += f". Valid values are: {', '.join(valid_names[:10])}"
+                                                    if len(valid_names) > 10:
+                                                        field_hint += f" (and {len(valid_names) - 10} more)"
+                                    except Exception:
+                                        pass  # If we can't get valid values, just use the basic error
+                                    break
+
+                            error_msg = f"Invalid value '{invalid_value}'{field_hint}. The value you provided is not a valid option for this field."
+                        else:
+                            error_msg += f": {original_error}"
                     elif 'error' in error_details:
                         error_msg += f": {error_details['error']}"
                     else:
@@ -1101,7 +1141,7 @@ class IssuesClient:
                     error_msg += f": {str(direct_error)}"
             else:
                 error_msg += f": {str(direct_error)}"
-            
+
             raise YouTrackAPIError(error_msg)
 
     async def _create_enum_field_object(self, project_id: str, field_name: str, field_value: Any) -> Dict[str, Any]:
