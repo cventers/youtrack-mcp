@@ -244,14 +244,17 @@ class IssuesTools:
                         field_name = path[8:]  # Remove "/fields/" prefix
 
                         # Check if this is a built-in field
-                        if field_name.lower() in ["summary", "description", "assignee", "reporter"] or is_builtin:
+                        # Note: Only treat lowercase "assignee" as built-in. "Assignee" (capital) might be custom
+                        if field_name in ["summary", "description", "assignee", "reporter"] or is_builtin:
                             # Handle built-in fields
                             if field_name.lower() == "assignee":
-                                # Assignee needs special handling - resolve user ID if needed
+                                # Built-in assignee field (single value only)
                                 # Handle array input (e.g., ["cventers"])
                                 assignee_value = value
-                                if isinstance(value, list) and len(value) > 0:
-                                    assignee_value = value[0]  # Take first element for single assignee
+                                if isinstance(value, list):
+                                    if len(value) > 1:
+                                        logger.warning(f"Built-in assignee field only supports single value, using first of {len(value)} values: {value[0]}")
+                                    assignee_value = value[0] if value else None
 
                                 if assignee_value and self.client.id_resolver:
                                     try:
@@ -271,7 +274,8 @@ class IssuesTools:
                                 regular_fields_updated.append(field_name)
                         else:
                             # Custom fields - resolve user references if needed
-                            if field_name in ["Owner"] and value and self.client.id_resolver:
+                            # Both "Assignee" and "Owner" are common multi-user custom fields
+                            if field_name in ["Assignee", "Owner"] and value and self.client.id_resolver:
                                 try:
                                     if isinstance(value, list):
                                         resolved_value = []
