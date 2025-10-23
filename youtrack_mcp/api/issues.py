@@ -447,7 +447,7 @@ class IssuesClient:
         """
         try:
             # Build fields query based on requested expansions
-            base_fields = "id,idReadable,summary,description,created,updated,project(id,shortName),reporter,assignee,customFields,attachments(id,name,url,mimeType,size)"
+            base_fields = "id,idReadable,summary,description,created,updated,project(id,shortName),reporter,assignee,customFields(id,name,value($type,login,name)),attachments(id,name,url,mimeType,size)"
 
             expansion_fields = []
             if include:
@@ -827,6 +827,9 @@ class IssuesClient:
             # Return updated issue data
             return await self.get_issue(issue_id)
 
+        except YouTrackAPIError:
+            # Re-raise YouTrackAPIError as-is to preserve the error message
+            raise
         except Exception as e:
             logger.exception(f"Error updating custom fields for issue {issue_id}")
             raise YouTrackAPIError(f"Failed to update custom fields: {str(e)}")
@@ -1136,11 +1139,22 @@ class IssuesClient:
                                             if allowed_values:
                                                 valid_names = [v.get('name', '') for v in allowed_values if v.get('name')]
                                                 if valid_names:
+                                                    # Sort by similarity to the invalid value
+                                                    from difflib import SequenceMatcher
+                                                    def similarity(a, b):
+                                                        return SequenceMatcher(None, a.lower(), b.lower()).ratio()
+
+                                                    # Sort by similarity score (highest first)
+                                                    valid_names.sort(key=lambda x: similarity(invalid_value, x), reverse=True)
+
+                                                    # Show the most similar values first
                                                     field_hint += f". Valid values are: {', '.join(valid_names[:10])}"
                                                     if len(valid_names) > 10:
                                                         field_hint += f" (and {len(valid_names) - 10} more)"
-                                    except (YouTrackAPIError, AttributeError, KeyError, TypeError):
-                                        pass  # If we can't get valid values, just use the basic error
+                                    except (YouTrackAPIError, AttributeError, KeyError, TypeError) as e:
+                                        logger.warning(f"Failed to get valid values for field '{field_name}': {e}")
+                                        # Still provide a hint about checking valid values
+                                        field_hint += ". Please check the field's allowed values in YouTrack"
                                     break
 
                             error_msg = f"Invalid value '{invalid_value}'{field_hint}. The value you provided is not a valid option for this field."
