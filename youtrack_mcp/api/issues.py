@@ -157,6 +157,109 @@ class IssuesClient:
             client: The YouTrack API client
         """
         self.client = client
+        # Cache for project schemas to avoid repeated API calls
+        self._schema_cache = {}
+
+    async def _get_project_schema(self, project_id: str) -> Dict[str, Dict[str, Any]]:
+        """
+        Get cached project schema for custom fields.
+
+        Args:
+            project_id: The project ID
+
+        Returns:
+            Dictionary mapping field names to their schemas
+        """
+        # Check cache first
+        if project_id in self._schema_cache:
+            return self._schema_cache[project_id]
+
+        try:
+            # Import ProjectsClient here to avoid circular imports
+            from youtrack_mcp.api.projects import ProjectsClient
+
+            # Get the schema from the projects API
+            projects_client = ProjectsClient(self.client)
+            schema = await projects_client.get_all_custom_fields_schemas(project_id)
+
+            # Cache it for future use
+            self._schema_cache[project_id] = schema
+            return schema
+        except (YouTrackAPIError, ValidationError, AuthenticationError, PermissionDeniedError) as e:
+            # Catch specific YouTrack API errors
+            logger.warning(f"Could not get project schema for {project_id}: {e}")
+            # Return empty schema if we can't get it
+            return {}
+
+    def _format_custom_field_with_schema(self, field_name: str, field_value: Any, field_schema: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Format a custom field value based on its schema.
+
+        Args:
+            field_name: The field name
+            field_value: The field value (already normalized)
+            field_schema: The schema for this field
+
+        Returns:
+            Formatted custom field object with proper $type
+        """
+        field_type = field_schema.get("type", "string")
+        bundle_type = field_schema.get("bundle_type", "")
+        is_multi_value = field_schema.get("multi_value", False)
+
+        # Build base field object
+        custom_field = {
+            "name": field_name,
+            "value": field_value
+        }
+
+        # Determine the correct $type based on bundle_type and field type
+        if bundle_type == "UserBundle" or field_type == "user":
+            if is_multi_value:
+                custom_field["$type"] = "MultiUserIssueCustomField"
+            else:
+                custom_field["$type"] = "SingleUserIssueCustomField"
+                if isinstance(field_value, str):
+                    custom_field["value"] = {
+                        "$type": "User",
+                        "login": field_value
+                    }
+        elif bundle_type == "EnumBundle" or field_type == "enum":
+            if is_multi_value:
+                custom_field["$type"] = "MultiEnumIssueCustomField"
+            else:
+                custom_field["$type"] = "SingleEnumIssueCustomField"
+                if isinstance(field_value, str):
+                    custom_field["value"] = {
+                        "$type": "EnumBundleElement",
+                        "name": field_value
+                    }
+        elif bundle_type in ["StateMachineBundle", "StateBundle"] or field_type == "state":
+            custom_field["$type"] = "StateIssueCustomField"
+            if isinstance(field_value, str):
+                custom_field["value"] = {
+                    "$type": "StateBundleElement",
+                    "name": field_value
+                }
+        elif field_type == "date":
+            custom_field["$type"] = "DateIssueCustomField"
+            # Date values are typically timestamps or ISO strings
+        elif field_type == "period":
+            custom_field["$type"] = "PeriodIssueCustomField"
+            if isinstance(field_value, str):
+                custom_field["value"] = {
+                    "$type": "PeriodValue",
+                    "presentation": field_value
+                }
+        elif field_type == "text":
+            custom_field["$type"] = "TextIssueCustomField"
+        elif field_type == "float":
+            custom_field["$type"] = "SimpleIssueCustomField"
+        else:
+            # Default to text field for unknown types
+            custom_field["$type"] = "TextIssueCustomField"
+
+        return custom_field
 
     async def get_issue(self, issue_id: str, include: Optional[List[str]] = None) -> Issue:
         """
@@ -290,7 +393,9 @@ class IssuesClient:
                 resolved_project_id = await self.client.id_resolver.resolve_project_id(project_id)
 
             # Prepare the basic issue data
+            # YouTrack API requires $type field for entity creation
             issue_data = {
+                "$type": "Issue",
                 "project": {"id": resolved_project_id},
                 "summary": summary,
             }
@@ -316,16 +421,34 @@ class IssuesClient:
 
             # Handle custom fields
             if custom_fields:
-                # Format custom fields as YouTrack expects
-                # Format: {"customFields": [{"name": "FieldName", "value": "FieldValue"}]}
+                # Get project schema for proper field formatting
+                project_schema = await self._get_project_schema(resolved_project_id)
+
+                # Format custom fields with proper $type based on schema
                 custom_fields_list = []
                 for field_name, field_value in custom_fields.items():
-                    # Normalize the field value if needed
+                    # Normalize the field value (handles arrays, dicts, etc.)
                     normalized_value = self._normalize_field_value(field_value)
-                    custom_fields_list.append({
-                        "name": field_name,
-                        "value": normalized_value
-                    })
+
+                    # Get schema for this specific field
+                    field_schema = project_schema.get(field_name, {})
+
+                    if field_schema:
+                        # Use schema-based formatting
+                        formatted_field = self._format_custom_field_with_schema(
+                            field_name, normalized_value, field_schema
+                        )
+                    else:
+                        # Fallback: field not in schema, use simple format
+                        logger.warning(f"Field '{field_name}' not found in project schema, using simple format")
+                        formatted_field = {
+                            "name": field_name,
+                            "value": normalized_value,
+                            "$type": "TextIssueCustomField"  # Default type
+                        }
+
+                    custom_fields_list.append(formatted_field)
+
                 issue_data["customFields"] = custom_fields_list
 
             logger.info("creating_issue_with_data_issue_data", issue_data=issue_data)
@@ -399,17 +522,52 @@ class IssuesClient:
 
             # Handle custom fields
             if custom_fields:
-                # Format custom fields as YouTrack expects
-                # Format: {"customFields": [{"name": "FieldName", "value": "FieldValue"}]}
-                custom_fields_list = []
-                for field_name, field_value in custom_fields.items():
-                    # Normalize the field value if needed
-                    normalized_value = self._normalize_field_value(field_value)
-                    custom_fields_list.append({
-                        "name": field_name,
-                        "value": normalized_value
-                    })
-                update_data["customFields"] = custom_fields_list
+                # Get current issue to extract project ID
+                current_issue = await self.get_issue(issue_id)
+                project_id = current_issue.project.id if current_issue.project else None
+
+                if project_id:
+                    # Get project schema for proper field formatting
+                    project_schema = await self._get_project_schema(project_id)
+
+                    # Format custom fields with proper $type based on schema
+                    custom_fields_list = []
+                    for field_name, field_value in custom_fields.items():
+                        # Normalize the field value (handles arrays, dicts, etc.)
+                        normalized_value = self._normalize_field_value(field_value)
+
+                        # Get schema for this specific field
+                        field_schema = project_schema.get(field_name, {})
+
+                        if field_schema:
+                            # Use schema-based formatting
+                            formatted_field = self._format_custom_field_with_schema(
+                                field_name, normalized_value, field_schema
+                            )
+                        else:
+                            # Fallback: field not in schema, use simple format
+                            logger.warning(f"Field '{field_name}' not found in project schema, using simple format")
+                            formatted_field = {
+                                "name": field_name,
+                                "value": normalized_value,
+                                "$type": "TextIssueCustomField"  # Default type
+                            }
+
+                        custom_fields_list.append(formatted_field)
+
+                    update_data["customFields"] = custom_fields_list
+                else:
+                    logger.warning("Could not determine project ID, using simple custom field format")
+                    # Fallback to simple format if we can't get project ID
+                    custom_fields_list = []
+                    for field_name, field_value in custom_fields.items():
+                        normalized_value = self._normalize_field_value(field_value)
+                        custom_fields_list.append({
+                            "name": field_name,
+                            "value": normalized_value,
+                            "$type": "TextIssueCustomField"
+                        })
+                    update_data["customFields"] = custom_fields_list
 
             if not update_data:
                 logger.info("No updates provided, returning current issue")
@@ -669,15 +827,26 @@ class IssuesClient:
         Normalize complex field value objects to simple strings.
 
         Converts dictionary field values like {"name": "Critical"} to "Critical".
+        Handles arrays by extracting single values or preserving for multi-value fields.
 
         Args:
-            field_value: The field value to normalize (can be dict, str, or other)
+            field_value: The field value to normalize (can be dict, str, list, or other)
 
         Returns:
-            Simple string value suitable for API calls
+            Simple string value, list, or original value suitable for API calls
         """
         if field_value is None:
             return None
+
+        # Handle arrays/lists
+        if isinstance(field_value, list):
+            # If it's a single-element array, extract the value for single-value fields
+            # This handles cases like ["Configuration"] or ["cventers"]
+            if len(field_value) == 1:
+                return self._normalize_field_value(field_value[0])
+            # Otherwise return as array for multi-value fields
+            # Empty arrays or multi-element arrays are preserved
+            return [self._normalize_field_value(v) for v in field_value]
 
         if isinstance(field_value, dict):
             # Try to extract value from common field patterns
