@@ -168,7 +168,7 @@ await issues.create(
     custom_fields={
         "Priority": "High",           # Single enum
         "Due Date": "2025-10-25",    # Date → timestamp
-        "Change Type": "Configuration", # Multi-value enum
+        "Change Type": "Configuration Change", # Multi-value enum
         "Assignee": ["cventers"]      # User field
     }
 )
@@ -179,7 +179,7 @@ await issues.create(
 await issues.patch(
     issue_id="CLUSTER-4441",
     fields={
-        "Change Type": "Configuration",    # Auto-detects multi-value
+        "Change Type": "Configuration Change",    # Auto-detects multi-value
         "Emergency Change?": "No",         # Single enum
         "Customer Facing?": "Yes",         # Single enum
         "Due Date": "2025-10-30"          # Date conversion

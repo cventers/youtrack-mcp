@@ -124,7 +124,7 @@ await issues.patch(
         "Type": "Change Control",
         "Assignee": ["cventers"],  # Will be ID-resolved
         "Due Date": "2025-10-25",
-        "Change Type": "Configuration",
+        "Change Type": "Configuration Change",
         "Emergency Change?": "No",
         "Customer Facing?": "Yes"
     }
