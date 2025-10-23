@@ -1126,7 +1126,7 @@ class IssuesClient:
                                                     field_hint += f". Valid values are: {', '.join(valid_names[:10])}"
                                                     if len(valid_names) > 10:
                                                         field_hint += f" (and {len(valid_names) - 10} more)"
-                                    except Exception:
+                                    except (YouTrackAPIError, AttributeError, KeyError, TypeError):
                                         pass  # If we can't get valid values, just use the basic error
                                     break
 
@@ -1137,7 +1137,7 @@ class IssuesClient:
                         error_msg += f": {error_details['error']}"
                     else:
                         error_msg += f": {str(direct_error)}"
-                except:
+                except (AttributeError, KeyError, TypeError, ValueError):
                     error_msg += f": {str(direct_error)}"
             else:
                 error_msg += f": {str(direct_error)}"
