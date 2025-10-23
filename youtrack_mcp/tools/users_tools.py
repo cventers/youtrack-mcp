@@ -10,6 +10,7 @@ from typing import Any, Dict, Optional
 
 from youtrack_mcp.api.client import YouTrackClient
 from youtrack_mcp.api.users import UsersClient
+from youtrack_mcp.utils.resolver_registry import resolver_registry
 
 logger = get_logger(__name__)
 
@@ -18,8 +19,17 @@ class UsersTools:
     """Minimal users tools with clean interfaces."""
 
     def __init__(self):
-        """Initialize core users tools."""
-        self.client = YouTrackClient()
+        """Initialize core users tools with ID resolution support."""
+        # Get singleton ID resolver
+        id_resolver = resolver_registry.get_resolver()
+
+        # Initialize client with resolver
+        self.client = YouTrackClient(id_resolver=id_resolver)
+
+        # Set client reference in resolver if needed
+        if id_resolver.client is None:
+            id_resolver.client = self.client
+
         self.users_api = UsersClient(self.client)
 
     async def search(self, query: str, limit: int = 10) -> dict:

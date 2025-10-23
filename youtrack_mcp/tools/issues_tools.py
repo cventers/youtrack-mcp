@@ -23,7 +23,8 @@ from youtrack_mcp.api.client import (
 )
 from youtrack_mcp.api.issues import IssuesClient
 
-
+from youtrack_mcp.utils.resolver_registry import resolver_registry
+from youtrack_mcp.utils.id_resolver import IDResolutionError
 from youtrack_mcp.utils.error_educator import LLMErrorEducator
 
 # Initialize the error educator
@@ -36,8 +37,22 @@ class IssuesTools:
     """Minimal issues tools with clean interfaces."""
 
     def __init__(self) -> None:
-        """Initialize core issues tools."""
-        self.client = YouTrackClient()
+        """Initialize core issues tools with ID resolution support."""
+        # Get singleton ID resolver
+        id_resolver = resolver_registry.get_resolver()
+
+        # Initialize client with resolver
+        self.client = YouTrackClient(id_resolver=id_resolver)
+
+        # Set client reference and initialize API clients in resolver
+        if id_resolver.client is None:
+            id_resolver.client = self.client
+            # Re-initialize API clients now that we have the client
+            from youtrack_mcp.api.projects import ProjectsClient
+            from youtrack_mcp.api.users import UsersClient
+            id_resolver.projects_api = ProjectsClient(self.client)
+            id_resolver.users_api = UsersClient(self.client)
+
         self.issues_api = IssuesClient(self.client)
 
     async def get(self, issue_id: str, include: Optional[List[str]] = None) -> dict:
@@ -100,7 +115,7 @@ class IssuesTools:
         FORMAT: issues.create(project="DEMO", summary="Bug report", description="Details...", custom_fields={"Type": "Bug", "Priority": "High"})
 
         Args:
-            project: Project ID or short name
+            project: Project ID or short name (e.g., "CLUSTER" or "63-2")
             summary: Issue summary/title
             description: Optional issue description
             custom_fields: Optional dictionary of custom field names and values (e.g., {"Type": "Bug", "Priority": "High"})
@@ -109,12 +124,55 @@ class IssuesTools:
             JSON with created issue data
         """
         try:
-            # Create the issue
+            # Resolve project ID if resolver is available
+            resolved_project_id = project
+            if self.client.id_resolver:
+                try:
+                    resolved_project_id = await self.client.id_resolver.resolve_project_id(project)
+                    if resolved_project_id != project:
+                        logger.info(f"Resolved project '{project}' to ID '{resolved_project_id}'")
+                except IDResolutionError as e:
+                    logger.warning(f"Failed to resolve project ID for '{project}', using as-is: {e}")
+                    # Fall back to using the project parameter as-is
+                    resolved_project_id = project
+                except (YouTrackAPIError, ValueError) as e:
+                    logger.warning(f"Error resolving project ID for '{project}': {e}")
+                    resolved_project_id = project
+
+            # Resolve user references in custom fields if needed
+            resolved_custom_fields = custom_fields
+            if custom_fields and self.client.id_resolver:
+                resolved_custom_fields = {}
+                for field_name, value in custom_fields.items():
+                    # Check for user-type fields that might need resolution
+                    if field_name in ["Assignee", "Reporter", "Owner"] and value:
+                        try:
+                            if isinstance(value, list):
+                                resolved_value = []
+                                for user_ref in value:
+                                    if user_ref:  # Skip empty values
+                                        resolved_id = await self.client.id_resolver.resolve_user_id(user_ref)
+                                        resolved_value.append(resolved_id)
+                                        if resolved_id != user_ref:
+                                            logger.info(f"Resolved user '{user_ref}' to ID '{resolved_id}'")
+                                resolved_custom_fields[field_name] = resolved_value
+                            else:
+                                resolved_id = await self.client.id_resolver.resolve_user_id(value)
+                                resolved_custom_fields[field_name] = resolved_id
+                                if resolved_id != value:
+                                    logger.info(f"Resolved user '{value}' to ID '{resolved_id}'")
+                        except (IDResolutionError, YouTrackAPIError, ValueError) as e:
+                            logger.warning(f"Failed to resolve user ID for field '{field_name}': {e}")
+                            resolved_custom_fields[field_name] = value  # Use original value on failure
+                    else:
+                        resolved_custom_fields[field_name] = value
+
+            # Create the issue with resolved IDs
             issue = await self.issues_api.create_issue(
-                project_id=project,
+                project_id=resolved_project_id,
                 summary=summary,
                 description=description,
-                custom_fields=custom_fields
+                custom_fields=resolved_custom_fields
             )
 
             # Convert to dict for JSON response
@@ -186,8 +244,28 @@ class IssuesTools:
                             regular_updates[field_name] = value
                             regular_fields_updated.append(field_name)
                         else:
-                            # Custom fields - use IssuesClient builders for schema-aware coercion
-                            custom_fields_dict[field_name] = value
+                            # Custom fields - resolve user references if needed
+                            if field_name in ["Assignee", "Reporter", "Owner"] and value and self.client.id_resolver:
+                                try:
+                                    if isinstance(value, list):
+                                        resolved_value = []
+                                        for user_ref in value:
+                                            if user_ref:  # Skip empty values
+                                                resolved_id = await self.client.id_resolver.resolve_user_id(user_ref)
+                                                resolved_value.append(resolved_id)
+                                                if resolved_id != user_ref:
+                                                    logger.info(f"Resolved user '{user_ref}' to ID '{resolved_id}'")
+                                        custom_fields_dict[field_name] = resolved_value
+                                    else:
+                                        resolved_id = await self.client.id_resolver.resolve_user_id(value)
+                                        custom_fields_dict[field_name] = resolved_id
+                                        if resolved_id != value:
+                                            logger.info(f"Resolved user '{value}' to ID '{resolved_id}'")
+                                except (IDResolutionError, YouTrackAPIError, ValueError) as e:
+                                    logger.warning(f"Failed to resolve user ID for field '{field_name}': {e}")
+                                    custom_fields_dict[field_name] = value  # Use original value on failure
+                            else:
+                                custom_fields_dict[field_name] = value
                             custom_fields_updated.append(field_name)
 
                 # Apply regular field updates

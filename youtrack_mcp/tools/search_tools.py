@@ -12,6 +12,7 @@ from typing import Any, Dict, Optional
 
 from youtrack_mcp.api.client import YouTrackClient
 from youtrack_mcp.api.issues import IssuesClient
+from youtrack_mcp.utils.resolver_registry import resolver_registry
 
 logger = get_logger(__name__)
 
@@ -20,12 +21,21 @@ class SearchTools:
     """Minimal search tools with clean interfaces."""
 
     def __init__(self, ai_tools=None):
-        """Initialize core search tools.
+        """Initialize core search tools with ID resolution support.
 
         Args:
             ai_tools: Optional AITools instance to use for NL to YQL translation
         """
-        self.client = YouTrackClient()
+        # Get singleton ID resolver
+        id_resolver = resolver_registry.get_resolver()
+
+        # Initialize client with resolver
+        self.client = YouTrackClient(id_resolver=id_resolver)
+
+        # Set client reference in resolver if needed
+        if id_resolver.client is None:
+            id_resolver.client = self.client
+
         self.issues_api = IssuesClient(self.client)
         self.ai_tools = ai_tools  # Will be None if not provided
 

@@ -23,6 +23,9 @@ from youtrack_mcp.api.client import (
 )
 from youtrack_mcp.api.projects import ProjectsClient
 
+from youtrack_mcp.utils.resolver_registry import resolver_registry
+from youtrack_mcp.utils.id_resolver import IDResolutionError
+
 # format_json_response removed - middleware handles timestamp conversion
 from youtrack_mcp.utils.error_educator import create_llm_friendly_error
 
@@ -33,8 +36,22 @@ class ProjectsTools:
     """Minimal projects tools with clean interfaces."""
 
     def __init__(self):
-        """Initialize core projects tools."""
-        self.client = YouTrackClient()
+        """Initialize core projects tools with ID resolution support."""
+        # Get singleton ID resolver
+        id_resolver = resolver_registry.get_resolver()
+
+        # Initialize client with resolver
+        self.client = YouTrackClient(id_resolver=id_resolver)
+
+        # Set client reference and initialize API clients in resolver
+        if id_resolver.client is None:
+            id_resolver.client = self.client
+            # Re-initialize API clients now that we have the client
+            from youtrack_mcp.api.projects import ProjectsClient as ProjClient
+            from youtrack_mcp.api.users import UsersClient
+            id_resolver.projects_api = ProjClient(self.client)
+            id_resolver.users_api = UsersClient(self.client)
+
         self.projects_api = ProjectsClient(self.client)
 
     async def list(self, include_archived: bool = False) -> dict:
@@ -84,14 +101,28 @@ class ProjectsTools:
         FORMAT: projects.get(project_id="DEMO", include=["schema", "issues"])
 
         Args:
-            project_id: Project ID or short name
+            project_id: Project ID or short name (e.g., "CLUSTER" or "63-2")
             include: List of expansions (schema, issues, etc.)
 
         Returns:
             JSON with full project data and requested expansions
         """
         try:
-            project = await self.projects_api.get_project(project_id)
+            # Resolve project ID if resolver is available
+            resolved_project_id = project_id
+            if self.client.id_resolver:
+                try:
+                    resolved_project_id = await self.client.id_resolver.resolve_project_id(project_id)
+                    if resolved_project_id != project_id:
+                        logger.info(f"Resolved project '{project_id}' to ID '{resolved_project_id}'")
+                except IDResolutionError as e:
+                    logger.warning(f"Failed to resolve project ID for '{project_id}', using as-is: {e}")
+                    resolved_project_id = project_id
+                except (YouTrackAPIError, ValueError) as e:
+                    logger.warning(f"Error resolving project ID for '{project_id}': {e}")
+                    resolved_project_id = project_id
+
+            project = await self.projects_api.get_project(resolved_project_id)
 
             # Convert to dict for JSON response
             if hasattr(project, "model_dump"):
@@ -152,7 +183,7 @@ class ProjectsTools:
         FORMAT: projects.patch(project_id="DEMO", ops=[{"op": "set", "field": "name", "value": "New Name"}])
 
         Args:
-            project_id: Project ID or short name
+            project_id: Project ID or short name (e.g., "CLUSTER" or "63-2")
             ops: List of typed operations (set, add, remove)
 
         Returns:
@@ -164,8 +195,22 @@ class ProjectsTools:
                     "error": "Operations list is required"
                 }
 
+            # Resolve project ID if resolver is available
+            resolved_project_id = project_id
+            if self.client.id_resolver:
+                try:
+                    resolved_project_id = await self.client.id_resolver.resolve_project_id(project_id)
+                    if resolved_project_id != project_id:
+                        logger.info(f"Resolved project '{project_id}' to ID '{resolved_project_id}'")
+                except IDResolutionError as e:
+                    logger.warning(f"Failed to resolve project ID for '{project_id}', using as-is: {e}")
+                    resolved_project_id = project_id
+                except (YouTrackAPIError, ValueError) as e:
+                    logger.warning(f"Error resolving project ID for '{project_id}': {e}")
+                    resolved_project_id = project_id
+
             # Get current project data
-            current_project = await self.projects_api.get_project(project_id)
+            current_project = await self.projects_api.get_project(resolved_project_id)
 
             # Apply operations
             updates = {}
@@ -291,17 +336,30 @@ class ProjectsTools:
         Args:
             name: Project name
             short_name: Project short name/key
-            lead_id: Project leader user ID
+            lead_id: Project leader user ID or login (e.g., "admin" or "cventers")
             description: Optional project description
 
         Returns:
             JSON with created project data
         """
         try:
+            # Resolve lead user ID if resolver is available
+            resolved_lead_id = lead_id
+            if self.client.id_resolver:
+                try:
+                    resolved_lead_id = await self.client.id_resolver.resolve_user_id(lead_id)
+                    if resolved_lead_id != lead_id:
+                        logger.info(f"Resolved lead user '{lead_id}' to ID '{resolved_lead_id}'")
+                except IDResolutionError as e:
+                    logger.warning(f"Failed to resolve lead user ID for '{lead_id}', using as-is: {e}")
+                    resolved_lead_id = lead_id
+                except (YouTrackAPIError, ValueError) as e:
+                    logger.warning(f"Error resolving lead user ID for '{lead_id}': {e}")
+                    resolved_lead_id = lead_id
             project = await self.projects_api.create_project(
                 name=name,
                 short_name=short_name,
-                lead_id=lead_id,
+                lead_id=resolved_lead_id,
                 description=description
             )
 

@@ -389,13 +389,20 @@ class ProjectsClient:
                 if field.get("field", {}).get("name") == field_name:
                     field_schema = field.get("field", {})
                     field_type = field_schema.get("fieldType", {})
-                    
+
+                    # Check if this is a multi-value field based on bundle_id pattern
+                    bundle_id_str = field_type.get("id", "")
+                    is_multi_value = field_schema.get("isMultiValue", False)
+                    # Fields with [*] in bundle_id are multi-value (e.g., "enum[*]", "user[*]")
+                    if "[*]" in bundle_id_str:
+                        is_multi_value = True
+
                     enhanced_schema = {
                         "name": field_name,
                         "type": field_type.get("valueType", "string"),
                         "bundle_type": field_type.get("$type", ""),
                         "required": field.get("canBeEmpty", True) == False,
-                        "multi_value": field_schema.get("isMultiValue", False),
+                        "multi_value": is_multi_value,
                         "auto_attach": field.get("autoAttached", False),
                         "field_id": field_schema.get("id"),
                         "bundle_id": field_type.get("id")
@@ -499,22 +506,47 @@ class ProjectsClient:
                 # Fallback: try the bundle_id directly
                 if not actual_bundle_id:
                     actual_bundle_id = bundle_id.replace("enum[", "").replace("]", "")
-                
-                try:
-                    bundle_data = await self.client.get(f"admin/customFieldSettings/bundles/enum/{actual_bundle_id}?fields=id,name,values(id,name,description)")
-                    values = bundle_data.get("values", [])
-                    logger.info("Found values for enum field", count=len(values), field_name=field_name)
-                    return [
-                        {
-                            "name": value.get("name", ""),
-                            "description": value.get("description", ""),
-                            "id": value.get("id"),
-                            **{k: v for k, v in value.items() if k not in ["name", "description", "id"]}  # Include any additional fields like color
-                        }
-                        for value in values
-                    ]
-                except Exception as e:
-                    logger.error("error_getting_enum_bundle_actual_bundle_id_stre", actual_bundle_id=actual_bundle_id)
+
+                # If bundle_id has an asterisk, it means it's a multi-value field with a wildcard reference
+                # We need to fetch ALL enum bundles and find the right one by field name
+                if actual_bundle_id == "*":
+                    try:
+                        # For multi-value enum fields with [*], try to get values from field instance
+                        field_instance_url = f"admin/projects/{project_id}/customFields/{field_name}?fields=bundle(id,name,values(id,name,description))"
+                        field_data = await self.client.get(field_instance_url)
+                        if field_data and "bundle" in field_data:
+                            bundle_data = field_data["bundle"]
+                            values = bundle_data.get("values", [])
+                            logger.info("Found values for multi-value enum field via field instance", count=len(values), field_name=field_name)
+                            return [
+                                {
+                                    "name": value.get("name", ""),
+                                    "description": value.get("description", ""),
+                                    "id": value.get("id"),
+                                    **{k: v for k, v in value.items() if k not in ["name", "description", "id"]}
+                                }
+                                for value in values
+                            ]
+                    except Exception as e:
+                        logger.warning(f"Could not get values for multi-value enum field {field_name} via field instance: {e}")
+                        # Continue to error handling below
+                else:
+                    # Normal case: specific bundle ID
+                    try:
+                        bundle_data = await self.client.get(f"admin/customFieldSettings/bundles/enum/{actual_bundle_id}?fields=id,name,values(id,name,description)")
+                        values = bundle_data.get("values", [])
+                        logger.info("Found values for enum field", count=len(values), field_name=field_name)
+                        return [
+                            {
+                                "name": value.get("name", ""),
+                                "description": value.get("description", ""),
+                                "id": value.get("id"),
+                                **{k: v for k, v in value.items() if k not in ["name", "description", "id"]}  # Include any additional fields like color
+                            }
+                            for value in values
+                        ]
+                    except Exception as e:
+                        logger.error("error_getting_enum_bundle_actual_bundle_id_stre", actual_bundle_id=actual_bundle_id)
                     # Return enhanced guidance instead of empty array
                     return [
                         {
@@ -762,12 +794,20 @@ class ProjectsClient:
                     # Build schema directly from the field data we already have
                     field_type = field_info.get("fieldType", {})
                     
+                    # Check if this is a multi-value field based on bundle_id pattern
+                    bundle_id_str = field_type.get("id", "")
+                    is_multi_value = field_info.get("isMultiValue", False)
+                    # Fields with [*] in bundle_id are multi-value (e.g., "enum[*]", "user[*]")
+                    if "[*]" in bundle_id_str:
+                        is_multi_value = True
+                        logger.info(f"Detected multi-value field from bundle_id pattern: {field_name} ({bundle_id_str})")
+
                     enhanced_schema = {
                         "name": field_name,
                         "type": field_type.get("valueType", "string"),
                         "bundle_type": field_type.get("$type", ""),
                         "required": field.get("canBeEmpty", True) == False,
-                        "multi_value": field_info.get("isMultiValue", False),
+                        "multi_value": is_multi_value,
                         "auto_attach": field.get("autoAttached", False),
                         "field_id": field_info.get("id"),
                         "bundle_id": field_type.get("id")

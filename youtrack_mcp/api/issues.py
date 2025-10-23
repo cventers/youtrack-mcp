@@ -4,6 +4,7 @@ YouTrack Issues API client.
 
 from typing import Any, Dict, List, Optional
 import json
+from datetime import datetime
 from youtrack_mcp.logging import get_logger
 import re
 
@@ -191,6 +192,123 @@ class IssuesClient:
             # Return empty schema if we can't get it
             return {}
 
+    async def format_custom_fields_for_api(
+        self,
+        custom_fields: Dict[str, Any],
+        project_id: Optional[str] = None,
+        issue_id: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Unified method to format custom fields for YouTrack API with proper schema-based types.
+
+        This method is used by both create and update operations to ensure consistent
+        field formatting based on the actual project schema.
+
+        Args:
+            custom_fields: Dictionary of field names and values
+            project_id: Project ID (if known)
+            issue_id: Issue ID (to get project if project_id not provided)
+
+        Returns:
+            List of formatted custom field objects with proper $type discriminators
+        """
+        # Get project ID if not provided
+        if not project_id and issue_id:
+            try:
+                issue_data = await self.get_issue(issue_id)
+                if hasattr(issue_data, 'project') and issue_data.project:
+                    if isinstance(issue_data.project, dict):
+                        project_id = issue_data.project.get('id')
+                    else:
+                        project_id = getattr(issue_data.project, 'id', None)
+            except Exception as e:
+                logger.warning(f"Could not get issue data for project ID lookup: {e}")
+
+        if not project_id:
+            logger.warning("Could not determine project ID for schema lookup, using simple formatting")
+            # Fall back to simple formatting without schema
+            return self._format_custom_fields_simple(custom_fields)
+
+        # Get cached project schema
+        project_schema = await self._get_project_schema(project_id)
+
+        # Format each field using schema
+        custom_fields_list = []
+        for field_name, field_value in custom_fields.items():
+            # Normalize the value (handles arrays, dicts, etc.)
+            normalized_value = self._normalize_field_value(field_value)
+
+            # Get schema for this specific field
+            field_schema = project_schema.get(field_name, {})
+
+            if field_schema:
+                # Use schema-based formatting
+                formatted_field = self._format_custom_field_with_schema(
+                    field_name, normalized_value, field_schema
+                )
+            else:
+                # Fallback for fields not in schema
+                logger.warning(f"Field '{field_name}' not found in project schema, using fallback format")
+                formatted_field = {
+                    "name": field_name,
+                    "value": normalized_value,
+                    "$type": "TextIssueCustomField"  # Safe default
+                }
+
+            custom_fields_list.append(formatted_field)
+
+        return custom_fields_list
+
+    def _format_custom_fields_simple(self, custom_fields: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """
+        Simple fallback formatting when project schema is not available.
+
+        Uses basic heuristics based on field names to determine types.
+        """
+        custom_fields_list = []
+        for field_name, field_value in custom_fields.items():
+            # Normalize the value
+            normalized_value = self._normalize_field_value(field_value)
+
+            # Use simple heuristics based on field name
+            field_name_lower = field_name.lower()
+            if field_name_lower in ['state']:
+                field_type = "StateIssueCustomField"
+            elif field_name_lower in ['priority', 'type', 'change type']:
+                field_type = "SingleEnumIssueCustomField"
+            elif field_name_lower in ['assignee', 'reporter', 'owner']:
+                field_type = "SingleUserIssueCustomField"
+            elif field_name_lower in ['estimation', 'spent time']:
+                field_type = "PeriodIssueCustomField"
+            elif 'date' in field_name_lower:
+                field_type = "DateIssueCustomField"
+                # Convert date string to timestamp for date fields
+                if isinstance(normalized_value, str):
+                    try:
+                        # Try common date formats
+                        for date_format in ["%Y-%m-%d", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M:%SZ"]:
+                            try:
+                                dt = datetime.strptime(normalized_value, date_format)
+                                normalized_value = int(dt.timestamp() * 1000)  # Convert to milliseconds
+                                break
+                            except ValueError:
+                                continue
+                    except Exception:
+                        pass  # Keep original value if parsing fails
+            elif field_name_lower.endswith('?') or field_name_lower in ['yes', 'no']:
+                field_type = "SingleEnumIssueCustomField"  # For Yes/No fields
+            else:
+                field_type = "TextIssueCustomField"
+
+            formatted_field = {
+                "name": field_name,
+                "value": normalized_value,
+                "$type": field_type
+            }
+            custom_fields_list.append(formatted_field)
+
+        return custom_fields_list
+
     def _format_custom_field_with_schema(self, field_name: str, field_value: Any, field_schema: Dict[str, Any]) -> Dict[str, Any]:
         """
         Format a custom field value based on its schema.
@@ -227,6 +345,21 @@ class IssuesClient:
         elif bundle_type == "EnumBundle" or field_type == "enum":
             if is_multi_value:
                 custom_field["$type"] = "MultiEnumIssueCustomField"
+                # Multi-value fields need array of objects
+                if isinstance(field_value, str):
+                    # Single string value - wrap in array of objects
+                    custom_field["value"] = [{
+                        "$type": "EnumBundleElement",
+                        "name": field_value
+                    }]
+                elif isinstance(field_value, list):
+                    # Array of values - convert each to object
+                    custom_field["value"] = [
+                        {"$type": "EnumBundleElement", "name": v}
+                        for v in field_value
+                    ]
+                else:
+                    custom_field["value"] = field_value
             else:
                 custom_field["$type"] = "SingleEnumIssueCustomField"
                 if isinstance(field_value, str):
@@ -243,7 +376,34 @@ class IssuesClient:
                 }
         elif field_type == "date":
             custom_field["$type"] = "DateIssueCustomField"
-            # Date values are typically timestamps or ISO strings
+            # Convert date string to timestamp in milliseconds
+            if isinstance(field_value, str):
+                try:
+                    # Try parsing various date formats
+                    for date_format in ["%Y-%m-%d", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%d %H:%M:%S"]:
+                        try:
+                            dt = datetime.strptime(field_value, date_format)
+                            # Convert to milliseconds timestamp
+                            timestamp_ms = int(dt.timestamp() * 1000)
+                            custom_field["value"] = timestamp_ms
+                            break
+                        except ValueError:
+                            continue
+                    else:
+                        # If no format worked, try using the string as-is
+                        logger.warning(f"Could not parse date '{field_value}', using as-is")
+                        custom_field["value"] = field_value
+                except Exception as e:
+                    logger.warning(f"Error parsing date '{field_value}': {e}")
+                    custom_field["value"] = field_value
+            elif isinstance(field_value, (int, float)):
+                # Already a timestamp, ensure it's in milliseconds
+                if field_value < 10000000000:  # Likely in seconds
+                    custom_field["value"] = int(field_value * 1000)
+                else:
+                    custom_field["value"] = int(field_value)
+            else:
+                custom_field["value"] = field_value
         elif field_type == "period":
             custom_field["$type"] = "PeriodIssueCustomField"
             if isinstance(field_value, str):
@@ -868,32 +1028,30 @@ class IssuesClient:
 
     async def _update_other_custom_fields(self, issue_id: str, custom_fields: Dict[str, Any], validate: bool, use_commands: bool) -> None:
         """
-        Update non-state custom fields, prioritizing direct field updates.
-        
-        Based on successful testing, uses simple values where possible:
-        - Strings: "Critical", "admin", "Bug"  
-        - NOT complex objects: {"name": "Critical", "id": "123"}
-        
+        Update non-state custom fields using unified schema-aware formatting.
+
+        Uses the same formatting logic as create_issue to ensure consistency
+        and proper $type discriminators based on actual field schemas.
+
         Args:
             issue_id: Issue identifier
             custom_fields: Dictionary of field names and values
-            validate: Whether to validate field values  
+            validate: Whether to validate field values
             use_commands: Whether to try command-based approach as fallback
         """
         # Method 1: Direct field update approach (primary method)
         try:
-            # Always get issue data to extract project ID for schema lookups
-            issue_data = await self.get_issue(issue_id)
-            
             # Validate fields if requested
             if validate:
+                # Get issue data to extract project ID
+                issue_data = await self.get_issue(issue_id)
                 project_id = None
                 if hasattr(issue_data, 'project') and issue_data.project:
                     if isinstance(issue_data.project, dict):
                         project_id = issue_data.project.get('id')
                     else:
                         project_id = getattr(issue_data.project, 'id', None)
-                
+
                 if project_id:
                     for field_name, field_value in custom_fields.items():
                         is_valid = await self._validate_custom_field_value(project_id, field_name, field_value)
@@ -901,69 +1059,14 @@ class IssuesClient:
                             raise YouTrackAPIError(f"Custom field validation failed for '{field_name}': '{field_value}' is not a valid value")
                 else:
                     logger.warning("Could not get project ID for validation, skipping validation")
-            
-            # YouTrack requires proper object types with actual IDs for custom field updates
-            # Try to get project ID for schema lookups (optional for enhanced object creation)
-            project_id = None
-            
-            if hasattr(issue_data, 'project') and issue_data.project:
-                if isinstance(issue_data.project, dict):
-                    project_id = issue_data.project.get('id')
-                else:
-                    project_id = getattr(issue_data.project, 'id', None)
-            
-            # If we can't get project ID, fall back to simple $type approach
-            if not project_id:
-                logger.warning("Could not determine project ID for enhanced object creation, using simple $type approach")
-                use_simple_approach = True
-            else:
-                use_simple_approach = False
-            
-            update_data = {"customFields": []}
-            
-            for field_name, raw_field_value in custom_fields.items():
-                # Normalize complex object formats to simple strings first
-                field_value = self._normalize_field_value(raw_field_value)
-                
-                # Determine field type and construct proper object with actual ID
-                if use_simple_approach:
-                    # Fallback to simple $type approach when project ID is not available
-                    if field_name.lower() in ['state']:
-                        field_type = "StateIssueCustomField"
-                    elif field_name.lower() in ['priority', 'type']:
-                        field_type = "SingleEnumIssueCustomField"
-                    elif field_name.lower() in ['assignee', 'reporter']:
-                        field_type = "SingleUserIssueCustomField"
-                    elif field_name.lower() in ['estimation', 'spent time']:
-                        field_type = "PeriodIssueCustomField"
-                    else:
-                        field_type = "SingleEnumIssueCustomField"
-                    
-                    field_data = {
-                        "$type": field_type,
-                        "name": field_name,
-                        "value": field_value
-                    }
-                else:
-                    # Enhanced approach with proper YouTrack objects and actual IDs
-                    # Handle Estimation with proper PeriodValue format
-                    if field_name.lower() in ['estimation']:
-                        # Estimation REQUIRES PeriodValue format, not simple strings
-                        field_data = await self._create_period_field_object(field_name, field_value)
-                    elif field_name.lower() in ['state']:
-                        field_data = await self._create_state_field_object(project_id, field_name, field_value)
-                    elif field_name.lower() in ['priority', 'type']:
-                        field_data = await self._create_enum_field_object(project_id, field_name, field_value)
-                    elif field_name.lower() in ['assignee', 'reporter']:
-                        field_data = await self._create_user_field_object(field_name, field_value)
-                    elif field_name.lower() in ['spent time']:
-                        field_data = await self._create_period_field_object(field_name, field_value)
-                    else:
-                        # Default to enum for unknown fields
-                        field_data = await self._create_enum_field_object(project_id, field_name, field_value)
-                
-                if field_data:
-                    update_data["customFields"].append(field_data)
+
+            # Use the unified formatting method for consistent schema-based formatting
+            custom_fields_list = await self.format_custom_fields_for_api(
+                custom_fields=custom_fields,
+                issue_id=issue_id
+            )
+
+            update_data = {"customFields": custom_fields_list}
             
             logger.info("updating_custom_fields_for_issue_issue_id_using_pr", issue_id=issue_id)
             logger.info("update_payload_jsondumpsupdate_data_indent2")

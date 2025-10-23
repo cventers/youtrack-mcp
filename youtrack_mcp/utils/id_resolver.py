@@ -46,6 +46,16 @@ class IDResolver:
         self.client = client
         self.cache = cache_manager
 
+        # Initialize API clients if client is provided
+        if client:
+            from youtrack_mcp.api.projects import ProjectsClient
+            from youtrack_mcp.api.users import UsersClient
+            self.projects_api = ProjectsClient(client)
+            self.users_api = UsersClient(client)
+        else:
+            self.projects_api = None
+            self.users_api = None
+
         # Regex patterns for ID detection
         self.patterns = {
             "numeric_project": re.compile(r"^\d+-\d+$"),  # e.g., "63-13"
@@ -82,7 +92,10 @@ class IDResolver:
         logger.info("Resolving project ID via API", project_ref=project_ref)
         try:
             # Try to get project by ID/short name
-            project = await self.client.projects.get_project(project_ref)
+            if self.projects_api:
+                project = await self.projects_api.get_project(project_ref)
+            else:
+                raise ValueError("Projects API not initialized")
             if project:
                 internal_id = project.get("id")
                 # Cache the result
@@ -103,7 +116,10 @@ class IDResolver:
 
         # If direct lookup fails, try search
         try:
-            projects = await self.client.projects.get_projects(limit=100)
+            if self.projects_api:
+                projects = await self.projects_api.get_projects(limit=100)
+            else:
+                raise ValueError("Projects API not initialized")
             for project in projects:
                 if project.get("shortName") == project_ref or project.get("name") == project_ref:
                     internal_id = project.get("id")
@@ -148,7 +164,10 @@ class IDResolver:
         # Search for user
         logger.info("Resolving user ID via API", user_ref=user_ref)
         try:
-            users = await self.client.users.search_users(query=user_ref, limit=10)
+            if self.users_api:
+                users = await self.users_api.search_users(query=user_ref, limit=10)
+            else:
+                raise ValueError("Users API not initialized")
             for user in users:
                 if (
                     user.get("login") == user_ref
@@ -224,31 +243,40 @@ class IDResolver:
 
         # Warm project cache
         try:
-            projects = await self.client.projects.get_projects(limit=100)
-            for project in projects:
-                cache_key = f"project:{project['shortName']}"
-                await self.cache.set(
-                    cache_key,
-                    project["id"],
-                    ttl=self.TTL_CONFIG["projects"],
-                    namespace="id_resolution",
-                )
-                counts["projects"] += 1
-                # Also cache by name
-                if project.get("name"):
-                    cache_key = f"project:{project['name']}"
+            if self.projects_api:
+                projects = await self.projects_api.get_projects(limit=100)
+                for project in projects:
+                    cache_key = f"project:{project['shortName']}"
                     await self.cache.set(
                         cache_key,
                         project["id"],
                         ttl=self.TTL_CONFIG["projects"],
                         namespace="id_resolution",
                     )
+                    counts["projects"] += 1
+                    # Also cache by name
+                    if project.get("name"):
+                        cache_key = f"project:{project['name']}"
+                        await self.cache.set(
+                            cache_key,
+                            project["id"],
+                            ttl=self.TTL_CONFIG["projects"],
+                            namespace="id_resolution",
+                        )
         except Exception as e:
             logger.error("Failed to warm project cache", error=str(e))
 
         # Warm user cache (top active users)
         try:
-            users = await self.client.users.get_users(limit=50)
+            if self.users_api and hasattr(self.users_api, 'get_users'):
+                users = await self.users_api.get_users(limit=50)
+            else:
+                # Fallback to search if get_users not available
+                if self.users_api:
+                    users = await self.users_api.search_users(query="", limit=50)
+                else:
+                    logger.warning("Users API not initialized, skipping user cache warm-up")
+                    users = []
             for user in users:
                 cache_key = f"user:{user['login']}"
                 await self.cache.set(
