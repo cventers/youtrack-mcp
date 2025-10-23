@@ -342,7 +342,7 @@ class IssuesClient:
                         "$type": "User",
                         "login": field_value
                     }
-        elif bundle_type == "EnumBundle" or field_type == "enum":
+        elif bundle_type in ["EnumBundle", "FieldType"] or field_type == "enum":
             if is_multi_value:
                 custom_field["$type"] = "MultiEnumIssueCustomField"
                 # Multi-value fields need array of objects
