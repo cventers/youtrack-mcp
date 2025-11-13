@@ -276,7 +276,7 @@ class ProjectsTools:
         """Get project schema with custom fields and validation rules."""
         try:
             # Get custom fields schema
-            schemas = self.projects_api.get_all_custom_fields_schemas(project_id)
+            schemas = await self.projects_api.get_all_custom_fields_schemas(project_id)
 
             # Get basic custom fields list for backward compatibility
             fields = await self.projects_api.get_custom_fields(project_id)
