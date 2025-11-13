@@ -88,7 +88,7 @@ class BasicOperations:
         except Exception as e:
             logger.exception(f"Error searching issues with query: {query}")
             return {"error": str(e)}
-    def create_issue(
+    async def create_issue(
         self, project: str, summary: str, description: Optional[str] = None
     ) -> dict:
         """
@@ -123,7 +123,7 @@ class BasicOperations:
                 # Try to get the project ID from the short name (e.g., "DEMO")
                 try:
                     logger.info("looking_up_project_id_for_project", project=project)
-                    project_obj = self.projects_api.get_project_by_name(project)
+                    project_obj = await self.projects_api.get_project_by_name(project)
                     if project_obj:
                         logger.info(
                             f"Found project {project_obj.name} with ID {project_obj.id}"
@@ -138,7 +138,7 @@ class BasicOperations:
                             }
                         )
                 except Exception as e:
-                    logger.warning("error_finding_project_stre")
+                    logger.warning(f"Error finding project: {str(e)}", project=project, error=str(e))
                     return json.dumps(
                         {
                             "error": f"Error finding project: {str(e)}",
